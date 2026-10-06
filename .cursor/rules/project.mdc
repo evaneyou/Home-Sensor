@@ -1,0 +1,34 @@
+---
+description: Home Network Sensor project conventions
+globs:
+alwaysApply: true
+---
+
+# Home Network Sensor
+
+UXI-style home network monitoring: Pi sensors push staged test results to FastAPI + Postgres; React dashboard reads APIs only.
+
+## Architecture
+
+- Sensor → server (ingest); browser → dashboard → server (read). Sensor never talks to the dashboard.
+- Stack: FastAPI / Postgres / React+Vite+TS / TanStack Query / **Recharts**.
+- No Grafana in this product. No sensor agent in the dashboard-first slice.
+
+## Repo layout
+
+- `SPEC.md` — source of truth
+- `server/` — FastAPI app, models, migrations, seed, tests
+- `dashboard/` — Vite React UI
+- `docker-compose.yml` — db + server + dashboard
+
+## Conventions
+
+- Conventional commits: `docs:`, `feat:`, `test:`, `fix:`, `chore:`
+- Idempotent seed under `server` (stable IDs / wipe demo org)
+- Cookie auth: `admin` (write) / `viewer` (read-only UI)
+- Prefer thin APIs; rollups can be raw metrics until later phases
+- Charts: Recharts only for this slice
+
+## Out of scope unless asked
+
+Sensor agent, Wi-Fi/RF pages, webhooks, full enrollment ETag matrix, Playwright journeys, Grafana.
