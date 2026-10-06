@@ -27,7 +27,6 @@ from app.models import (  # noqa: E402
     SensorStatus,
     Test,
     TestKind,
-    TestResult,
 )
 from app.seed import _sensor_token  # noqa: E402
 
@@ -161,7 +160,3 @@ def test_healthz(client: TestClient):
     r = client.get("/api/v1/healthz")
     assert r.status_code == 200
     assert r.json()["status"] == "ok"
-
-
-# Silence unused import
-_ = TestResult
