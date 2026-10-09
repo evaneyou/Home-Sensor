@@ -57,7 +57,7 @@ export default function IssuesPage() {
                   <td>
                     <Link to={`/issues/${i.id}`}>{i.title}</Link>
                     <div className="muted" style={{ fontSize: "0.8rem" }}>
-                      {[i.sensor_slug, i.network_slug].filter(Boolean).join(" · ")}
+                      {[i.monitor_slug, i.network_slug].filter(Boolean).join(" · ")}
                     </div>
                   </td>
                   <td>{i.status}</td>

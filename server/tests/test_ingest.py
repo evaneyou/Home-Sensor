@@ -1,111 +1,16 @@
 from __future__ import annotations
 
-import os
 import uuid
-from collections.abc import Generator
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
-import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import text
 
-os.environ.setdefault(
-    "DATABASE_URL",
-    "postgresql+psycopg://hns:hns-dev-password@127.0.0.1:55432/hns",
-)
-os.environ.setdefault("SECRET_KEY", "test-secret")
-
-from app.auth import hash_password  # noqa: E402
-from app.db import get_db  # noqa: E402
-from app.main import app  # noqa: E402
-from app.models import (  # noqa: E402
-    Group,
-    Network,
-    NetworkKind,
-    Sensor,
-    SensorStatus,
-    Test,
-    TestKind,
-)
-from app.seed import _sensor_token  # noqa: E402
-
-
-@pytest.fixture(scope="session")
-def engine():
-    url = os.environ["DATABASE_URL"]
-    eng = create_engine(url, pool_pre_ping=True)
-    with eng.connect() as conn:
-        conn.execute(text("SELECT 1"))
-    yield eng
-
-
-@pytest.fixture
-def db(engine) -> Generator[Session, None, None]:
-    SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
-    session = SessionLocal()
-    suffix = uuid.uuid4().hex[:8]
-    group = Group(slug=f"test-home-{suffix}", name=f"Test Home {suffix}")
-    session.add(group)
-    session.flush()
-    sensor = Sensor(
-        group_id=group.id,
-        slug=f"pi-test-{suffix}",
-        name="Pi Test",
-        token_hash=hash_password(_sensor_token(f"pi-test-{suffix}")),
-        status=SensorStatus.online,
-    )
-    network = Network(
-        group_id=group.id,
-        slug="wan",
-        name="WAN",
-        kind=NetworkKind.wired,
-    )
-    session.add_all([sensor, network])
-    session.flush()
-    test = Test(
-        sensor_id=sensor.id,
-        network_id=network.id,
-        slug="http-cloudflare",
-        name="HTTP Cloudflare",
-        kind=TestKind.http,
-        target="https://1.1.1.1",
-    )
-    session.add(test)
-    session.commit()
-
-    # stash for cleanup / token
-    session.info["sensor_slug"] = sensor.slug
-    session.info["group_id"] = group.id
-
-    def _override():
-        try:
-            yield session
-        finally:
-            pass
-
-    app.dependency_overrides[get_db] = _override
-    yield session
-    app.dependency_overrides.clear()
-
-    # Cleanup only this fixture's rows (do not wipe demo seed)
-    session.execute(text("DELETE FROM test_results WHERE test_id IN (SELECT id FROM tests WHERE sensor_id IN (SELECT id FROM sensors WHERE group_id = :gid))"), {"gid": group.id})
-    session.execute(text("DELETE FROM tests WHERE sensor_id IN (SELECT id FROM sensors WHERE group_id = :gid)"), {"gid": group.id})
-    session.execute(text("DELETE FROM sensors WHERE group_id = :gid"), {"gid": group.id})
-    session.execute(text("DELETE FROM networks WHERE group_id = :gid"), {"gid": group.id})
-    session.execute(text("DELETE FROM groups WHERE id = :gid"), {"gid": group.id})
-    session.commit()
-    session.close()
-
-
-@pytest.fixture
-def client(db) -> TestClient:
-    return TestClient(app)
-
-
-@pytest.fixture
-def sensor_token(db) -> str:
-    return _sensor_token(db.info["sensor_slug"])
+from app.enrollment import new_token
+from app.main import app
+from app.models import Monitor, MonitorStatus
+from conftest import login
 
 
 def _payload(result_id: str = "res-1") -> dict:
@@ -130,11 +35,33 @@ def _payload(result_id: str = "res-1") -> dict:
     }
 
 
-def test_ingest_happy_path(client: TestClient, sensor_token: str):
+def _device_headers(name: str, key: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {key}", "X-Monitor-Name": quote(name, safe="")}
+
+
+def _token_headers(key: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {key}"}
+
+
+def _make_monitor(db, name: str) -> tuple[Monitor, str]:
+    token, hashed = new_token()
+    monitor = Monitor(
+        group_id=db.info["group_id"],
+        slug=f"m-{uuid.uuid4().hex[:8]}",
+        name=name,
+        token_hash=hashed,
+        status=MonitorStatus.unknown,
+    )
+    db.add(monitor)
+    db.commit()
+    return monitor, token
+
+
+def test_ingest_happy_path(client: TestClient, monitor_token: str):
     r = client.post(
         "/api/v1/ingest",
         json=_payload(f"happy-{uuid.uuid4().hex[:8]}"),
-        headers={"Authorization": f"Bearer {sensor_token}"},
+        headers=_device_headers("Pi Test", monitor_token),
     )
     assert r.status_code == 200, r.text
     body = r.json()
@@ -142,9 +69,9 @@ def test_ingest_happy_path(client: TestClient, sensor_token: str):
     assert body["duplicates"] == 0
 
 
-def test_ingest_duplicate(client: TestClient, sensor_token: str):
+def test_ingest_duplicate(client: TestClient, monitor_token: str):
     rid = f"dup-{uuid.uuid4().hex[:8]}"
-    headers = {"Authorization": f"Bearer {sensor_token}"}
+    headers = _device_headers("Pi Test", monitor_token)
     r1 = client.post("/api/v1/ingest", json=_payload(rid), headers=headers)
     assert r1.status_code == 200
     assert r1.json()["accepted"] == 1
@@ -160,3 +87,145 @@ def test_healthz(client: TestClient):
     r = client.get("/api/v1/healthz")
     assert r.status_code == 200
     assert r.json()["status"] == "ok"
+
+
+def _health_body(config_version: int = 0) -> dict:
+    return {
+        "hostname": "pi-test",
+        "agent_version": "0.1.0",
+        "uptime_seconds": 120,
+        "cpu_percent": 12.5,
+        "load_1": 0.4,
+        "mem_used_mb": 400,
+        "mem_total_mb": 1024,
+        "disk_used_mb": 2000,
+        "disk_total_mb": 8000,
+        "temp_c": 48.2,
+        "lan_ip": "10.0.0.50",
+        "config_version": config_version,
+    }
+
+
+def test_issued_token_and_optional_name_must_match(client: TestClient, db):
+    name = f"Living Room {uuid.uuid4().hex[:6]}"
+    monitor, token = _make_monitor(db, name)
+
+    by_token = client.post("/api/v1/monitors/health", headers=_token_headers(token), json=_health_body())
+    assert by_token.status_code == 200, by_token.text
+    assert by_token.json()["name"] == name
+
+    with_name = client.post("/api/v1/monitors/health", headers=_device_headers(name, token), json=_health_body())
+    assert with_name.status_code == 200, with_name.text
+
+    wrong_case = client.post(
+        "/api/v1/monitors/health", headers=_device_headers(name.lower(), token), json=_health_body()
+    )
+    assert wrong_case.status_code == 401
+
+    wrong_key = client.post("/api/v1/monitors/health", headers=_token_headers("a" * 43), json=_health_body())
+    assert wrong_key.status_code == 401
+
+    viewer = TestClient(app, base_url="https://testserver")
+    viewer_csrf = login(viewer, "viewer", "viewer-change-me")
+    assert viewer.delete(f"/api/v1/monitors/{monitor.id}", headers=viewer_csrf).status_code == 403
+
+    csrf = login(client)
+    assert client.delete(f"/api/v1/monitors/{monitor.id}").status_code == 403
+    assert client.delete(f"/api/v1/monitors/{monitor.id}", headers=csrf).status_code == 204
+    gone = client.post("/api/v1/monitors/health", headers=_token_headers(token), json=_health_body())
+    assert gone.status_code == 401
+
+
+def test_legacy_key_still_works(client: TestClient, monitor_token: str):
+    posted = client.post(
+        "/api/v1/monitors/health", headers=_device_headers("Pi Test", monitor_token), json=_health_body()
+    )
+    assert posted.status_code == 200, posted.text
+
+
+def test_health_assigns_iperf_and_web_services(client: TestClient, db):
+    login(client)
+    name = f"Internet {uuid.uuid4().hex[:6]}"
+    monitor, token = _make_monitor(db, name)
+    headers = _token_headers(token)
+    posted = client.post("/api/v1/monitors/health", headers=headers, json=_health_body())
+    assert posted.status_code == 200, posted.text
+    tests = posted.json()["tests"]
+    slugs = {item["slug"] for item in tests}
+    assert "iperf3" in slugs
+    assert "http-youtube" in slugs
+    assert "http-google" in slugs
+    assert "http-netflix" in slugs
+    assert "http-path" in slugs
+    assert "icmp-path" in slugs
+    assert "mtr-path" in slugs
+    assert "icmp-youtube" in slugs
+    assert "mtr-youtube" not in slugs
+    iperf = next(item for item in tests if item["slug"] == "iperf3")
+    assert iperf["kind"] == "iperf3"
+    assert iperf["target"] == "10.7.0.1"
+    assert iperf["network_slug"] == "wan"
+    stored_iperf = db.scalar(text("SELECT iperf_interval_seconds FROM internet_service_settings WHERE id = 1"))
+    assert iperf["interval_seconds"] == max(stored_iperf, 300)
+    http_path = next(item for item in tests if item["slug"] == "http-path")
+    assert http_path["kind"] == "http"
+    assert http_path["target"] == "http://10.7.0.1:8847/api/v1/healthz"
+    icmp = next(item for item in tests if item["slug"] == "icmp-path")
+    assert icmp["kind"] == "ping"
+    assert icmp["target"] == "10.7.0.1"
+    mtr = next(item for item in tests if item["slug"] == "mtr-path")
+    assert mtr["kind"] == "mtr"
+    assert mtr["target"] == "10.7.0.1"
+    web = next(item for item in tests if item["slug"] == "http-youtube")
+    assert web["target"] == "https://www.youtube.com/generate_204"
+    stored = db.scalar(text("SELECT interval_seconds FROM web_service_settings WHERE key = 'youtube'"))
+    assert web["interval_seconds"] == stored
+    identified = client.post(
+        "/api/v1/monitors/health",
+        headers=headers,
+        json={**_health_body(), "public_ip": "1.1.1.1", "isp": "Example Fiber"},
+    )
+    assert identified.status_code == 200, identified.text
+    device = client.get(f"/api/v1/monitors/{monitor.id}/device")
+    assert device.status_code == 200, device.text
+    assert device.json()["public_ip"] == "1.1.1.1"
+    assert device.json()["isp"] == "Example Fiber"
+    client.post("/api/v1/monitors/health", headers=headers, json={**_health_body(), "public_ip": "10.7.0.2"})
+    kept = client.get(f"/api/v1/monitors/{monitor.id}/device")
+    assert kept.json()["public_ip"] == "1.1.1.1"
+    assert kept.json()["isp"] == "Example Fiber"
+    again = client.post("/api/v1/monitors/health", headers=headers, json=_health_body())
+    assert again.status_code == 200, again.text
+    assert len(again.json()["tests"]) == len(tests)
+
+
+def test_admin_can_queue_a_probe_restart(client: TestClient, db):
+    name = f"Restart {uuid.uuid4().hex[:6]}"
+    monitor, token = _make_monitor(db, name)
+    headers = _token_headers(token)
+
+    waiting = client.get("/api/v1/monitors/command", headers=headers)
+    assert waiting.status_code == 200, waiting.text
+    assert waiting.json()["restart"] is False
+
+    viewer = TestClient(app, base_url="https://testserver")
+    login(viewer, "viewer", "viewer-change-me")
+    assert viewer.post(f"/api/v1/monitors/{monitor.id}/restart").status_code == 403
+
+    login(client)
+    queued = client.post(f"/api/v1/monitors/{monitor.id}/restart")
+    assert queued.status_code == 200, queued.text
+    assert queued.json()["restart_requested_at"]
+
+    health = client.post("/api/v1/monitors/health", headers=headers, json=_health_body())
+    assert health.status_code == 200, health.text
+    assert health.json()["restart"] is True
+    listed = client.get("/api/v1/monitors")
+    row = next(item for item in listed.json() if item["id"] == str(monitor.id))
+    assert row["restart_requested_at"]
+
+    acked = client.post("/api/v1/monitors/command", headers=headers)
+    assert acked.status_code == 200, acked.text
+    assert acked.json()["restart"] is False
+    cleared = client.get("/api/v1/monitors/command", headers=headers)
+    assert cleared.json()["restart"] is False

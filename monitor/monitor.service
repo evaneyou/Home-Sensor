@@ -1,0 +1,17 @@
+[Unit]
+Description=Home network monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=monitor
+Group=monitor
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW
+ExecStart=/usr/bin/python3 /opt/monitor/agent.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

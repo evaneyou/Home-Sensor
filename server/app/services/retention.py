@@ -1,0 +1,246 @@
+"""Keep two years of measurements.
+
+Raw samples stay for 6 months. From 6 to 12 months they are averaged into one
+row per hour. From 12 months to 2 years they are averaged into one row per day.
+Anything older than 2 years is deleted.
+"""
+
+from __future__ import annotations
+
+import calendar
+import logging
+import uuid
+from collections import defaultdict
+from datetime import datetime, timezone
+from typing import Any, Optional
+
+from sqlalchemy import delete, select
+from sqlalchemy.orm import Session
+
+from app.db import SessionLocal
+from app.models import ResultStatus, TestResult, WifiObservation
+
+log = logging.getLogger(__name__)
+
+_STATUS_RANK = {ResultStatus.ok: 0, ResultStatus.degraded: 1, ResultStatus.fail: 2}
+_METRIC_KEYS = ("rtt_ms", "loss_pct", "total_ms", "up_mbps", "down_mbps")
+
+
+def run_retention() -> None:
+    db = SessionLocal()
+    try:
+        apply_retention(db, datetime.now(timezone.utc))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def apply_retention(db: Session, now: datetime) -> dict[str, int]:
+    """Roll up and delete measurement rows.
+
+    ``now - 6 months`` through ``now`` stays raw.
+    ``now - 12 months`` through ``now - 6 months`` becomes one row per hour.
+    ``now - 24 months`` through ``now - 12 months`` becomes one row per day.
+    Older than 24 months is deleted.
+    """
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    hourly_before = _subtract_months(now, 6)
+    daily_before = _subtract_months(now, 12)
+    delete_before = _subtract_months(now, 24)
+
+    deleted_results = db.execute(
+        delete(TestResult).where(TestResult.started_at < delete_before)
+    ).rowcount
+    deleted_wifi = db.execute(
+        delete(WifiObservation).where(WifiObservation.scanned_at < delete_before)
+    ).rowcount
+
+    daily_results = _rollup_results(db, delete_before, daily_before, "day")
+    hourly_results = _rollup_results(db, daily_before, hourly_before, "hour")
+    daily_wifi = _rollup_wifi(db, delete_before, daily_before, "day")
+    hourly_wifi = _rollup_wifi(db, daily_before, hourly_before, "hour")
+    summary = {
+        "deleted_results": deleted_results or 0,
+        "deleted_wifi": deleted_wifi or 0,
+        "daily_results": daily_results,
+        "hourly_results": hourly_results,
+        "daily_wifi": daily_wifi,
+        "hourly_wifi": hourly_wifi,
+    }
+    log.info("measurement retention %s", summary)
+    return summary
+
+
+def _rollup_results(db: Session, start: datetime, end: datetime, resolution: str) -> int:
+    rows = db.scalars(
+        select(TestResult).where(TestResult.started_at >= start, TestResult.started_at < end)
+    ).all()
+    groups: dict[tuple, list[TestResult]] = defaultdict(list)
+    for row in rows:
+        groups[(row.test_id, _bucket(row.started_at, resolution))].append(row)
+    rolled = 0
+    for (test_id, bucket), members in groups.items():
+        if len(members) < 2:
+            continue
+        rolled += 1
+        averaged = _average_result(members, bucket)
+        finished_at = max(m.finished_at for m in members)
+        db.execute(delete(TestResult).where(TestResult.id.in_([m.id for m in members])))
+        db.add(
+            TestResult(
+                external_id=f"rollup-{uuid.uuid4().hex}",
+                test_id=test_id,
+                started_at=bucket,
+                finished_at=finished_at,
+                status=averaged["status"],
+                stages=averaged["stages"],
+                metrics=averaged["metrics"],
+                message="Daily average" if resolution == "day" else "Hourly average",
+            )
+        )
+    return rolled
+
+
+def _rollup_wifi(db: Session, start: datetime, end: datetime, resolution: str) -> int:
+    rows = db.scalars(
+        select(WifiObservation).where(
+            WifiObservation.scanned_at >= start, WifiObservation.scanned_at < end
+        )
+    ).all()
+    groups: dict[tuple, list[WifiObservation]] = defaultdict(list)
+    for row in rows:
+        groups[(row.monitor_id, row.bssid, _bucket(row.scanned_at, resolution))].append(row)
+    rolled = 0
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        rolled += 1
+        latest = max(members, key=lambda row: row.scanned_at)
+        bucket = _bucket(latest.scanned_at, resolution)
+        averaged = WifiObservation(
+            monitor_id=latest.monitor_id,
+            scanned_at=bucket,
+            ssid=latest.ssid,
+            bssid=latest.bssid,
+            vendor=latest.vendor,
+            band=latest.band,
+            channel=latest.channel,
+            channel_width=latest.channel_width,
+            rssi_dbm=_mean(m.rssi_dbm for m in members),
+            noise_dbm=_mean(m.noise_dbm for m in members),
+            security=latest.security,
+            phy=latest.phy,
+            max_link_rate_mbps=round(_mean(m.max_link_rate_mbps for m in members)),
+        )
+        db.execute(delete(WifiObservation).where(WifiObservation.id.in_([m.id for m in members])))
+        db.add(averaged)
+    return rolled
+
+
+def _average_result(rows: list[TestResult], bucket: datetime) -> dict[str, Any]:
+    status = max(rows, key=lambda row: _STATUS_RANK[row.status]).status
+    metrics: dict[str, Any] = {}
+    for key in _METRIC_KEYS:
+        values = [row.metrics.get(key) for row in rows if isinstance(row.metrics, dict)]
+        numbers = [v for v in values if isinstance(v, (int, float))]
+        if numbers:
+            metrics[key] = round(sum(numbers) / len(numbers), 2)
+    hops = _average_hops(rows)
+    if hops:
+        metrics["hops"] = hops
+    return {"status": status, "stages": _average_stages(rows), "metrics": metrics, "started_at": bucket}
+
+
+def _average_hops(rows: list[TestResult]) -> list[dict[str, Any]]:
+    grouped: dict[int, list[dict]] = defaultdict(list)
+    hosts: dict[int, str] = {}
+    for row in rows:
+        for hop in (row.metrics or {}).get("hops") or []:
+            if not isinstance(hop, dict) or not isinstance(hop.get("hop"), int):
+                continue
+            grouped[hop["hop"]].append(hop)
+            if isinstance(hop.get("host"), str):
+                hosts[hop["hop"]] = hop["host"]
+    averaged = []
+    for number in sorted(grouped):
+        items = grouped[number]
+
+        def mean(key: str) -> float:
+            nums = [item[key] for item in items if isinstance(item.get(key), (int, float))]
+            if not nums:
+                return 0.0
+            return round(sum(nums) / len(nums), 2)
+
+        averaged.append(
+            {
+                "hop": number,
+                "host": hosts.get(number, ""),
+                "loss_pct": mean("loss_pct"),
+                "best_ms": mean("best_ms"),
+                "avg_ms": mean("avg_ms"),
+                "worst_ms": mean("worst_ms"),
+            }
+        )
+    return averaged
+
+
+def _average_stages(rows: list[TestResult]) -> list[dict[str, Any]]:
+    order: list[str] = []
+    durations: dict[str, list[float]] = defaultdict(list)
+    statuses: dict[str, list[str]] = defaultdict(list)
+    for row in rows:
+        for stage in row.stages or []:
+            name = stage.get("name")
+            if not name:
+                continue
+            if name not in durations:
+                order.append(name)
+            if isinstance(stage.get("duration_ms"), (int, float)):
+                durations[name].append(stage["duration_ms"])
+            if stage.get("status"):
+                statuses[name].append(stage["status"])
+    averaged = []
+    for name in order:
+        item: dict[str, Any] = {"name": name, "duration_ms": round(_mean(durations[name]), 1)}
+        if statuses[name]:
+            item["status"] = max(statuses[name], key=lambda s: {"ok": 0, "degraded": 1, "fail": 2}.get(s, 0))
+        averaged.append(item)
+    return averaged
+
+
+def _subtract_months(moment: datetime, months: int) -> datetime:
+    year = moment.year
+    month = moment.month - months
+    while month <= 0:
+        month += 12
+        year -= 1
+    day = min(moment.day, calendar.monthrange(year, month)[1])
+    return moment.replace(year=year, month=month, day=day)
+
+
+def _bucket(moment: datetime, resolution: str) -> datetime:
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    else:
+        moment = moment.astimezone(timezone.utc)
+    if resolution == "day":
+        return moment.replace(hour=0, minute=0, second=0, microsecond=0)
+    return moment.replace(minute=0, second=0, microsecond=0)
+
+
+def _mean(values) -> float:
+    nums = [v for v in values if isinstance(v, (int, float))]
+    if not nums:
+        return 0.0
+    return sum(nums) / len(nums)
+
+
+def oldest_kept(now: Optional[datetime] = None) -> datetime:
+    moment = now or datetime.now(timezone.utc)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return _subtract_months(moment, 24)

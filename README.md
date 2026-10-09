@@ -1,8 +1,8 @@
 # Home Network Sensor
 
-UXI-style home network monitoring. Sensors on a Raspberry Pi (or Linux PC) run staged connectivity tests and push results to a FastAPI + Postgres server. The React dashboard reads those APIs — it never talks to the Pi.
+UXI-style home network monitoring. Remote agents on a Raspberry Pi (or Linux PC) run staged connectivity tests and push results to a FastAPI + Postgres server. The React dashboard reads those APIs — it never talks to the Pi.
 
-This repo ships the **dashboard-first slice**: thin server, idempotent dummy seed (~30 days of synthetic results), and an ops UI (Overview matrix, Sensor/Test detail with stage waterfall, Issues). The real sensor agent comes later.
+This repo ships the dashboard, the server, and a Pi package in `monitor/`. The package enrolls a device and posts its health. Staged tests on the Pi come later.
 
 ## Install on your PC (recommended)
 
@@ -115,7 +115,7 @@ docker-compose.yml      db + server + dashboard
 ## What’s next
 
 - Phase 1: enrollment / config ETag, issue engine hardening
-- Phase 2: Linux sensor agent on the Pi
+- Phase 2: Linux remote agent on the Pi
 - Phase 3: wireless / RF pages
 - Phase 4: same Compose stack on a small VPS
 
