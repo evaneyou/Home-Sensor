@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Home Network Sensor central server"
 readme = "README.md"
 license = "MIT"
-authors = [{ name = "Home Network Sensor contributors" }]
+authors = [{ name = "Evan You" }]
 requires-python = ">=3.12"
 classifiers = [
   "Development Status :: 3 - Alpha",
