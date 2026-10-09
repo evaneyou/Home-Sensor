@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import hashlib
 import math
 import random
@@ -315,17 +316,17 @@ def _seed_wifi_scans(monitors: list[Monitor]) -> list[WifiObservation]:
     return rows
 
 
-def seed(db: Session) -> None:
+def ensure_users(db: Session) -> None:
+    """Create or update the bootstrap admin and viewer accounts from the environment."""
     settings = get_settings()
-    wipe_demo(db)
-
-    # Users (upsert by username)
+    # Upsert by username
     for uid, username, password, role in [
         (IDS["admin"], settings.bootstrap_admin_username, settings.bootstrap_admin_password, UserRole.admin),
         (IDS["viewer"], settings.bootstrap_viewer_username, settings.bootstrap_viewer_password, UserRole.viewer),
     ]:
-        existing = db.scalar(select(User).where(User.username == username))
+        existing = db.scalar(select(User).where(User.username == username)) or db.get(User, uid)
         if existing:
+            existing.username = username
             existing.password_hash = hash_password(password)
             existing.role = role
             existing.is_active = True
@@ -338,6 +339,13 @@ def seed(db: Session) -> None:
                     role=role,
                 )
             )
+
+
+def seed(db: Session) -> None:
+    settings = get_settings()
+    wipe_demo(db)
+
+    ensure_users(db)
 
     group = Group(id=IDS["group"], slug=DEMO_GROUP_SLUG, name="Demo Home")
     db.add(group)
@@ -579,12 +587,37 @@ def seed(db: Session) -> None:
     print(f"Monitor tokens: monitor-token-<slug> e.g. {_monitor_token('pi-living-room')}")
 
 
+DEFAULT_PASSWORDS = {"admin-change-me", "viewer-change-me"}
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Seed the database.")
+    parser.add_argument(
+        "--users-only",
+        action="store_true",
+        help="Create only the bootstrap admin and viewer accounts, with no demo data. Use this in production.",
+    )
+    args = parser.parse_args()
+
+    if args.users_only:
+        settings = get_settings()
+        if {settings.bootstrap_admin_password, settings.bootstrap_viewer_password} & DEFAULT_PASSWORDS:
+            raise SystemExit(
+                "Refusing to create accounts with the default passwords. "
+                "Set BOOTSTRAP_ADMIN_PASSWORD and BOOTSTRAP_VIEWER_PASSWORD in .env first."
+            )
+
     # Ensure tables exist if migrations not run (dev convenience)
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        seed(db)
+        if args.users_only:
+            ensure_users(db)
+            db.commit()
+            print(f"Created accounts: {get_settings().bootstrap_admin_username} (admin), "
+                  f"{get_settings().bootstrap_viewer_username} (viewer).")
+        else:
+            seed(db)
     finally:
         db.close()
 

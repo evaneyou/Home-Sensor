@@ -33,5 +33,8 @@ expose any part of this stack beyond your own machine:
 - Keep a copy of the agent API's `backup-key.pem` off the server (see [`server/README.md`](./server/README.md)).
 - Restrict the WireGuard UDP port (`51820`) and the agent API port (`8848`) to the networks that need them.
 
+For a server deployment follow [`docs/deploy-oracle.md`](./docs/deploy-oracle.md); it uses the
+production overlay, which closes the database, API and dashboard ports and serves HTTPS.
+
 The demo seed creates sample data and well-known bootstrap accounts. Do not run it against a
-production database.
+production database. On a server use `python -m app.seed --users-only`.

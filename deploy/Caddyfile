@@ -1,0 +1,22 @@
+# Caddy obtains and renews a Let's Encrypt certificate for $DOMAIN automatically.
+# The DNS A record for $DOMAIN must point at this server, and ports 80 and 443 must be open.
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	# API requests go to FastAPI. Everything else is the dashboard.
+	@api path /api/*
+	handle @api {
+		reverse_proxy server:8847
+	}
+
+	handle {
+		reverse_proxy dashboard:3847
+	}
+}

@@ -19,6 +19,10 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
 - `monitor/README.md` with Pi agent install and enrollment steps.
 - `.editorconfig` and `.gitattributes` (shell scripts always use LF line endings).
 
+- Production deployment: `docker-compose.prod.yml` (Caddy with automatic HTTPS, internal ports closed),
+  `deploy/Caddyfile`, `scripts/backup.sh`, and `docs/deploy-oracle.md`.
+- `python -m app.seed --users-only` creates only the admin and viewer accounts, and refuses default passwords.
+
 ### Changed
 
 - Rewrote the root `README.md` and replaced the Vite template `dashboard/README.md`.
