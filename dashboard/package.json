@@ -2,7 +2,7 @@
   "name": "hns-dashboard",
   "private": true,
   "version": "0.1.0",
-  "description": "Dashboard for Home Network Sensor",
+  "description": "Dashboard for HomeNetWatch",
   "license": "MIT",
   "repository": {
     "type": "git",

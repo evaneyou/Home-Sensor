@@ -1,7 +1,7 @@
 [project]
 name = "hns-server"
 version = "0.1.0"
-description = "Home Network Sensor central server"
+description = "HomeNetWatch central server"
 readme = "README.md"
 license = "MIT"
 authors = [{ name = "Evan You" }]

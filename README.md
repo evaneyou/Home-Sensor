@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="dashboard/public/homenetwatch.png" alt="Home Network Sensor" width="360" />
+  <img src="dashboard/public/homenetwatch.png" alt="HomeNetWatch" width="360" />
 </p>
 
-<h1 align="center">Home Network Sensor</h1>
+<h1 align="center">HomeNetWatch</h1>
 
 <p align="center">
   Monitor the wired and wireless performance of your home network with a Raspberry Pi,<br />

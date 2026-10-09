@@ -1,6 +1,6 @@
 # Dashboard
 
-React + TypeScript single-page app for Home Network Sensor. It reads the server's REST API and
+React + TypeScript single-page app for HomeNetWatch. It reads the server's REST API and
 never talks to a Pi directly.
 
 ## Stack

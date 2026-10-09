@@ -56,7 +56,7 @@ async def _lifespan(_app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="Home Network Sensor", version=__version__, lifespan=_lifespan)
+    app = FastAPI(title="HomeNetWatch", version=__version__, lifespan=_lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,

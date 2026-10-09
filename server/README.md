@@ -1,6 +1,6 @@
 # Server
 
-FastAPI central server for Home Network Sensor (package `hns-server`). It stores results in
+FastAPI central server for HomeNetWatch (package `hns-server`). It stores results in
 Postgres, runs enrollment and the WireGuard tunnel hub, and serves the API the dashboard reads.
 The interactive API docs are at `/docs` when the server is running.
 

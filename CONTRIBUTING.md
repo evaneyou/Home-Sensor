@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in Home Network Sensor. Bug reports, ideas, documentation fixes and pull
+Thanks for your interest in HomeNetWatch. Bug reports, ideas, documentation fixes and pull
 requests are all welcome.
 
 By taking part you agree to follow the [Code of Conduct](./CODE_OF_CONDUCT.md). Report security

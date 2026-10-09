@@ -23,7 +23,7 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
 
 - Rewrote the root `README.md` and replaced the Vite template `dashboard/README.md`.
 - The API now reports the installed package version instead of a hard-coded string, and its
-  title is "Home Network Sensor".
+  title is "HomeNetWatch".
 - Added package metadata (license, URLs, classifiers) to `server/pyproject.toml` and `dashboard/package.json`.
 - Corrected `SPEC.md`: iperf3 runs against the server over the tunnel, not a public host.
 
