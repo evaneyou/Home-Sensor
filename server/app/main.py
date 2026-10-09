@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
+from importlib.metadata import PackageNotFoundError, version
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +12,11 @@ from app.api.routes import router
 from app.config import get_settings
 
 log = logging.getLogger(__name__)
+
+try:
+    __version__ = version("hns-server")
+except PackageNotFoundError:  # running from a source tree that was never installed
+    __version__ = "0.0.0+unknown"
 
 
 @asynccontextmanager
@@ -50,7 +56,7 @@ async def _lifespan(_app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="Home Network Monitor", version="0.1.0", lifespan=_lifespan)
+    app = FastAPI(title="Home Network Sensor", version=__version__, lifespan=_lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,

@@ -1,45 +1,70 @@
-# Home Network Sensor
+<p align="center">
+  <img src="dashboard/public/homenetwatch.png" alt="Home Network Sensor" width="360" />
+</p>
 
-UXI-style home network monitoring. Remote agents on a Raspberry Pi (or Linux PC) run staged connectivity tests and push results to a FastAPI + Postgres server. The React dashboard reads those APIs — it never talks to the Pi.
+<h1 align="center">Home Network Sensor</h1>
 
-This repo ships the dashboard, the server, and a Pi package in `monitor/`. The package enrolls a device and posts its health. Staged tests on the Pi come later.
+<p align="center">
+  Monitor the wired and wireless performance of your home network with a Raspberry Pi,<br />
+  in the style of Aruba UXI and Ubiquiti WiFiman.
+</p>
 
-## Install on your PC (recommended)
+<p align="center">
+  <a href="https://github.com/evaneyou/Home-Sensor/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/evaneyou/Home-Sensor/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
+  <img alt="Version" src="https://img.shields.io/badge/version-0.1.0-informational" />
+  <img alt="Status: alpha" src="https://img.shields.io/badge/status-alpha-orange" />
+</p>
 
-Cloud agent links to `127.0.0.1` only work inside that VM. To use the app in your normal browser, run Compose **locally**.
+Small remote agents on a Raspberry Pi (or any Linux PC) run staged connectivity tests from inside
+your home and push the results to a central server. A web dashboard shows what is healthy, what is
+degraded, and at which stage a problem starts: DNS, TCP, TLS, or the server's first byte.
 
-### 1. Install Docker
+## Features
 
-- **macOS / Windows:** [Docker Desktop](https://docs.docker.com/get-docker/) — install, start it, wait until it says running.
-- **Ubuntu/Debian:**
+- **Staged tests.** HTTP checks broken into DNS, TCP, TLS and time-to-first-byte stages, plus ICMP
+  ping, MTR path traces, and iperf3 throughput to the server.
+- **Wired and wireless views.** Test over Ethernet and Wi-Fi separately and compare them.
+- **Health at a glance.** Green, amber and red status for every remote agent and network, with an
+  issue list that records the stage where each failure began.
+- **Internet and web-service checks.** Built-in checks against popular services, plus your own
+  HTTP targets.
+- **Wi-Fi scans.** Nearby networks observed by the agent, with history.
+- **Secure enrollment.** Agents check in with a signed request, pin the server's TLS key, wait for
+  admin approval, and then receive a WireGuard tunnel to the server.
+- **Retention built in.** Raw results for 6 months, hourly averages up to 12 months, daily averages
+  up to 2 years.
+- **Two roles.** `admin` can change settings and approve devices; `viewer` is read-only.
 
-```bash
-sudo apt-get update
-sudo apt-get install -y docker.io docker-compose-v2
-sudo usermod -aG docker "$USER"   # then log out/in
-sudo systemctl enable --now docker
+## How it works
+
+```
+Remote agent ──pull config / push results──▶ Server ◀──read APIs── Dashboard ◀── Browser
+ (Raspberry Pi)                          (FastAPI + Postgres)        (React)
 ```
 
-Confirm: `docker compose version` and `docker info`.
+The Pi stays on your LAN and only makes outbound connections. The dashboard talks to the server
+and never to the Pi. See [`SPEC.md`](./SPEC.md) for the data model, API surface and phase plan.
 
-### 2. Get this repo
+| Component | Directory | Stack |
+|-----------|-----------|-------|
+| Server | [`server/`](./server) | FastAPI, SQLAlchemy, Alembic, Postgres 16 |
+| Dashboard | [`dashboard/`](./dashboard) | React 19, Vite, TypeScript, TanStack Query, Recharts, Leaflet |
+| Remote agent | [`monitor/`](./monitor) | Python 3 standard library, systemd |
+| Tunnel hub | [`wireguard/`](./wireguard) | WireGuard container that the agents connect to |
 
-Create a real Git repo from the New Project “Create repo” pill if you have not yet, then clone and check out:
+## Quick start
+
+You need [Docker](https://docs.docker.com/get-docker/) with Compose v2.
 
 ```bash
-git clone <your-repo-url>
-cd <repo>
-git checkout cursor/dashboard-first-slice-7ea9
-```
-
-### 3. Start + seed
-
-```bash
-chmod +x scripts/local-up.sh
+git clone https://github.com/evaneyou/Home-Sensor.git
+cd Home-Sensor
 ./scripts/local-up.sh
 ```
 
-Or manually:
+The script copies `.env.example` to `.env`, starts the stack, waits for the API, and loads demo data.
+To do the same by hand:
 
 ```bash
 cp .env.example .env
@@ -47,76 +72,124 @@ docker compose up --build -d
 docker compose exec server python -m app.seed
 ```
 
-Open **http://127.0.0.1:3847** → login `admin` / `admin-change-me`.
-
-## Quick start (already have Docker)
-
-```bash
-cp .env.example .env
-docker compose up --build -d
-# wait for health, then seed
-docker compose exec server python -m app.seed
-```
-
-Open the dashboard: [http://127.0.0.1:3847](http://127.0.0.1:3847)
-
-API health: [http://127.0.0.1:8847/api/v1/healthz](http://127.0.0.1:8847/api/v1/healthz)
-
-### Bootstrap login
+Open the dashboard at <http://127.0.0.1:3847>.
 
 | Role | Username | Password |
 |------|----------|----------|
 | Admin | `admin` | `admin-change-me` |
 | Viewer | `viewer` | `viewer-change-me` |
 
-Change these via env (`BOOTSTRAP_ADMIN_PASSWORD`, `BOOTSTRAP_VIEWER_PASSWORD`) before any real deployment.
+> [!WARNING]
+> These are development defaults. Change every secret in `.env` before you expose the stack to
+> anything beyond your own machine. See [SECURITY.md](./SECURITY.md).
 
-## Ports
+### Ports
 
-| Service | Host port |
-|---------|-----------|
-| Dashboard (Vite) | `3847` |
-| API (FastAPI) | `8847` |
-| Postgres | `55432` |
+| Service | Host port | Notes |
+|---------|-----------|-------|
+| Dashboard | `3847` | Web UI |
+| API | `8847` | `GET /api/v1/healthz` for liveness |
+| Agent API | `8848` | HTTPS, agent enrollment only |
+| WireGuard | `51820/udp` | Agent tunnels |
+| Postgres | `55432` | Development access only |
 
-## Local development (without rebuilding images)
+## Add a Raspberry Pi
+
+1. In the dashboard open **Settings → Remote Agent Onboarding** and add a device.
+2. Copy the agent package to the Pi and install it. Full steps are in
+   [`monitor/README.md`](./monitor/README.md).
+3. Open the agent's setup page from a PC on the same LAN and enter the server address, device
+   name and key.
+
+## Configuration
+
+Settings are read from `.env`. Copy [`.env.example`](./.env.example) and edit it.
+
+| Variable | Purpose |
+|----------|---------|
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Database credentials |
+| `DATABASE_URL` | SQLAlchemy URL used by the server |
+| `SECRET_KEY` | Signs session cookies. Use a long random value |
+| `CORS_ORIGINS` | Comma-separated dashboard origins allowed to call the API |
+| `COOKIE_SECURE`, `COOKIE_SAMESITE` | Cookie flags. Set `COOKIE_SECURE=true` behind HTTPS |
+| `BOOTSTRAP_ADMIN_USERNAME`, `BOOTSTRAP_ADMIN_PASSWORD` | Admin account created by the seed |
+| `BOOTSTRAP_VIEWER_USERNAME`, `BOOTSTRAP_VIEWER_PASSWORD` | Viewer account created by the seed |
+| `WIREGUARD_ENDPOINT` | `host:port` that agents use to reach the WireGuard hub. Set it to an address your Pis can reach |
+| `VITE_API_BASE_URL` | API address the dashboard calls |
+
+## Development
 
 ```bash
-# DB only
-docker compose up -d db
+docker compose up -d db                       # Postgres only
 
-# Server
-cd server && uv sync && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8847
+cd server
+uv sync --extra dev
+uv run alembic upgrade head
+uv run python -m app.seed
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8847
 
-# Seed
-cd server && uv run python -m app.seed
-
-# Dashboard
-cd dashboard && npm install && npm run dev -- --host 0.0.0.0 --port 3847
+cd ../dashboard
+npm ci
+npm run dev
 ```
 
-## Tests
+### Tests
 
 ```bash
-cd server && uv run pytest -q
+cd server && uv run pytest -q          # needs the database above, migrated and seeded
+./scripts/test-server.sh               # or run them in a container against a separate hns_test database
+cd dashboard && npm run build          # type-check and production build
 ```
 
-Ingest happy-path and duplicate-id cases are covered at minimum.
+CI runs the same checks on every push and pull request. See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-## Layout
+## Repository layout
 
 ```
-SPEC.md                 Product / architecture source of truth
-server/                 FastAPI + Alembic + seed + pytest
-dashboard/              React + Vite + TS + Recharts
-docker-compose.yml      db + server + dashboard
+server/        FastAPI app, Alembic migrations, seed data, tests
+dashboard/     React + Vite + TypeScript UI
+monitor/       Raspberry Pi agent package (setup page, health, checks, installer)
+wireguard/     WireGuard hub container
+scripts/       Local helpers (bring-up, server tests, version bump)
+SPEC.md        Architecture, API and phase plan
+CHANGELOG.md   Release history
+VERSION        Current project version
 ```
 
-## What’s next
+## Roadmap
 
-- Phase 1: enrollment / config ETag, issue engine hardening
-- Phase 2: Linux remote agent on the Pi
-- Phase 3: wireless / RF pages
-- Phase 4: same Compose stack on a small VPS
+| Phase | Scope | Status |
+|-------|-------|--------|
+| 0 | Dashboard-first slice: server, seed, core UI | Done |
+| 1 | Server hardening: enrollment, config ETag, issue engine | In progress |
+| 2 | Pi agent: enrollment, device health, HTTP, ping, MTR, iperf3 | In progress |
+| 3 | Wireless and RF: spectrum, channel congestion, roaming | Planned |
+| 4 | Cloud deployment of the same Compose stack with TLS | Planned |
 
-See [SPEC.md](./SPEC.md) for the full phase map.
+Details and out-of-scope items are in [`SPEC.md`](./SPEC.md).
+
+## Third-party services
+
+The dashboard and agents contact a few public services. Review these before you deploy. Path and
+throughput tests go to your own server over the WireGuard tunnel.
+
+- **Map tiles:** Esri ArcGIS basemap tiles, loaded by your browser. Respect Esri's attribution and terms.
+- **Location search:** the dashboard sends location queries to [Photon](https://photon.komoot.io/) (OpenStreetMap data).
+- **Internet checks:** agents request well-known sites such as Google, YouTube, Microsoft, Zoom and
+  Netflix to measure reachability. Edit the list in `server/app/internet_tests.py`.
+
+## Versioning
+
+The project follows [Semantic Versioning](https://semver.org/) and is pre-1.0, so minor releases may
+include breaking changes. The version is in [`VERSION`](./VERSION) and history is in
+[`CHANGELOG.md`](./CHANGELOG.md). The Pi agent carries its own version, reported to the server.
+
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) and the
+[Code of Conduct](./CODE_OF_CONDUCT.md). Report vulnerabilities privately as described in
+[SECURITY.md](./SECURITY.md).
+
+## License
+
+Released under the [MIT License](./LICENSE).

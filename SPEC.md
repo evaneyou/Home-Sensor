@@ -77,7 +77,7 @@ Loading / empty states required. Dark/light theme when cheap. Viewer role hides 
 |---|---|
 | **0 — Dashboard-first (this repo slice)** | Thin server + seed + core UI on Compose. No Pi required. |
 | **1 — Server hardening** | Full enrollment, config ETag, auth polish, issue engine |
-| **2 — Remote agent** | Pi package: LAN setup page, enroll, device health, HTTP, ICMP, and MTR against the server at 10.7.0.1, iperf3 against Hurricane Electric, plus web-service HTTP checks. Other staged tests and the offline spool come later |
+| **2 — Remote agent** | Pi package: LAN setup page, enroll, device health, HTTP, ICMP, MTR, and iperf3 against the server at 10.7.0.1, plus web-service HTTP checks. Other staged tests and the offline spool come later |
 | **3 — Wireless / RF** | WiFiman-style spectrum, channel congestion, roam markers (full wireless later) |
 | **4 — Cloud** | Same Compose on a small VPS (Hetzner CX / DO droplet) + TLS |
 

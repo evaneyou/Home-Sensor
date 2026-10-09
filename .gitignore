@@ -15,3 +15,20 @@ htmlcov/
 pgdata/
 *.log
 agent-tools/
+
+# Environment variants (keep the example)
+.env.*
+!.env.example
+
+# Secrets and generated key material
+*.pem
+wg*.conf
+
+# Build output
+monitor/dist/
+dashboard/dist/
+
+# Editors and OS
+.idea/
+.vscode/
+Thumbs.db

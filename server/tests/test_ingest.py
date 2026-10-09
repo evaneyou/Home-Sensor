@@ -164,7 +164,7 @@ def test_health_assigns_iperf_and_web_services(client: TestClient, db):
     iperf = next(item for item in tests if item["slug"] == "iperf3")
     assert iperf["kind"] == "iperf3"
     assert iperf["target"] == "10.7.0.1"
-    assert iperf["network_slug"] == "wan"
+    assert iperf["network_slug"] == "wired"
     stored_iperf = db.scalar(text("SELECT iperf_interval_seconds FROM internet_service_settings WHERE id = 1"))
     assert iperf["interval_seconds"] == max(stored_iperf, 300)
     http_path = next(item for item in tests if item["slug"] == "http-path")

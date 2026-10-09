@@ -2,6 +2,19 @@
   "name": "hns-dashboard",
   "private": true,
   "version": "0.1.0",
+  "description": "Dashboard for Home Network Sensor",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evaneyou/Home-Sensor.git",
+    "directory": "dashboard"
+  },
+  "bugs": {
+    "url": "https://github.com/evaneyou/Home-Sensor/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 3847",
