@@ -1,113 +1,275 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../api";
-import type { Summary } from "../types";
+import type { HealthCell, MonitorAdmin, Summary } from "../types";
+import "../overview.css";
 
-function formatAge(iso: string | null): string {
-  if (!iso) return "never";
-  const ms = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(ms / 60000);
+type CheckState = "ok" | "slow" | "down" | "unknown";
+type Mood = "happy" | "curious" | "slow" | "down";
+
+const CHECKS: { key: "wired" | "wifi" | "internet" | "web"; label: string; icon: string; column: string }[] = [
+  { key: "wired", label: "Wired", icon: "plug", column: "lan" },
+  { key: "wifi", label: "Wi-Fi", icon: "wifi", column: "wifi-main" },
+  { key: "internet", label: "Internet", icon: "globe", column: "internet" },
+  { key: "web", label: "Web", icon: "cloud", column: "web" },
+];
+
+const DEFAULT_DETAIL: Record<string, Record<CheckState, string>> = {
+  wired: { ok: "Rock solid", slow: "Running slow", down: "Not connected", unknown: "Not tested yet" },
+  wifi: { ok: "Strong signal", slow: "Weak signal", down: "Not connected", unknown: "Not tested yet" },
+  internet: { ok: "Humming along", slow: "Running slow", down: "Not reachable", unknown: "Not tested yet" },
+  web: { ok: "Loading quickly", slow: "Loading slowly", down: "Not loading", unknown: "Not tested yet" },
+};
+
+const MOOD_LABEL: Record<Mood, string> = {
+  happy: "Happy",
+  curious: "Mostly happy, some checks not tested yet",
+  slow: "A little slow",
+  down: "Something is down",
+};
+
+const MOOD_RANK: Record<Mood, number> = { down: 0, slow: 1, curious: 2, happy: 3 };
+const STATE_RANK: Record<CheckState, number> = { unknown: -1, ok: 0, slow: 1, down: 2 };
+
+function mapState(status: string | undefined): CheckState {
+  if (status === "ok") return "ok";
+  if (status === "degraded") return "slow";
+  if (status === "fail") return "down";
+  return "unknown";
+}
+
+function join(labels: string[]): string {
+  if (labels.length <= 2) return labels.join(" and ");
+  return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
+}
+
+function checkedIn(iso: string | null): string {
+  if (!iso) return "not yet";
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
   if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins === 1) return "a minute ago";
+  if (mins < 60) return `${mins} minutes ago`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 48) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+  if (hrs === 1) return "an hour ago";
+  if (hrs < 48) return `${hrs} hours ago`;
+  const days = Math.floor(hrs / 24);
+  return days === 1 ? "a day ago" : `${days} days ago`;
+}
+
+function hasResult(cell: HealthCell): boolean {
+  return cell.status !== "unknown" || cell.last_test_at !== null;
+}
+
+function checkCells(cells: HealthCell[], monitorId: string, key: string, column: string): HealthCell[] {
+  const mine = cells.filter((cell) => cell.monitor_id === monitorId);
+  // Link chips follow the tunnel checks. The older lan and wifi-main networks have no tests.
+  if (key === "wired") {
+    return mine.filter((cell) => (cell.network_slug === "wired" && cell.column === "internet") || cell.network_slug === "lan");
+  }
+  if (key === "wifi") {
+    return mine.filter((cell) => (cell.network_slug === "wifi" && cell.column === "internet") || cell.network_slug === "wifi-main");
+  }
+  const matches = mine.filter((cell) => cell.column === column);
+  // Once a wired or wireless link is reporting, the old Internet-network copy is no longer refreshed.
+  const linkLive = matches.some((cell) => (cell.network_slug === "wired" || cell.network_slug === "wifi") && hasResult(cell));
+  return linkLive ? matches.filter((cell) => cell.network_slug !== "wan") : matches;
+}
+
+function columnState(cells: HealthCell[], monitorId: string, key: string, column: string): CheckState {
+  const statuses = checkCells(cells, monitorId, key, column).map((cell) => mapState(cell.status));
+  return statuses.reduce<CheckState>((worst, state) => (STATE_RANK[state] > STATE_RANK[worst] ? state : worst), "unknown");
+}
+
+function checkNetworkId(cells: HealthCell[], monitorId: string, key: string, column: string): string | null {
+  const matches = checkCells(cells, monitorId, key, column);
+  const tested = matches.find((cell) => hasResult(cell));
+  return (tested ?? matches[0])?.network_id ?? null;
+}
+
+function checkHref(monitorId: string, key: string, networkId: string | null): string {
+  if (!networkId) return `/monitors/${monitorId}`;
+  if (key === "internet") return `/monitors/${monitorId}?network=${networkId}&detail=isp`;
+  return `/monitors/${monitorId}?network=${networkId}`;
+}
+
+function Icon({ name }: { name: string }) {
+  if (name === "plug") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="5" y="3" width="14" height="10" rx="2" />
+        <path d="M9 6v3M12 6v3M15 6v3M9 13v3h6v-3M12 16v5" />
+      </svg>
+    );
+  }
+  if (name === "wifi") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0" />
+        <circle className="solid" cx="12" cy="19.5" r="1" />
+      </svg>
+    );
+  }
+  if (name === "globe") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 18a4 4 0 0 1-.5-8 5.5 5.5 0 0 1 10.7 1.2A3.5 3.5 0 0 1 17 18z" />
+    </svg>
+  );
+}
+
+function Face({ mood }: { mood: Mood }) {
+  return (
+    <svg viewBox="0 0 64 44" aria-hidden="true">
+      <circle className="eye" cx="18" cy="12" r="3" />
+      <circle className="eye" cx="46" cy="12" r="3" />
+      {mood === "happy" ? <path d="M20 28q12 12 24 0" /> : null}
+      {mood === "down" ? <path d="M20 36q12-10 24 0" /> : null}
+      {mood === "curious" || mood === "slow" ? <path d="M24 32h16" /> : null}
+    </svg>
+  );
+}
+
+function viewOf(data: Summary, regionById: Map<string, string | null>) {
+  const locations = data.monitors.map((monitor) => {
+    const checks = CHECKS.map((check) => {
+      const state = columnState(data.matrix, monitor.id, check.key, check.column);
+      const networkId = checkNetworkId(data.matrix, monitor.id, check.key, check.column);
+      return {
+        ...check,
+        state,
+        detail: DEFAULT_DETAIL[check.key][state],
+        href: checkHref(monitor.id, check.key, networkId),
+      };
+    });
+    const labels = (state: CheckState) => checks.filter((check) => check.state === state).map((check) => check.label);
+    const down = labels("down");
+    const slow = labels("slow");
+    const unknown = labels("unknown");
+    let mood: Mood = "happy";
+    let blurb = "Everything here is happy and humming.";
+    if (down.length > 0) {
+      mood = "down";
+      blurb = `${join(down)} ${down.length === 1 ? "is" : "are"} down.`;
+    } else if (slow.length > 0) {
+      mood = "slow";
+      blurb = `${join(slow)} ${slow.length === 1 ? "is" : "are"} running slow.`;
+    } else if (unknown.length > 0) {
+      const ok = labels("ok");
+      mood = "curious";
+      blurb =
+        (ok.length > 0 ? `${join(ok)} ${ok.length === 1 ? "is" : "are"} fine. ` : "") +
+        `${join(unknown)} ${unknown.length === 1 ? "hasn't" : "haven't"} been tested yet.`;
+    }
+    const place = [monitor.location_label, monitor.region ?? regionById.get(monitor.id)]
+      .map((part) => part?.trim() || "")
+      .filter((part, index, all) => part !== "" && part !== monitor.name && all.indexOf(part) === index)
+      .join(", ");
+    return {
+      id: monitor.id,
+      name: monitor.name,
+      place: place || null,
+      checks,
+      mood,
+      moodLabel: MOOD_LABEL[mood],
+      blurb,
+      seen: monitor.last_seen_at,
+    };
+  });
+  locations.sort((a, b) => MOOD_RANK[a.mood] - MOOD_RANK[b.mood] || a.name.localeCompare(b.name));
+  const newest = locations
+    .map((location) => location.seen)
+    .filter((seen): seen is string => !!seen)
+    .sort()
+    .at(-1) ?? null;
+  const n = locations.length;
+  const subline = `${n} location${n === 1 ? "" : "s"} checked in ${checkedIn(newest)}.`;
+  return { locations, subline };
 }
 
 export default function OverviewPage() {
   const q = useQuery({
     queryKey: ["summary"],
     queryFn: () => api.summary() as Promise<Summary>,
+    refetchInterval: 30_000,
+  });
+  const monitorsQ = useQuery({
+    queryKey: ["monitors"],
+    queryFn: () => api.monitors() as Promise<MonitorAdmin[]>,
+    refetchInterval: 30_000,
   });
 
-  if (q.isLoading) return <div className="state-box">Loading health matrix…</div>;
-  if (q.isError) {
+  if (q.isLoading) {
     return (
-      <div className="state-box">
-        Could not load summary. <button className="btn" onClick={() => void q.refetch()}>Retry</button>
+      <div className="dash">
+        <p className="probe-text">Loading locations…</p>
+      </div>
+    );
+  }
+  if (q.isError || !q.data) {
+    return (
+      <div className="dash">
+        <p className="probe-text">Could not load locations.</p>
       </div>
     );
   }
 
-  const data = q.data!;
-  const sensors = data.sensors;
-  const networks = data.networks;
-  const open = data.open_issues;
-  const worst = open.some((i) => i.severity === "critical")
-    ? "critical"
-    : open.some((i) => i.severity === "warning")
-      ? "warning"
-      : "empty";
-
-  const cell = (sensorId: string, networkId: string) =>
-    data.matrix.find((c) => c.sensor_id === sensorId && c.network_id === networkId);
+  const regionById = new Map((monitorsQ.data ?? []).map((monitor) => [monitor.id, monitor.region]));
+  const view = viewOf(q.data, regionById);
 
   return (
-    <div>
-      <h1 className="page-title">Overview</h1>
-      <p className="page-sub">Sensor × network health · auto-refreshes every 30s</p>
-
-      <div className={`banner ${worst}`}>
-        {open.length === 0 ? (
-          <span>No open issues. All monitored paths look quiet.</span>
-        ) : (
-          <>
-            <strong>
-              {open.length} open issue{open.length === 1 ? "" : "s"}
-            </strong>
-            {open.slice(0, 3).map((i) => (
-              <div key={i.id}>
-                <span className={`sev ${i.severity}`}>{i.severity}</span>{" "}
-                <Link to={`/issues/${i.id}`}>{i.title}</Link>
-                {i.root_cause_stage ? (
-                  <span className="muted"> · stage {i.root_cause_stage}</span>
-                ) : null}
-              </div>
-            ))}
-            {open.length > 3 ? (
-              <Link to="/issues">View all issues →</Link>
-            ) : null}
-          </>
-        )}
-      </div>
-
-      {sensors.length === 0 || networks.length === 0 ? (
-        <div className="state-box">No sensors or networks yet. Run the seed command.</div>
-      ) : (
-        <div className="matrix" style={{ ["--cols" as string]: networks.length }}>
-          <div className="matrix-row">
-            <div className="matrix-cell head">Sensor</div>
-            {networks.map((n) => (
-              <div className="matrix-cell head" key={n.id}>
-                {n.name}
-              </div>
-            ))}
-          </div>
-          {sensors.map((s) => (
-            <div className="matrix-row" key={s.id}>
-              <div className="matrix-cell head">
-                <Link to={`/sensors/${s.id}`}>{s.name}</Link>
-              </div>
-              {networks.map((n) => {
-                const c = cell(s.id, n.id);
-                const status = c?.status ?? "unknown";
-                return (
-                  <div className="matrix-cell" key={`${s.id}-${n.id}`}>
-                    <div className="cell-status">
-                      <span className={`status-dot status-${status}`} />
-                      {status}
-                    </div>
-                    <div className="cell-meta">{formatAge(c?.last_test_at ?? null)}</div>
-                    {c && c.failing_tests > 0 ? (
-                      <div className="cell-meta">{c.failing_tests} test(s) not ok</div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+    <div className="dash">
+      <header className="dash-head">
+        <div>
+          <p>{view.subline}</p>
         </div>
-      )}
+        <ul className="legend" aria-label="What the colors mean">
+          <li><span className="dot ok" />Happy</li>
+          <li><span className="dot slow" />Slow</li>
+          <li><span className="dot down" />Down</li>
+          <li><span className="dot unknown" />Not tested yet</li>
+        </ul>
+      </header>
+      <main className="probe-grid">
+        {view.locations.length === 0 ? <p className="probe-text">No locations have checked in yet.</p> : null}
+        {view.locations.map((location, index) => (
+          <section className="probe" key={location.id} aria-labelledby={`loc-${index + 1}`}>
+            <div className="probe-top">
+              <Link className={`orb mood-${location.mood}`} to={`/monitors/${location.id}`} aria-label={location.moodLabel}>
+                <Face mood={location.mood} />
+              </Link>
+              <div className="probe-text">
+                <h2 id={`loc-${index + 1}`}>
+                  <Link to={`/monitors/${location.id}`}>{location.name}</Link>
+                </h2>
+                <p>{location.blurb}</p>
+                {location.place ? <p className="probe-id">{location.place}</p> : null}
+              </div>
+            </div>
+            <ul className="checks">
+              {location.checks.map((check) => (
+                <li key={check.key}>
+                  <Link className={`chip ${check.state}`} to={check.href}>
+                    <span className="chip-icon">
+                      <Icon name={check.icon} />
+                    </span>
+                    <span className="chip-text">
+                      <span className="chip-label">{check.label}</span>
+                      <span className="chip-detail">{check.detail}</span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </main>
     </div>
   );
 }

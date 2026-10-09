@@ -1,3 +1,5 @@
+import type { InternetServiceSetting, WebServiceSetting } from "./types";
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8847";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -36,6 +38,48 @@ export const api = {
   issues: (status?: string) =>
     request(`/api/v1/issues${status ? `?status=${status}` : ""}`),
   issue: (id: string) => request(`/api/v1/issues/${id}`),
-  sensor: (id: string) => request(`/api/v1/sensors/${id}`),
+  monitors: () => request("/api/v1/monitors"),
+  createMonitor: (name: string) =>
+    request("/api/v1/monitors", { method: "POST", body: JSON.stringify({ name }) }),
+  deleteMonitor: (id: string) => request(`/api/v1/monitors/${id}`, { method: "DELETE" }),
+  regenerateMonitorKey: (id: string) => request(`/api/v1/monitors/${id}/key`, { method: "POST" }),
+  issueMonitorTunnel: (id: string) => request(`/api/v1/monitors/${id}/tunnel`, { method: "POST" }),
+  restartMonitor: (id: string) => request(`/api/v1/monitors/${id}/restart`, { method: "POST" }),
+  monitor: (id: string) => request(`/api/v1/monitors/${id}`),
+  monitorLog: (id: string, offset: number, limit: number, probe = "all") =>
+    request(`/api/v1/monitors/${id}/log?offset=${offset}&limit=${limit}&probe=${encodeURIComponent(probe)}`),
+  updateMonitorLocation: (
+    id: string,
+    body: {
+      latitude?: number | null;
+      longitude?: number | null;
+      location_label?: string | null;
+      region?: string | null;
+      country?: string | null;
+      name?: string;
+      health_interval_seconds?: number;
+    },
+  ) =>
+    request(`/api/v1/monitors/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  monitorDevice: (id: string) => request(`/api/v1/monitors/${id}/device`),
+  monitorHealth: (id: string, range: string) =>
+    request(`/api/v1/monitors/${id}/health?range=${range}`),
+  wifiScans: (monitorId: string, range: string) =>
+    request(`/api/v1/wifi-scans?monitor_id=${monitorId}&range=${range}`),
   test: (id: string) => request(`/api/v1/tests/${id}`),
+  webServices: () => request("/api/v1/settings/web-services"),
+  saveWebServices: (services: WebServiceSetting[]) =>
+    request("/api/v1/settings/web-services", {
+      method: "PUT",
+      body: JSON.stringify({ services }),
+    }),
+  internetService: () => request("/api/v1/settings/internet-service"),
+  saveInternetService: (setting: InternetServiceSetting) =>
+    request("/api/v1/settings/internet-service", {
+      method: "PUT",
+      body: JSON.stringify(setting),
+    }),
 };

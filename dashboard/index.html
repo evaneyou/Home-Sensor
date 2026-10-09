@@ -3,15 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Home Network Sensor</title>
+    <title>Home Network User Experience</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;650&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Nunito:wght@400;600;700&display=swap"
       rel="stylesheet"
     />
   </head>
   <body>
+    <svg class="map-filters" aria-hidden="true">
+      <filter id="map-border-lines" color-interpolation-filters="sRGB">
+        <feColorMatrix
+          type="matrix"
+          values="0 0 0 0 0.42
+                  0 0 0 0 0.42
+                  0 0 0 0 0.42
+                  0 0 8 0 -6.6"
+          result="lines"
+        />
+        <feMorphology in="lines" operator="erode" radius="0.45" />
+      </filter>
+    </svg>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

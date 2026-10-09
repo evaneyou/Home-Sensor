@@ -7,7 +7,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -16,11 +15,14 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "../api";
+import { chartTicks, chartWindow, formatChartTick, zoomedDomain } from "../chartTime";
+import { useChartZoom } from "../useChartZoom";
+import { networkLabel } from "../labels";
 import type { MetricsResponse, TestDetail } from "../types";
 
 const RANGES = ["1h", "6h", "24h", "7d", "30d"] as const;
 
-const STAGE_COLORS = ["#4a90c8", "#2f9e77", "#c9922a", "#8b6cc9", "#c44b3c", "#5a9ea8"];
+const STAGE_COLORS = ["#4c9df3", "#3fa266", "#f1b467", "#aaa0fa", "#e34671", "#88c0d0"];
 
 export default function TestPage() {
   const { id = "" } = useParams();
@@ -40,7 +42,9 @@ export default function TestPage() {
   const stageNames = useMemo(() => {
     const names = new Set<string>();
     for (const p of metricsQ.data?.points ?? []) {
-      for (const s of p.stages) names.add(s.name);
+      for (const s of p.stages) {
+        if (s.name !== "ttfb") names.add(s.name);
+      }
     }
     return [...names];
   }, [metricsQ.data]);
@@ -48,12 +52,8 @@ export default function TestPage() {
   const waterfallData = useMemo(() => {
     return (metricsQ.data?.points ?? []).map((p) => {
       const row: Record<string, string | number> = {
-        t: new Date(p.t).toLocaleString(undefined, {
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
+        t: p.t,
+        ts: new Date(p.t).getTime(),
         status: p.status,
       };
       for (const name of stageNames) {
@@ -67,12 +67,8 @@ export default function TestPage() {
   const metricData = useMemo(
     () =>
       (metricsQ.data?.points ?? []).map((p) => ({
-        t: new Date(p.t).toLocaleString(undefined, {
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
+        t: p.t,
+        ts: new Date(p.t).getTime(),
         rtt_ms: p.rtt_ms,
         loss_pct: p.loss_pct,
       })),
@@ -84,14 +80,15 @@ export default function TestPage() {
 
   const test = testQ.data;
   const points = metricsQ.data?.points ?? [];
+  const span = chartWindow(range);
 
   return (
     <div>
       <h1 className="page-title">{test.name}</h1>
       <p className="page-sub">
-        <Link to={`/sensors/${test.sensor_id}`}>{test.sensor_name}</Link>
+        <Link to={`/monitors/${test.monitor_id}`}>{test.monitor_name}</Link>
         {" · "}
-        {test.network_name}
+        {networkLabel({ slug: test.network_slug, name: test.network_name })}
         {" · "}
         <span className="mono">
           {test.kind} → {test.target}
@@ -140,60 +137,152 @@ export default function TestPage() {
           <div className="panel">
             <h2 style={{ marginTop: 0, fontSize: "1rem" }}>Stage waterfall</h2>
             <div style={{ width: "100%", height: 280 }}>
-              <ResponsiveContainer>
-                <AreaChart data={waterfallData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-                  <XAxis dataKey="t" hide={waterfallData.length > 48} tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 11 }} unit="ms" />
-                  <Tooltip />
-                  <Legend />
-                  {stageNames.map((name, i) => (
-                    <Area
-                      key={name}
-                      type="monotone"
-                      dataKey={name}
-                      stackId="1"
-                      stroke={STAGE_COLORS[i % STAGE_COLORS.length]}
-                      fill={STAGE_COLORS[i % STAGE_COLORS.length]}
-                      fillOpacity={0.7}
-                    />
-                  ))}
-                </AreaChart>
-              </ResponsiveContainer>
+              <ZoomArea data={waterfallData} stageNames={stageNames} span={span} />
             </div>
           </div>
 
           <div className="panel">
             <h2 style={{ marginTop: 0, fontSize: "1rem" }}>RTT</h2>
             <div style={{ width: "100%", height: 220 }}>
-              <ResponsiveContainer>
-                <LineChart data={metricData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-                  <XAxis dataKey="t" hide={metricData.length > 48} tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 11 }} unit="ms" />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="rtt_ms" stroke="var(--accent)" dot={false} strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
+              <ZoomLine data={metricData} dataKey="rtt_ms" stroke="var(--accent)" unit="ms" span={span} />
             </div>
           </div>
 
           <div className="panel">
             <h2 style={{ marginTop: 0, fontSize: "1rem" }}>Packet loss</h2>
             <div style={{ width: "100%", height: 180 }}>
-              <ResponsiveContainer>
-                <BarChart data={metricData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-                  <XAxis dataKey="t" hide={metricData.length > 48} tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 11 }} unit="%" />
-                  <Tooltip />
-                  <Bar dataKey="loss_pct" fill="var(--degraded)" />
-                </BarChart>
-              </ResponsiveContainer>
+              <ZoomBars data={metricData} span={span} />
             </div>
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function ZoomArea({
+  data,
+  stageNames,
+  span,
+}: {
+  data: Record<string, string | number>[];
+  stageNames: string[];
+  span: [number, number];
+}) {
+  const zoom = useChartZoom(data);
+  const domain = zoomedDomain(span, data.length, zoom.visible as { ts?: unknown }[]);
+  return (
+    <div className="chart-zoom" ref={zoom.boxRef} style={{ width: "100%", height: "100%" }} onDoubleClick={zoom.onDoubleClick}>
+      <ResponsiveContainer>
+        <AreaChart
+          data={zoom.visible}
+          onMouseDown={zoom.onMouseDown}
+          onMouseMove={zoom.onMouseMove}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
+          <XAxis
+            dataKey="ts"
+            type="number"
+            scale="time"
+            domain={domain}
+            allowDataOverflow
+            ticks={chartTicks(domain)}
+            tickFormatter={(value) => formatChartTick(value, domain[1] - domain[0])}
+            hide={zoom.visible.length > 48}
+            tick={{ fontSize: 10 }}
+          />
+          <YAxis tick={{ fontSize: 11 }} unit="ms" />
+          <Tooltip labelFormatter={(value) => formatChartTick(value, domain[1] - domain[0])} />
+          {zoom.selection}
+          {stageNames.map((name, i) => (
+            <Area
+              key={name}
+              type="monotone"
+              dataKey={name}
+              stackId="1"
+              stroke={STAGE_COLORS[i % STAGE_COLORS.length]}
+              fill={STAGE_COLORS[i % STAGE_COLORS.length]}
+              fillOpacity={0.7}
+            />
+          ))}
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function ZoomLine({
+  data,
+  dataKey,
+  stroke,
+  unit,
+  span,
+}: {
+  data: { t: string; ts: number; rtt_ms: number | null; loss_pct: number | null }[];
+  dataKey: string;
+  stroke: string;
+  unit: string;
+  span: [number, number];
+}) {
+  const zoom = useChartZoom(data);
+  const domain = zoomedDomain(span, data.length, zoom.visible);
+  return (
+    <div className="chart-zoom" ref={zoom.boxRef} style={{ width: "100%", height: "100%" }} onDoubleClick={zoom.onDoubleClick}>
+      <ResponsiveContainer>
+        <LineChart data={zoom.visible} onMouseDown={zoom.onMouseDown} onMouseMove={zoom.onMouseMove}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
+          <XAxis
+            dataKey="ts"
+            type="number"
+            scale="time"
+            domain={domain}
+            allowDataOverflow
+            ticks={chartTicks(domain)}
+            tickFormatter={(value) => formatChartTick(value, domain[1] - domain[0])}
+            hide={zoom.visible.length > 48}
+            tick={{ fontSize: 10 }}
+          />
+          <YAxis tick={{ fontSize: 11 }} unit={unit} />
+          <Tooltip labelFormatter={(value) => formatChartTick(value, domain[1] - domain[0])} />
+          {zoom.selection}
+          <Line type="monotone" dataKey={dataKey} stroke={stroke} dot={false} strokeWidth={2} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function ZoomBars({
+  data,
+  span,
+}: {
+  data: { t: string; ts: number; rtt_ms: number | null; loss_pct: number | null }[];
+  span: [number, number];
+}) {
+  const zoom = useChartZoom(data);
+  const domain = zoomedDomain(span, data.length, zoom.visible);
+  return (
+    <div className="chart-zoom" ref={zoom.boxRef} style={{ width: "100%", height: "100%" }} onDoubleClick={zoom.onDoubleClick}>
+      <ResponsiveContainer>
+        <BarChart data={zoom.visible} onMouseDown={zoom.onMouseDown} onMouseMove={zoom.onMouseMove}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
+          <XAxis
+            dataKey="ts"
+            type="number"
+            scale="time"
+            domain={domain}
+            allowDataOverflow
+            ticks={chartTicks(domain)}
+            tickFormatter={(value) => formatChartTick(value, domain[1] - domain[0])}
+            hide={zoom.visible.length > 48}
+            tick={{ fontSize: 10 }}
+          />
+          <YAxis tick={{ fontSize: 11 }} unit="%" />
+          <Tooltip labelFormatter={(value) => formatChartTick(value, domain[1] - domain[0])} />
+          {zoom.selection}
+          <Bar dataKey="loss_pct" fill="var(--degraded)" />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }

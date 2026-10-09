@@ -1,17 +1,17 @@
 # Home Network Sensor — SPEC v2
 
-Ops-style UXI-inspired monitoring for a home LAN: Raspberry Pi (or Linux PC) sensors run staged connectivity tests and push results to a central FastAPI + Postgres server. A React dashboard reads those APIs only — the sensor never talks to the browser.
+Ops-style UXI-inspired monitoring for a home LAN: Raspberry Pi (or Linux PC) remote agents run staged connectivity tests and push results to a central FastAPI + Postgres server. A React dashboard reads those APIs only — the remote agent never talks to the browser.
 
 ## Topology
 
 | Piece | Where | Role |
 |---|---|---|
-| **Sensor agent** | Home Pi / Linux PC | Runs tests, pulls config, pushes ingest (Bearer). Offline SQLite spool. |
+| **Remote agent** | Home Pi / Linux PC | Runs tests, pulls config, pushes ingest (Bearer). Offline SQLite spool. |
 | **Central server** | PC now → cloud later | Enrollment, config, ingest, issues, read APIs. FastAPI + Postgres. |
 | **Dashboard** | Served with server | React UI; cookie auth; reads APIs only. |
 
 ```
-Sensor ──pull config / push ingest──▶ Server ◀──read APIs── Dashboard ◀── Browser
+Remote agent ──pull config / push ingest──▶ Server ◀──read APIs── Dashboard ◀── Browser
 ```
 
 The Pi stays on the LAN and reaches the server over outbound HTTPS. Only server + dashboard move to the cloud.
@@ -25,10 +25,12 @@ The Pi stays on the LAN and reaches the server over outbound HTTPS. Only server 
 ## Data model (core)
 
 - `groups` — tenancy / home site
-- `sensors` — enrolled Pi agents (`pi-living-room`, …)
+- `monitors` — enrolled Pi agents (`pi-living-room`, …)
+- `monitor_health` — device samples (CPU, memory, disk, temperature, uptime), kept 7 days
 - `networks` — wired / Wi-Fi targets under a group
-- `tests` — `http`, `dns`, `ping`, `wifi`, … bound to sensor+network
+- `tests` — `http`, `dns`, `ping`, `wifi`, … bound to a remote agent and network
 - `test_results` — staged timings + metrics + status (`ok` / `degraded` / `fail`)
+- Retention for `test_results` and `wifi_observations`: raw for 6 months, hourly averages from 6 to 12 months, daily averages from 12 months to 2 years, then deleted. The server runs this once a day. Issues are kept as written.
 - `users` — admin/viewer with password hash
 - `issues` — open/resolved problems with optional `root_cause_stage`
 
@@ -39,9 +41,20 @@ The Pi stays on the LAN and reaches the server over outbound HTTPS. Only server 
 | `GET` | `/api/v1/healthz` | Liveness |
 | `POST` | `/api/v1/auth/login` | Cookie session |
 | `POST` | `/api/v1/auth/logout` | Clear cookie |
-| `GET` | `/api/v1/auth/me` | Current user |
-| `POST` | `/api/v1/ingest` | Sensor Bearer ingest (idempotent by result id) |
-| `GET` | `/api/v1/summary` | Sensor × network health matrix + open issues |
+| `GET` | `/api/v1/auth/me` | Current user, plus the CSRF token for enrollment actions |
+| `POST` | `/api/v1/ingest` | Remote agent Bearer ingest (idempotent by result id) |
+| `POST` | `/api/v1/agents/nonce` | Remote agent, HTTPS port 8848 only. One-use nonce for its identity key, valid 60 seconds |
+| `POST` | `/api/v1/agents/check-in` | Remote agent, signed. Attaches to a registered installer code and waits for approval |
+| `POST` | `/api/v1/agents/poll` | Remote agent, signed. After approval returns the tunnel config and, when needed, a new ingest token |
+| `GET` | `/api/v1/enrollment` | Registered installer codes and the remote agents waiting under them |
+| `POST` | `/api/v1/enrollment/codes` | Admin + CSRF. Register an installer code for 24 hours, with the remote agent's device name and an optional location |
+| `POST` | `/api/v1/enrollment/codes/{id}/approve` | Admin + CSRF. Add as new, or replace an existing remote agent and keep its tunnel address |
+| `POST` | `/api/v1/enrollment/codes/{id}/start-over` | Admin + CSRF. Clear check-ins after two devices used one code |
+| `DELETE` | `/api/v1/enrollment/codes/{id}` | Admin + CSRF. Remove a registration that was never approved |
+| `DELETE` | `/api/v1/monitors/{id}` | Admin + CSRF. Remove a remote agent and its tunnel peer, and release its installer code |
+| `POST` | `/api/v1/monitors/health` | Remote agent posts one device-health sample; response is the desired config, including iperf3 and web-service HTTP tests |
+| `GET` | `/api/v1/monitors/{id}/device` | Latest device health, 24h chart points, and whether config is applied |
+| `GET` | `/api/v1/summary` | Remote agent × network health matrix + open issues |
 | `GET` | `/api/v1/results` | Filtered test results |
 | `GET` | `/api/v1/metrics` | Time-series metrics for charts |
 | `GET` | `/api/v1/issues` | Issue list |
@@ -51,8 +64,8 @@ Enrollment / config ETag matrix and webhooks are deferred.
 
 ## Dashboard screens (this slice)
 
-1. **Overview** — open-issue severity banner; sensor × network health matrix; last test time
-2. **Sensor detail** — per-network tabs; test status; recent results
+1. **Overview** — open-issue severity banner; remote agent × network health matrix; last test time
+2. **Remote agent detail** — device health and admin config (name, report interval); per-network tabs; test status; log of results
 3. **Test detail** — range picker; stage waterfall; pass/fail strip; RTT/loss charts
 4. **Issues** — open/resolved list + detail (`root_cause_stage`, recent failures)
 
@@ -64,13 +77,13 @@ Loading / empty states required. Dark/light theme when cheap. Viewer role hides 
 |---|---|
 | **0 — Dashboard-first (this repo slice)** | Thin server + seed + core UI on Compose. No Pi required. |
 | **1 — Server hardening** | Full enrollment, config ETag, auth polish, issue engine |
-| **2 — Sensor agent** | Linux agent on Pi: staged tests, spool, Bearer ingest |
+| **2 — Remote agent** | Pi package: LAN setup page, enroll, device health, HTTP, ICMP, and MTR against the server at 10.7.0.1, iperf3 against Hurricane Electric, plus web-service HTTP checks. Other staged tests and the offline spool come later |
 | **3 — Wireless / RF** | WiFiman-style spectrum, channel congestion, roam markers (full wireless later) |
 | **4 — Cloud** | Same Compose on a small VPS (Hetzner CX / DO droplet) + TLS |
 
 ## Out of scope for this slice
 
-Sensor agent binary, Grafana, Wi-Fi/RF pages, webhooks, full enrollment ETag test matrix, Playwright journeys.
+Ping, MTR, Wi-Fi test runner, offline spool, Grafana, Wi-Fi/RF pages, webhooks, full enrollment ETag test matrix, Playwright journeys.
 
 ## Design principles
 

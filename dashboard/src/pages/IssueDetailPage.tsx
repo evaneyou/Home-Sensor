@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
+import StatusMark from "../components/StatusMark";
 import type { Issue } from "../types";
 
 export default function IssueDetailPage() {
@@ -34,9 +35,9 @@ export default function IssueDetailPage() {
           {issue.resolved_at ? ` · resolved ${new Date(issue.resolved_at).toLocaleString()}` : ""}
         </div>
         <div style={{ marginTop: "0.75rem" }}>
-          {issue.sensor_id ? (
+          {issue.monitor_id ? (
             <>
-              Sensor: <Link to={`/sensors/${issue.sensor_id}`}>{issue.sensor_slug}</Link>
+              Remote Agent: <Link to={`/monitors/${issue.monitor_id}`}>{issue.monitor_slug}</Link>
               {" · "}
             </>
           ) : null}
@@ -67,8 +68,7 @@ export default function IssueDetailPage() {
                 <tr key={r.id}>
                   <td className="mono">{new Date(r.started_at).toLocaleString()}</td>
                   <td>
-                    <span className={`status-dot status-${r.status}`} />
-                    {r.status}
+                    <StatusMark status={r.status} />
                   </td>
                   <td className="mono">
                     {r.stages.map((s) => `${s.name}:${s.duration_ms}ms`).join(" → ")}

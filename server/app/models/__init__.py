@@ -33,7 +33,7 @@ class UserRole(str, enum.Enum):
     viewer = "viewer"
 
 
-class SensorStatus(str, enum.Enum):
+class MonitorStatus(str, enum.Enum):
     online = "online"
     offline = "offline"
     unknown = "unknown"
@@ -50,6 +50,8 @@ class TestKind(str, enum.Enum):
     dns = "dns"
     ping = "ping"
     wifi = "wifi"
+    mtr = "mtr"
+    iperf3 = "iperf3"
 
 
 class ResultStatus(str, enum.Enum):
@@ -77,7 +79,7 @@ class Group(Base):
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    sensors: Mapped[list[Sensor]] = relationship(back_populates="group")
+    monitors: Mapped[list[Monitor]] = relationship(back_populates="group")
     networks: Mapped[list[Network]] = relationship(back_populates="group")
 
 
@@ -92,24 +94,49 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
-class Sensor(Base):
-    __tablename__ = "sensors"
+class Monitor(Base):
+    __tablename__ = "monitors"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     group_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
     slug: Mapped[str] = mapped_column(String(64), nullable=False)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    token_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    status: Mapped[SensorStatus] = mapped_column(
-        Enum(SensorStatus, name="sensor_status"), default=SensorStatus.unknown, nullable=False
+    # "sha256:<hex>" for tokens issued by enrollment, bcrypt for older keys.
+    # Empty until the remote agent's first poll after approval.
+    token_hash: Mapped[Optional[str]] = mapped_column(String(255))
+    identity_public_key: Mapped[Optional[str]] = mapped_column(String(64), unique=True)
+    last_handshake_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    status: Mapped[MonitorStatus] = mapped_column(
+        Enum(MonitorStatus, name="monitor_status"), default=MonitorStatus.unknown, nullable=False
     )
     last_seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    latitude: Mapped[Optional[float]] = mapped_column(Float)
+    longitude: Mapped[Optional[float]] = mapped_column(Float)
+    location_label: Mapped[Optional[str]] = mapped_column(String(128))
+    region: Mapped[Optional[str]] = mapped_column(String(64))
+    country: Mapped[Optional[str]] = mapped_column(String(64))
+    wg_public_key: Mapped[Optional[str]] = mapped_column(String(64))
+    wg_address: Mapped[Optional[str]] = mapped_column(String(32), unique=True)
+    # Second tunnel, pinned to Wi-Fi. The wired tunnel stays in wg_address.
+    wg_wireless_public_key: Mapped[Optional[str]] = mapped_column(String(64))
+    wg_wireless_address: Mapped[Optional[str]] = mapped_column(String(32), unique=True)
+    last_wireless_handshake_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    lan_ip: Mapped[Optional[str]] = mapped_column(String(64))
+    public_ip: Mapped[Optional[str]] = mapped_column(String(64))
+    isp: Mapped[Optional[str]] = mapped_column(String(128))
+    agent_version: Mapped[Optional[str]] = mapped_column(String(32))
+    config_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    applied_config_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    health_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=60, server_default="60")
+    # Set by an admin. The probe clears it once, then replaces its own process.
+    restart_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    group: Mapped[Group] = relationship(back_populates="sensors")
-    tests: Mapped[list[Test]] = relationship(back_populates="sensor")
+    group: Mapped[Group] = relationship(back_populates="monitors")
+    tests: Mapped[list[Test]] = relationship(back_populates="monitor")
+    health_samples: Mapped[list["MonitorHealth"]] = relationship(back_populates="monitor")
 
-    __table_args__ = (UniqueConstraint("group_id", "slug", name="uq_sensor_group_slug"),)
+    __table_args__ = (UniqueConstraint("group_id", "slug", name="uq_monitor_group_slug"),)
 
 
 class Network(Base):
@@ -133,7 +160,7 @@ class Test(Base):
     __tablename__ = "tests"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
-    sensor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sensors.id", ondelete="CASCADE"), nullable=False)
+    monitor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"), nullable=False)
     network_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("networks.id", ondelete="CASCADE"), nullable=False)
     slug: Mapped[str] = mapped_column(String(64), nullable=False)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -143,12 +170,12 @@ class Test(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    sensor: Mapped[Sensor] = relationship(back_populates="tests")
+    monitor: Mapped[Monitor] = relationship(back_populates="tests")
     network: Mapped[Network] = relationship(back_populates="tests")
     results: Mapped[list[TestResult]] = relationship(back_populates="test")
 
     __table_args__ = (
-        UniqueConstraint("sensor_id", "network_id", "slug", name="uq_test_sensor_network_slug"),
+        UniqueConstraint("monitor_id", "network_id", "slug", name="uq_test_monitor_network_slug"),
     )
 
 
@@ -157,7 +184,7 @@ class TestResult(Base):
     __tablename__ = "test_results"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
-    # Client-supplied idempotency key from the sensor agent
+    # Client-supplied idempotency key from the remote agent
     external_id: Mapped[str] = mapped_column(String(64), nullable=False)
     test_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tests.id", ondelete="CASCADE"), nullable=False)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -167,6 +194,7 @@ class TestResult(Base):
     stages: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
     metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     message: Mapped[Optional[str]] = mapped_column(Text)
+    status_reason: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     test: Mapped[Test] = relationship(back_populates="results")
@@ -182,7 +210,7 @@ class Issue(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     group_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
-    sensor_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("sensors.id", ondelete="SET NULL"))
+    monitor_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("monitors.id", ondelete="SET NULL"))
     network_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("networks.id", ondelete="SET NULL"))
     test_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("tests.id", ondelete="SET NULL"))
     title: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -199,5 +227,138 @@ class Issue(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
-# Keep Float imported for potential future metric columns
-_ = Float
+class WifiObservation(Base):
+    __tablename__ = "wifi_observations"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    monitor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"), nullable=False)
+    scanned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ssid: Mapped[str] = mapped_column(String(64), nullable=False)
+    bssid: Mapped[str] = mapped_column(String(17), nullable=False)
+    vendor: Mapped[str] = mapped_column(String(64), nullable=False)
+    band: Mapped[str] = mapped_column(String(8), nullable=False)
+    channel: Mapped[int] = mapped_column(Integer, nullable=False)
+    channel_width: Mapped[int] = mapped_column(Integer, nullable=False)
+    rssi_dbm: Mapped[float] = mapped_column(Float, nullable=False)
+    noise_dbm: Mapped[float] = mapped_column(Float, nullable=False)
+    security: Mapped[str] = mapped_column(String(32), nullable=False)
+    phy: Mapped[str] = mapped_column(String(8), nullable=False)
+    max_link_rate_mbps: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    __table_args__ = (Index("ix_wifi_observations_monitor_scanned", "monitor_id", "scanned_at"),)
+
+
+class MonitorHealth(Base):
+    __tablename__ = "monitor_health"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    monitor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"), nullable=False)
+    reported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    hostname: Mapped[str] = mapped_column(String(128), nullable=False)
+    uptime_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    cpu_percent: Mapped[float] = mapped_column(Float, nullable=False)
+    load_1: Mapped[float] = mapped_column(Float, nullable=False)
+    mem_used_mb: Mapped[int] = mapped_column(Integer, nullable=False)
+    mem_total_mb: Mapped[int] = mapped_column(Integer, nullable=False)
+    disk_used_mb: Mapped[int] = mapped_column(Integer, nullable=False)
+    disk_total_mb: Mapped[int] = mapped_column(Integer, nullable=False)
+    temp_c: Mapped[Optional[float]] = mapped_column(Float)
+    lan_ip: Mapped[Optional[str]] = mapped_column(String(64))
+    public_ip: Mapped[Optional[str]] = mapped_column(String(64))
+    isp: Mapped[Optional[str]] = mapped_column(String(128))
+    config_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    monitor: Mapped[Monitor] = relationship(back_populates="health_samples")
+
+    __table_args__ = (Index("ix_monitor_health_monitor_reported", "monitor_id", "reported_at"),)
+
+
+class InstallerCode(Base):
+    """An installer code an admin registered from a Pi's LAN page."""
+
+    __tablename__ = "installer_codes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    code_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    device_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    location_label: Mapped[Optional[str]] = mapped_column(String(128))
+    registered_by: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Set on approval. Deleting the monitor releases the code.
+    monitor_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"))
+
+    checkins: Mapped[list["EnrollmentCheckin"]] = relationship(
+        back_populates="code", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class EnrollmentCheckin(Base):
+    """A remote agent waiting for approval under a registered installer code."""
+
+    __tablename__ = "enrollment_checkins"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    code_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("installer_codes.id", ondelete="CASCADE"), nullable=False)
+    identity_public_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    wg_public_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    wg_wireless_public_key: Mapped[Optional[str]] = mapped_column(String(64))
+    hostname: Mapped[str] = mapped_column(String(253), nullable=False)
+    lan_ip: Mapped[str] = mapped_column(String(64), nullable=False)
+    observed_ip: Mapped[Optional[str]] = mapped_column(String(64))
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    code: Mapped[InstallerCode] = relationship(back_populates="checkins")
+
+    __table_args__ = (UniqueConstraint("code_id", "identity_public_key", name="uq_checkin_code_identity"),)
+
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    username: Mapped[str] = mapped_column(String(64), nullable=False)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    # No foreign key, so the record outlives a deleted monitor.
+    monitor_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
+    detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+
+class WebServiceSetting(Base):
+    __tablename__ = "web_service_settings"
+
+    key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(String(64), nullable=False)
+    http_url: Mapped[str] = mapped_column(String(255), nullable=False)
+    host: Mapped[str] = mapped_column(String(255), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=300)
+    http_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    icmp_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    mtr_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    jitter_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
+    http_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
+    icmp_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
+    jitter_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
+
+
+class InternetServiceSetting(Base):
+    """Singleton path and iperf3 schedule for the Internet Service card."""
+
+    __tablename__ = "internet_service_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
+    http_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    icmp_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    mtr_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
+    http_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
+    icmp_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
+    mtr_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
+    iperf_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
+    iperf_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    iperf_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=900)

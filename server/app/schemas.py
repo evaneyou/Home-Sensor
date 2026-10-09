@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import ipaddress
 from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class LoginRequest(BaseModel):
@@ -12,10 +13,205 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class MonitorLocationIn(BaseModel):
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    location_label: Optional[str] = None
+    region: Optional[str] = None
+    country: Optional[str] = None
+    name: Optional[str] = None
+    health_interval_seconds: Optional[int] = None
+
+
+_KEY = Field(min_length=44, max_length=44)
+_SIGNATURE = Field(min_length=1, max_length=128)
+_NONCE = Field(min_length=1, max_length=64)
+
+
+class NonceIn(BaseModel):
+    identity_public_key: str = _KEY
+
+
+class NonceOut(BaseModel):
+    nonce: str
+    expires_in: int
+    server_time: datetime
+
+
+class CheckInIn(BaseModel):
+    identity_public_key: str = _KEY
+    wg_public_key: str = _KEY
+    wg_wireless_public_key: Optional[str] = None
+    installer_code: str = Field(min_length=1, max_length=32)
+    hostname: str = Field(min_length=1, max_length=253)
+    lan_ip: str = Field(min_length=1, max_length=64)
+    nonce: str = _NONCE
+    signature: str = _SIGNATURE
+
+
+class CheckInOut(BaseModel):
+    state: str  # waiting_for_approval | approved
+    conflict: bool = False
+    server_time: datetime
+
+
+class PollIn(BaseModel):
+    identity_public_key: str = _KEY
+    have_token: bool
+    nonce: str = _NONCE
+    signature: str = _SIGNATURE
+
+
+class TunnelConfigOut(BaseModel):
+    link: str = "wired"
+    address: str
+    server_public_key: str
+    endpoint: str
+    allowed_ips: str
+    persistent_keepalive: int
+    preshared_key: Optional[str] = None
+
+
+class PollOut(BaseModel):
+    state: str  # waiting_for_approval | approved
+    server_time: datetime
+    monitor_id: Optional[UUID] = None
+    name: Optional[str] = None
+    token: Optional[str] = None
+    tunnel: Optional[TunnelConfigOut] = None
+    tunnels: list[TunnelConfigOut] = Field(default_factory=list)
+
+
+class InstallerCodeIn(BaseModel):
+    installer_code: str = Field(min_length=1, max_length=32)
+    device_name: str = Field(min_length=1, max_length=128)
+    location: Optional[str] = Field(default=None, max_length=128)
+
+
+class ApproveIn(BaseModel):
+    replace_monitor_id: Optional[UUID] = None
+
+
+class CheckinOut(BaseModel):
+    id: UUID
+    hostname: str
+    lan_ip: str
+    observed_ip: Optional[str] = None
+    first_seen_at: datetime
+    last_seen_at: datetime
+
+
+class RegistrationOut(BaseModel):
+    id: UUID
+    device_name: str
+    location: Optional[str] = None
+    registered_by: str
+    created_at: Optional[datetime] = None
+    expires_at: datetime
+    conflict: bool
+    checkins: list[CheckinOut] = Field(default_factory=list)
+
+
+class MonitorAdminOut(BaseModel):
+    id: UUID
+    slug: str
+    name: str
+    status: str
+    last_seen_at: Optional[datetime] = None
+    lan_ip: Optional[str] = None
+    public_ip: Optional[str] = None
+    isp: Optional[str] = None
+    agent_version: Optional[str] = None
+    location_label: Optional[str] = None
+    region: Optional[str] = None
+    country: Optional[str] = None
+    tunnel_address: Optional[str] = None
+    wireless_tunnel_address: Optional[str] = None
+    # never_connected | connected | disconnected, or None for agents added before installer codes
+    tunnel_state: Optional[str] = None
+    wireless_tunnel_state: Optional[str] = None
+    last_handshake_at: Optional[datetime] = None
+    health_interval_seconds: int
+    config_version: int
+    applied_config_version: int
+    restart_requested_at: Optional[datetime] = None
+
+
+class DeviceHealthIn(BaseModel):
+    hostname: str = Field(min_length=1, max_length=128)
+    agent_version: str = Field(min_length=1, max_length=32)
+    uptime_seconds: int = Field(ge=0)
+    cpu_percent: float = Field(ge=0, le=100)
+    load_1: float = Field(ge=0)
+    mem_used_mb: int = Field(ge=0)
+    mem_total_mb: int = Field(ge=0)
+    disk_used_mb: int = Field(ge=0)
+    disk_total_mb: int = Field(ge=0)
+    temp_c: Optional[float] = None
+    lan_ip: Optional[str] = Field(default=None, max_length=64)
+    public_ip: Optional[str] = Field(default=None, max_length=64)
+    isp: Optional[str] = Field(default=None, max_length=128)
+    config_version: int = Field(default=0, ge=0)
+
+    @field_validator("public_ip")
+    @classmethod
+    def _public_address(cls, value: Optional[str]) -> Optional[str]:
+        if not value:
+            return None
+        try:
+            address = ipaddress.ip_address(value.strip())
+        except ValueError:
+            return None
+        if not address.is_global:
+            return None
+        return str(address)
+
+    @field_validator("isp")
+    @classmethod
+    def _provider(cls, value: Optional[str]) -> Optional[str]:
+        if not value:
+            return None
+        cleaned = " ".join(value.split())
+        return cleaned[:128] or None
+
+
+class ScheduledTestOut(BaseModel):
+    slug: str
+    name: str
+    kind: str
+    target: str
+    network_slug: str
+    interval_seconds: int
+    # wired, wireless, or wan. The agent pins wired and wireless probes to that NIC.
+    link: str = "wan"
+
+
+class TunnelIssueOut(BaseModel):
+    id: UUID
+    name: str
+    address: str
+    config: str
+    wireless_address: str
+    wireless_config: str
+
+
+class DeviceConfigOut(BaseModel):
+    name: str
+    health_interval_seconds: int
+    config_version: int
+    tests: list[ScheduledTestOut] = Field(default_factory=list)
+    restart: bool = False
+
+
+class ProbeCommandOut(BaseModel):
+    restart: bool
+
+
 class UserOut(BaseModel):
     id: UUID
     username: str
     role: str
+    csrf_token: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -49,13 +245,14 @@ class IngestResponse(BaseModel):
 
 
 class HealthCell(BaseModel):
-    sensor_id: UUID
-    sensor_slug: str
-    sensor_name: str
+    monitor_id: UUID
+    monitor_slug: str
+    monitor_name: str
     network_id: UUID
     network_slug: str
     network_name: str
     status: str  # ok | degraded | fail | unknown
+    column: str = ""
     last_test_at: Optional[datetime] = None
     failing_tests: int = 0
 
@@ -67,15 +264,18 @@ class IssueSummary(BaseModel):
     status: str
     opened_at: datetime
     root_cause_stage: Optional[str] = None
-    sensor_slug: Optional[str] = None
+    monitor_slug: Optional[str] = None
+    monitor_name: Optional[str] = None
     network_slug: Optional[str] = None
+    network_name: Optional[str] = None
+    test_name: Optional[str] = None
 
 
 class SummaryResponse(BaseModel):
     generated_at: datetime
     matrix: list[HealthCell]
     open_issues: list[IssueSummary]
-    sensors: list[dict[str, Any]]
+    monitors: list[dict[str, Any]]
     networks: list[dict[str, Any]]
 
 
@@ -86,16 +286,39 @@ class ResultOut(BaseModel):
     test_slug: str
     test_name: str
     test_kind: str
-    sensor_id: UUID
-    sensor_slug: str
+    monitor_id: UUID
+    monitor_slug: str
     network_id: UUID
     network_slug: str
+    network_name: str
     started_at: datetime
     finished_at: datetime
     status: str
     stages: list[dict[str, Any]]
     metrics: dict[str, Any]
     message: Optional[str] = None
+    status_reason: Optional[str] = None
+
+
+class ResultPage(BaseModel):
+    total: int
+    offset: int
+    limit: int
+    items: list[ResultOut]
+
+
+class HopMetric(BaseModel):
+    hop: int
+    host: str
+    loss_pct: float
+    best_ms: float
+    avg_ms: float
+    worst_ms: float
+
+
+class ThroughputMbps(BaseModel):
+    upload: Optional[float] = None
+    download: Optional[float] = None
 
 
 class MetricsPoint(BaseModel):
@@ -103,6 +326,11 @@ class MetricsPoint(BaseModel):
     status: str
     rtt_ms: Optional[float] = None
     loss_pct: Optional[float] = None
+    jitter_ms: Optional[float] = None
+    up_mbps: Optional[float] = None
+    down_mbps: Optional[float] = None
+    hops: list[HopMetric] = Field(default_factory=list)
+    throughput_mbps: Optional[ThroughputMbps] = None
     stages: list[dict[str, Any]] = Field(default_factory=list)
 
 
@@ -110,6 +338,74 @@ class MetricsResponse(BaseModel):
     test_id: UUID
     test_slug: str
     points: list[MetricsPoint]
+
+
+class WifiObservationOut(BaseModel):
+    scanned_at: datetime
+    ssid: str
+    bssid: str
+    vendor: str
+    band: str
+    channel: int
+    channel_width: int
+    rssi_dbm: float
+    noise_dbm: float
+    security: str
+    phy: str
+    max_link_rate_mbps: int
+
+
+class WebServiceSettingOut(BaseModel):
+    key: str
+    label: str
+    interval_seconds: int
+    http_enabled: bool
+    icmp_enabled: bool
+    jitter_enabled: bool
+    http_variance_pct: int
+    icmp_variance_pct: int
+    jitter_variance_pct: int
+
+
+class WebServiceSettingIn(BaseModel):
+    key: str = Field(min_length=1, max_length=32)
+    interval_seconds: int = Field(ge=60, le=86400)
+    http_enabled: bool
+    icmp_enabled: bool
+    jitter_enabled: bool
+    http_variance_pct: int = Field(ge=0, le=500)
+    icmp_variance_pct: int = Field(ge=0, le=500)
+    jitter_variance_pct: int = Field(ge=0, le=500)
+
+
+class WebServiceSettingsIn(BaseModel):
+    services: list[WebServiceSettingIn]
+
+
+class InternetServiceSettingOut(BaseModel):
+    interval_seconds: int
+    http_enabled: bool
+    icmp_enabled: bool
+    mtr_enabled: bool
+    http_variance_pct: int
+    icmp_variance_pct: int
+    mtr_variance_pct: int
+    iperf_enabled: bool
+    iperf_interval_seconds: int
+    iperf_variance_pct: int
+
+
+class InternetServiceSettingIn(BaseModel):
+    interval_seconds: int = Field(ge=60, le=86400)
+    http_enabled: bool
+    icmp_enabled: bool
+    mtr_enabled: bool
+    http_variance_pct: int = Field(ge=0, le=500)
+    icmp_variance_pct: int = Field(ge=0, le=500)
+    mtr_variance_pct: int = Field(ge=0, le=500)
+    iperf_enabled: bool
+    iperf_interval_seconds: int = Field(ge=300, le=86400)
+    iperf_variance_pct: int = Field(ge=0, le=500)
 
 
 class IssueOut(BaseModel):
@@ -121,8 +417,8 @@ class IssueOut(BaseModel):
     root_cause_stage: Optional[str] = None
     opened_at: datetime
     resolved_at: Optional[datetime] = None
-    sensor_id: Optional[UUID] = None
-    sensor_slug: Optional[str] = None
+    monitor_id: Optional[UUID] = None
+    monitor_slug: Optional[str] = None
     network_id: Optional[UUID] = None
     network_slug: Optional[str] = None
     test_id: Optional[UUID] = None

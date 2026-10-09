@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 from typing import Annotated, Optional
 from uuid import UUID
 
-from fastapi import Cookie, Depends, HTTPException, Response, status
+from fastapi import Cookie, Depends, Header, HTTPException, Response, status
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
@@ -69,4 +71,20 @@ def get_current_user(
 def require_admin(user: Annotated[User, Depends(get_current_user)]) -> User:
     if user.role != UserRole.admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin required")
+    return user
+
+
+def csrf_token_for(session_token: str, settings: Settings) -> str:
+    return hmac.new(settings.secret_key.encode(), f"csrf:{session_token}".encode(), hashlib.sha256).hexdigest()
+
+
+def require_admin_csrf(
+    user: Annotated[User, Depends(require_admin)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    hns_session: Annotated[Optional[str], Cookie(alias="hns_session")] = None,
+    x_csrf_token: Annotated[Optional[str], Header()] = None,
+) -> User:
+    expected = csrf_token_for(hns_session or "", settings)
+    if not x_csrf_token or not hmac.compare_digest(x_csrf_token, expected):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing or invalid CSRF token")
     return user

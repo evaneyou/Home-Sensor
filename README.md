@@ -1,10 +1,55 @@
 # Home Network Sensor
 
-UXI-style home network monitoring. Sensors on a Raspberry Pi (or Linux PC) run staged connectivity tests and push results to a FastAPI + Postgres server. The React dashboard reads those APIs — it never talks to the Pi.
+UXI-style home network monitoring. Remote agents on a Raspberry Pi (or Linux PC) run staged connectivity tests and push results to a FastAPI + Postgres server. The React dashboard reads those APIs — it never talks to the Pi.
 
-This repo ships the **dashboard-first slice**: thin server, idempotent dummy seed (~30 days of synthetic results), and an ops UI (Overview matrix, Sensor/Test detail with stage waterfall, Issues). The real sensor agent comes later.
+This repo ships the dashboard, the server, and a Pi package in `monitor/`. The package enrolls a device and posts its health. Staged tests on the Pi come later.
 
-## Quick start
+## Install on your PC (recommended)
+
+Cloud agent links to `127.0.0.1` only work inside that VM. To use the app in your normal browser, run Compose **locally**.
+
+### 1. Install Docker
+
+- **macOS / Windows:** [Docker Desktop](https://docs.docker.com/get-docker/) — install, start it, wait until it says running.
+- **Ubuntu/Debian:**
+
+```bash
+sudo apt-get update
+sudo apt-get install -y docker.io docker-compose-v2
+sudo usermod -aG docker "$USER"   # then log out/in
+sudo systemctl enable --now docker
+```
+
+Confirm: `docker compose version` and `docker info`.
+
+### 2. Get this repo
+
+Create a real Git repo from the New Project “Create repo” pill if you have not yet, then clone and check out:
+
+```bash
+git clone <your-repo-url>
+cd <repo>
+git checkout cursor/dashboard-first-slice-7ea9
+```
+
+### 3. Start + seed
+
+```bash
+chmod +x scripts/local-up.sh
+./scripts/local-up.sh
+```
+
+Or manually:
+
+```bash
+cp .env.example .env
+docker compose up --build -d
+docker compose exec server python -m app.seed
+```
+
+Open **http://127.0.0.1:3847** → login `admin` / `admin-change-me`.
+
+## Quick start (already have Docker)
 
 ```bash
 cp .env.example .env
@@ -70,7 +115,7 @@ docker-compose.yml      db + server + dashboard
 ## What’s next
 
 - Phase 1: enrollment / config ETag, issue engine hardening
-- Phase 2: Linux sensor agent on the Pi
+- Phase 2: Linux remote agent on the Pi
 - Phase 3: wireless / RF pages
 - Phase 4: same Compose stack on a small VPS
 
