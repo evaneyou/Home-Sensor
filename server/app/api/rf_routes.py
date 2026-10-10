@@ -323,16 +323,18 @@ def post_rf_capture(
                     band=channel.band,
                     channel=channel.channel,
                     airtime_pct=channel.airtime_pct,
+                    busy_pct=channel.busy_pct,
                     packets=channel.packets,
                 )
             )
             stored += 1
         else:
             stat.airtime_pct = channel.airtime_pct
+            stat.busy_pct = channel.busy_pct
             stat.packets = channel.packets
     for alert in body.alerts:
         bssid = alert.bssid.lower()
-        key = f"{alert.type}:{bssid}:{alert.ts}"[:128]
+        key = (alert.hash or f"{alert.type}:{bssid}:{alert.ts}")[:128]
         when = datetime.fromtimestamp(alert.ts, timezone.utc) if alert.ts else captured
         exists = db.scalar(
             select(RfAlert.id).where(

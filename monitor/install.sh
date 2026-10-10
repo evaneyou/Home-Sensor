@@ -62,6 +62,7 @@ echo "Open http://${host}.local/ from a PC on this LAN."
 echo "Create the device in Remote Agent Onboarding first, then paste its name and key here."
 
 install_kismet() {
+  export DEBIAN_FRONTEND=noninteractive
   # shellcheck disable=SC1091
   . /etc/os-release
   codename="${VERSION_CODENAME:-}"
@@ -101,6 +102,14 @@ EOF
   ip link set "$radio" down || true
   if ! ip link set "$radio" name hnwradio0; then
     echo "The radio will be named hnwradio0 after it is re-plugged or the Pi reboots."
+  fi
+  install -d -m 755 /etc/NetworkManager/conf.d
+  cat > /etc/NetworkManager/conf.d/hnw-radio.conf <<EOF
+[keyfile]
+unmanaged-devices=interface-name:hnwradio0
+EOF
+  if systemctl is-active --quiet NetworkManager; then
+    systemctl reload NetworkManager || true
   fi
   user="hnw$(python3 -c 'import secrets; print(secrets.token_hex(4))')"
   password="$(python3 -c 'import secrets; print(secrets.token_urlsafe(18))')"

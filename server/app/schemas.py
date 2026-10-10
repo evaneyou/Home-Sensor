@@ -522,6 +522,8 @@ class RfCaptureChannel(BaseModel):
     channel: int
     airtime_pct: Optional[float] = None
     packets: Optional[int] = None
+    busy_pct: Optional[float] = None
+    devices: Optional[int] = None
 
 
 class RfCaptureAlert(BaseModel):
@@ -529,6 +531,7 @@ class RfCaptureAlert(BaseModel):
     bssid: str = ""
     text: str = ""
     ts: int = 0
+    hash: str = ""
 
 
 class RfCaptureIn(BaseModel):

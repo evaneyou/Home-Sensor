@@ -21,7 +21,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from checks import link_is_busy, link_lock, parse_link_ssid, run_check, scan_may_run, wifi_roles
-from kismet_view import as_list, iw_scan_skipped, map_alerts, map_channels, map_devices, visible_clients
+from kismet_view import (
+    DEVICE_FIELDS,
+    iw_scan_skipped,
+    map_kismet_capture,
+    prefer_survey,
+    survey_channels,
+    visible_clients,
+    with_busy,
+)
 import rf_spool
 
 AGENT_VERSION = "0.3.10"
@@ -610,20 +618,42 @@ def _kismet_auth(user: str, password: str) -> str:
 def kismet_get(base: str, user: str, password: str, path: str) -> object:
     request = urllib.request.Request(
         base.rstrip("/") + path,
-        headers={"Authorization": _kismet_auth(user, password), "KISMET": "fields=dot11.device"},
+        headers={"Authorization": _kismet_auth(user, password)},
     )
     with urllib.request.urlopen(request, timeout=10) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
-def _capture_body(devices: list[dict], channels: list[dict], alerts: list[dict]) -> dict:
-    mapped = map_devices(devices)
+def kismet_devices(base: str, user: str, password: str, since: int) -> object:
+    """Ask Kismet for the device fields we map, instead of a full record."""
+    body = urllib.parse.urlencode({"json": json.dumps({"fields": DEVICE_FIELDS})}).encode()
+    request = urllib.request.Request(
+        f"{base.rstrip('/')}/devices/last-time/{since}/devices.json",
+        data=body,
+        headers={
+            "Authorization": _kismet_auth(user, password),
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def kismet_survey_text() -> str:
+    radio = wifi_survey_text("hnwradio0")
+    link = str(wifi_roles().get("link") or "")
+    link_text = "" if not link or link == "hnwradio0" else wifi_survey_text(link)
+    return prefer_survey(radio, link_text)
+
+
+def _capture_body(devices: object, channels: object, alerts: object) -> dict:
+    mapped = map_kismet_capture(devices, channels, alerts)
     return {
         "captured_at": datetime.now(timezone.utc).isoformat(),
         "aps": mapped["aps"],
         "clients": visible_clients(mapped["clients"], _trusted_bssids),
-        "channels": map_channels(channels),
-        "alerts": map_alerts(alerts),
+        "channels": with_busy(mapped["channels"], survey_channels(kismet_survey_text())),
+        "alerts": mapped["alerts"],
     }
 
 
@@ -662,16 +692,15 @@ def kismet_once(config: dict) -> None:
     device_since = _kismet_devices_since or now - 60
     alert_since = _kismet_alerts_since or now - 60
     try:
-        devices = as_list(kismet_get(base, user, password, f"/devices/last-time/{device_since}/devices.json"))
-        channels = as_list(kismet_get(base, user, password, "/channels/channels.json"))
-        alerts = as_list(kismet_get(base, user, password, f"/alerts/last-time/{alert_since}/alerts.json"))
+        devices = kismet_devices(base, user, password, device_since)
+        channels = kismet_get(base, user, password, "/channels/channels.json")
+        alerts = kismet_get(base, user, password, f"/alerts/last-time/{alert_since}/alerts.json")
         payload = _capture_body(devices, channels, alerts)
         try:
             _drain_spool(config)
             _post_capture(config, payload)
         except (OSError, urllib.error.URLError, TimeoutError, ValueError):
             rf_spool.push(SPOOL_PATH, payload)
-            return
         _kismet_devices_since = now
         _kismet_alerts_since = now
     except (OSError, urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError):
