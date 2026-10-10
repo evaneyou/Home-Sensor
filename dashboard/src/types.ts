@@ -106,9 +106,21 @@ export type RfHistoryPoint = { t: string; rssi_dbm: number; channel: number };
 export type RfClient = {
   mac: string;
   bssid: string;
+  ssid: string;
+  vendor: string;
   randomized: boolean;
   signal: number;
+  signal_min: number | null;
+  signal_max: number | null;
   last_seen: string;
+  first_seen: string | null;
+  band: string;
+  channel: number | null;
+  packets: number | null;
+  data_bytes: number | null;
+  retries: number | null;
+  disconnects: number | null;
+  probed_ssids: string[];
   points: { t: string; rssi_dbm: number; bssid: string; roam: boolean }[];
 };
 

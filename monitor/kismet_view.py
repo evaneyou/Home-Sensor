@@ -23,6 +23,10 @@ def _band_channel(frequency: int, channel_text: str) -> tuple[str, int] | None:
         channel = int(digits)
     if frequency >= 5955:
         return None
+    if 1 <= channel <= 14:
+        return "2.4", channel
+    if channel > 14:
+        return "5", channel
     if 2412 <= frequency <= 2484:
         band = "2.4"
         if channel <= 0:
@@ -42,20 +46,67 @@ def _band_channel(frequency: int, channel_text: str) -> tuple[str, int] | None:
     return band, channel
 
 
-def _signal(device: dict) -> float:
+def _mhz(frequency: int) -> int:
+    if frequency >= 100_000:
+        return frequency // 1000
+    return frequency
+
+
+def _signal_span(device: dict) -> tuple[float | None, float | None, float | None]:
     raw = device.get("kismet.device.base.signal")
-    if isinstance(raw, dict):
-        value = raw.get("kismet.common.signal.last_signal")
-        if isinstance(value, (int, float)):
+
+    def known(value: object) -> float | None:
+        if isinstance(value, (int, float)) and value != 0:
             return float(value)
-    if isinstance(raw, (int, float)):
-        return float(raw)
-    return -100.0
+        return None
+
+    if isinstance(raw, dict):
+        return (
+            known(raw.get("kismet.common.signal.last_signal")),
+            known(raw.get("kismet.common.signal.min_signal")),
+            known(raw.get("kismet.common.signal.max_signal")),
+        )
+    last = known(raw)
+    return last, None, None
+
+
+def _count(source: dict, *keys: str) -> int | None:
+    for key in keys:
+        value = source.get(key)
+        if isinstance(value, (int, float)) and value > 0:
+            return int(value)
+    return None
+
+
+def _probed_ssids(dot11: dict) -> list[str]:
+    raw = dot11.get("dot11.device.probed_ssid_map") or []
+    if isinstance(raw, dict):
+        raw = list(raw.values())
+    names: list[str] = []
+    for item in raw if isinstance(raw, list) else []:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("dot11.probedssid.ssid") or "").strip()
+        if name and name not in names:
+            names.append(name[:64])
+    return names[:12]
+
+
+def _signal(device: dict) -> float:
+    last, _low, _high = _signal_span(device)
+    return last if last is not None else -100.0
 
 
 def _dot11(device: dict) -> dict:
     raw = device.get("dot11.device")
     return raw if isinstance(raw, dict) else {}
+
+
+def _vendor(device: dict) -> str:
+    text = str(device.get("kismet.device.base.manuf") or "").strip()
+    if not text or text.lower() == "unknown":
+        return ""
+    return text[:64]
 
 
 def _mac(value: object) -> str:
@@ -76,7 +127,7 @@ def map_devices(devices: list[dict]) -> dict[str, list[dict]]:
         if not mac:
             continue
         frequency = device.get("kismet.device.base.frequency")
-        freq = int(frequency) if isinstance(frequency, (int, float)) else 0
+        freq = _mhz(int(frequency)) if isinstance(frequency, (int, float)) else 0
         channel_text = str(device.get("kismet.device.base.channel") or "")
         placed = _band_channel(freq, channel_text)
         if placed is None:
@@ -102,13 +153,26 @@ def map_devices(devices: list[dict]) -> dict[str, list[dict]]:
         bssid = _mac(dot11.get("dot11.device.last_bssid"))
         if not bssid:
             continue
+        last_signal, signal_min, signal_max = _signal_span(device)
+        first_seen = device.get("kismet.device.base.first_time")
         clients.append(
             {
                 "mac": mac,
                 "bssid": bssid,
-                "signal": signal,
+                "signal": last_signal if last_signal is not None else 0,
+                "signal_min": signal_min,
+                "signal_max": signal_max,
                 "last_seen": int(last_seen) if isinstance(last_seen, (int, float)) else 0,
+                "first_seen": int(first_seen) if isinstance(first_seen, (int, float)) else 0,
                 "randomized": randomized_mac(mac),
+                "vendor": _vendor(device),
+                "band": band,
+                "channel": channel,
+                "packets": _count(device, "kismet.device.base.packets.total", "kismet.device.base.packets.data"),
+                "data_bytes": _count(device, "kismet.device.base.datasize"),
+                "retries": _count(dot11, "dot11.device.num_retries"),
+                "disconnects": _count(dot11, "dot11.device.client_disconnects"),
+                "probed_ssids": _probed_ssids(dot11),
             }
         )
     return {"aps": aps, "clients": clients}

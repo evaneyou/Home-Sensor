@@ -39,12 +39,24 @@ DEVICES = [
     },
     {
         "kismet.device.base.macaddr": CLIENT,
+        "kismet.device.base.manuf": "Apple",
         "kismet.device.base.type": "Wi-Fi Client",
         "kismet.device.base.frequency": 2437,
         "kismet.device.base.channel": "6",
-        "kismet.device.base.signal": {"kismet.common.signal.last_signal": -60},
+        "kismet.device.base.signal": {
+            "kismet.common.signal.last_signal": -60,
+            "kismet.common.signal.min_signal": -68,
+            "kismet.common.signal.max_signal": -55,
+        },
+        "kismet.device.base.packets.total": 12,
+        "kismet.device.base.datasize": 400,
+        "kismet.device.base.first_time": 1_699_999_000,
         "kismet.device.base.last_time": 1_700_000_000,
-        "dot11.device": {"dot11.device.last_bssid": AP},
+        "dot11.device": {
+            "dot11.device.last_bssid": AP,
+            "dot11.device.num_retries": 3,
+            "dot11.device.probed_ssid_map": [{"dot11.probedssid.ssid": "Cafe"}, {"dot11.probedssid.ssid": ""}],
+        },
     },
     {
         "kismet.device.base.macaddr": OTHER,
@@ -53,6 +65,13 @@ DEVICES = [
         "kismet.device.base.channel": "36",
         "kismet.device.base.signal": -70,
         "dot11.device": {"dot11.device.last_bssid": "aa:bb:cc:dd:ee:99"},
+    },
+    {
+        "kismet.device.base.macaddr": "10:20:30:40:50:61",
+        "kismet.device.base.type": "Wi-Fi Client",
+        "kismet.device.base.frequency": 2_437_000,
+        "kismet.device.base.channel": "6",
+        "dot11.device": {"dot11.device.last_bssid": AP},
     },
     {
         "kismet.device.base.macaddr": "10:20:30:40:50:60",
@@ -70,11 +89,18 @@ def test_kismet_json_maps_aps_clients_channels_and_alerts():
     assert mapped["aps"] == [
         {"bssid": AP.lower(), "ssid": "Home", "band": "2.4", "channel": 6, "signal": -42.0, "client_count": 2}
     ]
-    assert len(mapped["clients"]) == 2
+    assert len(mapped["clients"]) == 3
     home_client = mapped["clients"][0]
     assert home_client["randomized"] is True
+    assert home_client["vendor"] == "Apple"
+    assert home_client["channel"] == 6
+    assert home_client["packets"] == 12
+    assert home_client["data_bytes"] == 400
+    assert home_client["signal_min"] == -68
+    assert home_client["probed_ssids"] == ["Cafe"]
+    assert home_client["retries"] == 3
     kept = view.visible_clients(mapped["clients"], {AP})
-    assert [item["mac"] for item in kept] == [CLIENT.lower()]
+    assert [item["mac"] for item in kept] == [CLIENT.lower(), "10:20:30:40:50:61"]
     channels = view.map_channels(
         [{"kismet.channel.channel": "6", "kismet.channel.frequency": 2437, "kismet.channel.airtime": 12.5, "kismet.channel.packets": 40}]
     )
@@ -113,7 +139,23 @@ def _body(captured: datetime) -> dict:
             {"bssid": AP, "ssid": "Home", "band": "2.4", "channel": 6, "signal": -40, "client_count": 2},
         ],
         "clients": [
-            {"mac": CLIENT, "bssid": AP, "signal": -55, "last_seen": 1_700_000_000, "randomized": True},
+            {
+                "mac": CLIENT,
+                "bssid": AP,
+                "signal": -55,
+                "signal_min": -68,
+                "signal_max": -50,
+                "last_seen": 1_700_000_000,
+                "first_seen": 1_699_999_000,
+                "randomized": True,
+                "vendor": "Apple",
+                "band": "2.4",
+                "channel": 6,
+                "packets": 12,
+                "data_bytes": 400,
+                "retries": 3,
+                "probed_ssids": ["Cafe"],
+            },
             {"mac": OTHER, "bssid": "aa:bb:cc:dd:ee:99", "signal": -70, "last_seen": 1_700_000_100, "randomized": False},
         ],
         "channels": [{"band": "2.4", "channel": 6, "airtime_pct": 18.0, "packets": 90}],
@@ -149,6 +191,10 @@ def test_rf_capture_is_idempotent_and_keeps_trusted_clients(client, db, monitor_
     db.expire_all()
     clients = db.scalars(select(RfClient).where(RfClient.monitor_id == monitor_id)).all()
     assert [row.mac for row in clients] == [CLIENT.lower()]
+    assert clients[0].vendor == "Apple"
+    assert clients[0].channel == 6
+    assert clients[0].packets == 12
+    assert clients[0].probed_ssids == '["Cafe"]'
     obs = db.scalar(select(WifiObservation).where(WifiObservation.monitor_id == monitor_id, WifiObservation.bssid == AP.lower()))
     assert obs is not None
     assert obs.client_count == 2

@@ -59,6 +59,14 @@ def test_builtin_wins_the_link_when_both_adapters_have_an_address(tmp_path: Path
     assert roles["radio"] == "wlxusb"
 
 
+def test_link_ssid_comes_from_the_iw_association():
+    checks = _checks()
+    text = "Connected to 7c:9a:54:76:24:5d (on wlan0)\n\tSSID: GenZen-WiFi\n\tfreq: 5785\n"
+    assert checks.parse_link_ssid(text) == "GenZen-WiFi"
+    assert checks.parse_link_ssid("Not connected.\n") == ""
+    assert checks.parse_link_ssid("\tSSID: my:net\n") == "my:net"
+
+
 def test_link_scans_wait_for_tests_and_fifteen_minutes():
     checks = _checks()
     assert checks.scan_may_run(role="radio", last_link_scan=0, now=10, link_busy=True, forced=False)

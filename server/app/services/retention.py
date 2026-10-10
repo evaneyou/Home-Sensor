@@ -8,6 +8,7 @@ Anything older than 2 years is deleted.
 from __future__ import annotations
 
 import calendar
+import json
 import logging
 import uuid
 from collections import defaultdict
@@ -200,16 +201,39 @@ def _rollup_clients(db: Session, start: datetime, end: datetime, resolution: str
         latest = max(members, key=lambda row: row.observed_at)
         bucket = _bucket(latest.observed_at, resolution)
         db.execute(delete(RfClient).where(RfClient.id.in_([m.id for m in members])))
+        probed: list[str] = []
+        for member in members:
+            try:
+                parsed = json.loads(member.probed_ssids or "[]")
+            except json.JSONDecodeError:
+                parsed = []
+            for name in parsed if isinstance(parsed, list) else []:
+                if isinstance(name, str) and name and name not in probed:
+                    probed.append(name)
+        opened = [member.first_seen for member in members if member.first_seen is not None]
+        lows = [member.signal_min for member in members if member.signal_min is not None]
+        highs = [member.signal_max for member in members if member.signal_max is not None]
         db.add(
             RfClient(
                 monitor_id=latest.monitor_id,
                 observed_at=bucket,
                 dedupe_key=latest.mac,
                 mac=latest.mac,
+                vendor=next((member.vendor for member in sorted(members, key=lambda row: row.observed_at, reverse=True) if member.vendor), ""),
                 bssid=latest.bssid,
                 signal=_mean(m.signal for m in members),
+                signal_min=min(lows) if lows else None,
+                signal_max=max(highs) if highs else None,
                 last_seen=max(m.last_seen for m in members),
+                first_seen=min(opened) if opened else None,
                 randomized=any(m.randomized for m in members),
+                band=latest.band,
+                channel=latest.channel,
+                packets=latest.packets,
+                data_bytes=latest.data_bytes,
+                retries=latest.retries,
+                disconnects=latest.disconnects,
+                probed_ssids=json.dumps(probed[:12]),
             )
         )
     return rolled
