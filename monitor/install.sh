@@ -37,6 +37,18 @@ if [ -n "$need" ]; then
   apt-get update
   apt-get install -y $need
 fi
+cat > /usr/local/bin/hnw-reset <<'EOF'
+#!/bin/sh
+set -eu
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Run as root: sudo hnw-reset" >&2
+  exit 1
+fi
+rm -f /etc/monitor/config.json
+systemctl restart monitor.service
+echo "Enrollment cleared. Open this Pi's setup page to connect again."
+EOF
+chmod 755 /usr/local/bin/hnw-reset
 systemctl daemon-reload
 systemctl enable monitor.service
 systemctl restart monitor.service
@@ -62,6 +74,7 @@ echo "Open http://${host}.local/ from a PC on this LAN."
 echo "Create the device in Remote Agent Onboarding first, then paste its name and key here."
 
 install_kismet() {
+  export DEBIAN_FRONTEND=noninteractive
   # shellcheck disable=SC1091
   . /etc/os-release
   codename="${VERSION_CODENAME:-}"
@@ -88,7 +101,19 @@ install_kismet() {
     echo "Kismet was not installed. The official apt repo has no packages for ${codename}."
     return 0
   fi
+  echo "kismet-capture-common kismet-capture-common/install-setuid boolean true" | debconf-set-selections
   apt-get install -y kismet
+  if [ ! -e /usr/bin/kismet_cap_linux_wifi ]; then
+    echo "kismet_cap_linux_wifi was not installed." >&2
+    exit 1
+  fi
+  dpkg-statoverride --remove /usr/bin/kismet_cap_linux_wifi 2>/dev/null || true
+  dpkg-statoverride --update --add root kismet 4750 /usr/bin/kismet_cap_linux_wifi
+  mode="$(stat -c '%a %U:%G' /usr/bin/kismet_cap_linux_wifi)"
+  if [ "$mode" != "4750 root:kismet" ]; then
+    echo "kismet_cap_linux_wifi is ${mode}, expected 4750 root:kismet" >&2
+    exit 1
+  fi
   mac="$(cat "/sys/class/net/${radio}/address")"
   install -d -m 755 /etc/systemd/network
   cat > /etc/systemd/network/10-hnwradio.link <<EOF
@@ -101,6 +126,14 @@ EOF
   ip link set "$radio" down || true
   if ! ip link set "$radio" name hnwradio0; then
     echo "The radio will be named hnwradio0 after it is re-plugged or the Pi reboots."
+  fi
+  install -d -m 755 /etc/NetworkManager/conf.d
+  cat > /etc/NetworkManager/conf.d/hnw-radio.conf <<EOF
+[keyfile]
+unmanaged-devices=interface-name:hnwradio0
+EOF
+  if systemctl is-active --quiet NetworkManager; then
+    systemctl reload NetworkManager || true
   fi
   user="hnw$(python3 -c 'import secrets; print(secrets.token_hex(4))')"
   password="$(python3 -c 'import secrets; print(secrets.token_urlsafe(18))')"

@@ -221,7 +221,7 @@ def _rollup_clients(db: Session, start: datetime, end: datetime, resolution: str
                 mac=latest.mac,
                 vendor=next((member.vendor for member in sorted(members, key=lambda row: row.observed_at, reverse=True) if member.vendor), ""),
                 bssid=latest.bssid,
-                signal=_mean(m.signal for m in members),
+                signal=_mean_or_none(m.signal for m in members if m.signal),
                 signal_min=min(lows) if lows else None,
                 signal_max=max(highs) if highs else None,
                 last_seen=max(m.last_seen for m in members),

@@ -131,8 +131,9 @@ class Monitor(Base):
     applied_config_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     health_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=60, server_default="60")
     scan_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=300, server_default="300")
-    # SSID the link adapter is joined to. Every BSSID of this name is trusted.
+    # SSID and BSSID the link adapter is joined to.
     link_ssid: Mapped[Optional[str]] = mapped_column(String(64))
+    link_bssid: Mapped[Optional[str]] = mapped_column(String(17))
     # Set by an admin. The probe clears it once, then replaces its own process.
     restart_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     scan_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -289,7 +290,7 @@ class RfClient(Base):
     mac: Mapped[str] = mapped_column(String(17), nullable=False)
     vendor: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
     bssid: Mapped[str] = mapped_column(String(17), nullable=False)
-    signal: Mapped[float] = mapped_column(Float, nullable=False)
+    signal: Mapped[Optional[float]] = mapped_column(Float)
     signal_min: Mapped[Optional[float]] = mapped_column(Float)
     signal_max: Mapped[Optional[float]] = mapped_column(Float)
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -337,6 +338,7 @@ class ApInventory(Base):
     monitor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"), nullable=False)
     bssid: Mapped[str] = mapped_column(String(17), nullable=False)
     trusted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    trust_source: Mapped[Optional[str]] = mapped_column(String(8))
     label: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

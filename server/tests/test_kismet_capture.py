@@ -33,7 +33,7 @@ DEVICES = [
         "kismet.device.base.name": "Home",
         "kismet.device.base.type": "Wi-Fi AP",
         "kismet.device.base.channel": "6",
-        "kismet.device.base.frequency": 2437,
+        "kismet.device.base.frequency": 2_437_000,
         "kismet.device.base.signal": {"kismet.common.signal.last_signal": -42},
         "dot11.device": {"dot11.device.num_associated_clients": 2},
     },
@@ -41,7 +41,7 @@ DEVICES = [
         "kismet.device.base.macaddr": CLIENT,
         "kismet.device.base.manuf": "Apple",
         "kismet.device.base.type": "Wi-Fi Client",
-        "kismet.device.base.frequency": 2437,
+        "kismet.device.base.frequency": 2_437_000,
         "kismet.device.base.channel": "6",
         "kismet.device.base.signal": {
             "kismet.common.signal.last_signal": -60,
@@ -61,7 +61,7 @@ DEVICES = [
     {
         "kismet.device.base.macaddr": OTHER,
         "kismet.device.base.type": "Wi-Fi Client",
-        "kismet.device.base.frequency": 5180,
+        "kismet.device.base.frequency": 5_180_000,
         "kismet.device.base.channel": "36",
         "kismet.device.base.signal": -70,
         "dot11.device": {"dot11.device.last_bssid": "aa:bb:cc:dd:ee:99"},
@@ -76,7 +76,7 @@ DEVICES = [
     {
         "kismet.device.base.macaddr": "10:20:30:40:50:60",
         "kismet.device.base.type": "Wi-Fi AP",
-        "kismet.device.base.frequency": 5955,
+        "kismet.device.base.frequency": 5_955_000,
         "kismet.device.base.channel": "1",
         "kismet.device.base.signal": -40,
     },
@@ -102,17 +102,91 @@ def test_kismet_json_maps_aps_clients_channels_and_alerts():
     kept = view.visible_clients(mapped["clients"], {AP})
     assert [item["mac"] for item in kept] == [CLIENT.lower(), "10:20:30:40:50:61"]
     channels = view.map_channels(
-        [{"kismet.channel.channel": "6", "kismet.channel.frequency": 2437, "kismet.channel.airtime": 12.5, "kismet.channel.packets": 40}]
+        view.channel_rows(
+            {
+                "kismet.channeltracker.frequency_map": {
+                    "2437000": {
+                        "kismet.channelrec.channel": "6",
+                        "kismet.channelrec.frequency": 2_437_000,
+                        "kismet.channelrec.packets_rrd": {"kismet.common.rrd.minute_vec": [1, 40]},
+                        "kismet.channelrec.device_rrd": {"kismet.common.rrd.minute_vec": [2]},
+                    }
+                }
+            }
+        )
     )
-    assert channels[0]["airtime_pct"] == 12.5
+    assert channels[0]["airtime_pct"] is None
+    assert channels[0]["packets"] == 40
+    assert channels[0]["devices"] == 2
+    quiet = ""
+    link = "Survey data from wlan0\n\tfrequency:\t2437 MHz\n\tchannel active time:\t200 ms\n\tchannel busy time:\t50 ms\n"
+    filled = view.with_busy(channels, view.survey_channels(view.prefer_survey(quiet, link)))
+    assert filled[0]["busy_pct"] == 25.0
     alerts = view.map_alerts(
-        [{"kismet.alert.header": "DEAUTHFLOOD", "kismet.alert.text": "flood", "kismet.alert.bssid": AP, "kismet.alert.timestamp": 10}]
+        [
+            {
+                "kismet.alert.header": "DEAUTHFLOOD",
+                "kismet.alert.text": "flood",
+                "kismet.alert.source_mac": AP,
+                "kismet.alert.timestamp": 10.5,
+                "kismet.alert.hash": 42,
+                "kismet.alert.frequency": 2_437_000,
+            }
+        ]
     )
     assert alerts[0]["type"] == "DEAUTHFLOOD"
+    assert alerts[0]["bssid"] == AP.lower()
+    assert alerts[0]["ts"] == 10
+    assert alerts[0]["hash"] == "42"
+    other = view.map_alerts([{"kismet.alert.header": "APSPOOF", "kismet.alert.other_mac": OTHER}])
+    assert other[0]["bssid"] == OTHER.lower()
     assert view.iw_scan_skipped("kismet", "hnwradio0") is True
     assert view.iw_scan_skipped("kismet", None) is False
     assert view.iw_scan_skipped("scan", "hnwradio0") is False
     assert view.iw_scan_skipped("off", None) is False
+
+
+def test_real_kismet_json_maps_an_ap_a_channel_and_an_alert():
+    view = _load("kismet_view_capture", "kismet_view.py")
+    devices = [
+        {
+            "kismet.device.base.macaddr": AP,
+            "kismet.device.base.name": "Home",
+            "kismet.device.base.type": "Wi-Fi AP",
+            "kismet.device.base.channel": "6",
+            "kismet.device.base.frequency": 2_437_000,
+            "kismet.device.base.signal": {"kismet.common.signal.last_signal": -42},
+            "dot11.device": {"dot11.device.num_associated_clients": 1},
+        }
+    ]
+    channels = {
+        "kismet.channeltracker.frequency_map": {
+            "5180000": {
+                "kismet.channelrec.channel": "36",
+                "kismet.channelrec.frequency": 5_180_000,
+                "kismet.channelrec.packets_rrd": {"kismet.common.rrd.minute_vec": [0, 9]},
+                "kismet.channelrec.device_rrd": {"kismet.common.rrd.minute_vec": [1, 4]},
+            }
+        }
+    }
+    alerts = [
+        {
+            "kismet.alert.header": "DEAUTHFLOOD",
+            "kismet.alert.text": "flood",
+            "kismet.alert.transmitter_mac": AP,
+            "kismet.alert.timestamp": 1_700_000_200.125,
+            "kismet.alert.hash": "abc123",
+            "kismet.alert.frequency": 2_437_000,
+        }
+    ]
+    mapped = view.map_kismet_capture(devices, channels, alerts)
+    assert mapped["aps"][0]["bssid"] == AP.lower()
+    assert mapped["aps"][0]["channel"] == 6
+    assert mapped["channels"] == [
+        {"band": "5", "channel": 36, "airtime_pct": None, "packets": 9, "devices": 4, "busy_pct": None}
+    ]
+    assert mapped["alerts"][0]["bssid"] == AP.lower()
+    assert mapped["alerts"][0]["hash"] == "abc123"
 
 
 def test_spool_keeps_five_days_and_caps_size(tmp_path: Path):

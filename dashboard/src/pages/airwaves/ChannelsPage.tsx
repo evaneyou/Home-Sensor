@@ -24,7 +24,7 @@ export default function AirwavesChannels() {
   }
   if (snapshotQ.isLoading) return <Empty title="Channel graph" body="Loading the latest scan…" />;
   if (snapshotQ.isError) return <Empty title="Channel graph" body="Could not load the channel graph." />;
-  if (!snapshotQ.data || snapshotQ.data.series.length === 0) {
+  if (!snapshotQ.data || (snapshotQ.data.series.length === 0 && snapshotQ.data.channels.length === 0)) {
     return <Empty title={`${band} GHz`} body={`No ${band} GHz networks on the latest scan.`} />;
   }
   return <ChannelView snapshot={snapshotQ.data} ctx={ctx} />;
@@ -41,7 +41,7 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
   const onBusiest = busiest == null ? 0 : snapshot.series.filter((series) => series.channel === busiest).length;
   const axis = axisFor(
     snapshot.band,
-    shown.map((series) => series.channel),
+    [...shown.map((series) => series.channel), ...snapshot.channels.map((row) => row.channel)],
     recommended,
   );
   const xOf = (channel: number) => {
@@ -78,7 +78,7 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
         <div className="npv-stats">
           <Stat label="Networks nearby" value={String(advice?.ap_count ?? snapshot.series.length)} note={`on ${snapshot.band} GHz`} />
           <Stat label="Busiest channel" value={busiest == null ? "—" : `Ch ${busiest}`} note={busiest == null ? "No neighbors" : `${onBusiest} networks`} />
-          <Stat label="Strongest signal" value={dbmText(strongest.rssi_dbm)} note={strongest.ssid} />
+          <Stat label="Strongest signal" value={strongest ? dbmText(strongest.rssi_dbm) : "—"} note={strongest ? strongest.ssid : "No networks"} />
         </div>
       </section>
 

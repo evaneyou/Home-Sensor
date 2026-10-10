@@ -154,6 +154,7 @@ class DeviceHealthIn(BaseModel):
     config_version: int = Field(default=0, ge=0)
     airwave_mode: Optional[str] = None
     link_ssid: Optional[str] = Field(default=None, max_length=64)
+    link_bssid: Optional[str] = Field(default=None, max_length=17)
 
     @field_validator("public_ip")
     @classmethod
@@ -474,7 +475,7 @@ class RfClientOut(BaseModel):
     ssid: str = ""
     vendor: str = ""
     randomized: bool
-    signal: float
+    signal: Optional[float] = None
     signal_min: Optional[float] = None
     signal_max: Optional[float] = None
     last_seen: datetime
@@ -501,7 +502,7 @@ class RfCaptureAp(BaseModel):
 class RfCaptureClient(BaseModel):
     mac: str
     bssid: str
-    signal: float = -100
+    signal: Optional[float] = None
     last_seen: int = 0
     randomized: bool = False
     vendor: str = ""
@@ -522,6 +523,8 @@ class RfCaptureChannel(BaseModel):
     channel: int
     airtime_pct: Optional[float] = None
     packets: Optional[int] = None
+    busy_pct: Optional[float] = None
+    devices: Optional[int] = None
 
 
 class RfCaptureAlert(BaseModel):
@@ -529,6 +532,7 @@ class RfCaptureAlert(BaseModel):
     bssid: str = ""
     text: str = ""
     ts: int = 0
+    hash: str = ""
 
 
 class RfCaptureIn(BaseModel):

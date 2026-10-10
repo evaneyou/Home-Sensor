@@ -109,7 +109,7 @@ export type RfClient = {
   ssid: string;
   vendor: string;
   randomized: boolean;
-  signal: number;
+  signal: number | null;
   signal_min: number | null;
   signal_max: number | null;
   last_seen: string;
