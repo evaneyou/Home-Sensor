@@ -1,4 +1,4 @@
-FROM node:22-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /app
 ARG VITE_API_BASE_URL=http://127.0.0.1:8847
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
@@ -7,7 +7,7 @@ RUN npm install
 COPY . .
 RUN npm run build
 
-FROM node:22-alpine
+FROM node:25-alpine
 WORKDIR /app
 RUN npm install -g serve
 COPY --from=build /app/dist ./dist
