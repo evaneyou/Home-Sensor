@@ -105,6 +105,7 @@ export type RfChannelSnapshot = {
   band: string;
   recommended_channel: number;
   reason: string;
+  channels: { channel: number; noise_dbm: number | null; busy_pct: number | null }[];
   series: {
     bssid: string;
     ssid: string;

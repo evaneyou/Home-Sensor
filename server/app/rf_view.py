@@ -23,7 +23,67 @@ def channel_from_freq(freq: int) -> tuple[str, int]:
     return "2.4", 0
 
 
-def parse_iw_scan(text: str) -> list[dict]:
+def parse_iw_survey(text: str) -> list[dict]:
+    """Turn `iw dev <iface> survey dump` into one row per frequency."""
+    rows: list[dict] = []
+    current: dict | None = None
+
+    def flush() -> None:
+        nonlocal current
+        if not current or not current.get("frequency"):
+            current = None
+            return
+        freq = int(current["frequency"])
+        band, channel = channel_from_freq(freq)
+        active = current.get("active")
+        busy = current.get("busy")
+        busy_pct = None
+        if isinstance(active, int) and active > 0 and isinstance(busy, int):
+            busy_pct = round(min(100.0, busy / active * 100.0), 1)
+        if channel > 0:
+            rows.append(
+                {
+                    "frequency": freq,
+                    "band": band,
+                    "channel": channel,
+                    "noise_dbm": current.get("noise"),
+                    "busy_pct": busy_pct,
+                }
+            )
+        current = None
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("Survey data"):
+            flush()
+            current = {}
+            continue
+        if current is None:
+            continue
+        if stripped.startswith("frequency:"):
+            if current.get("frequency"):
+                flush()
+                current = {}
+            current["frequency"] = _first_int(stripped)
+        elif stripped.startswith("noise:"):
+            current["noise"] = _first_float(stripped)
+        elif stripped.startswith("channel active time:"):
+            current["active"] = _first_int(stripped)
+        elif stripped.startswith("channel busy time:"):
+            current["busy"] = _first_int(stripped)
+    flush()
+    return rows
+
+
+def noise_by_frequency(survey: list[dict]) -> dict[int, float]:
+    found: dict[int, float] = {}
+    for row in survey:
+        if isinstance(row.get("noise_dbm"), (int, float)):
+            found[int(row["frequency"])] = float(row["noise_dbm"])
+    return found
+
+
+def parse_iw_scan(text: str, noise_by_freq: dict[int, float] | None = None) -> list[dict]:
     """Turn `iw dev <iface> scan` text into access-point dicts."""
     blocks: list[list[str]] = []
     current: list[str] = []
@@ -38,13 +98,13 @@ def parse_iw_scan(text: str) -> list[dict]:
         blocks.append(current)
     found: list[dict] = []
     for block in blocks:
-        ap = _parse_block(block)
+        ap = _parse_block(block, noise_by_freq or {})
         if ap is not None:
             found.append(ap)
     return found
 
 
-def _parse_block(lines: list[str]) -> dict | None:
+def _parse_block(lines: list[str], noise_by_freq: dict[int, float]) -> dict | None:
     match = _BSS.match(lines[0])
     if match is None:
         return None
@@ -110,7 +170,7 @@ def _parse_block(lines: list[str]) -> dict | None:
         "channel": channel,
         "channel_width": width,
         "rssi_dbm": rssi,
-        "noise_dbm": -100.0,
+        "noise_dbm": noise_by_freq.get(freq) if freq else None,
         "security": security,
         "phy": phy,
         "vendor": "Unknown",

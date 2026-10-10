@@ -18,7 +18,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
-from app.models import ResultStatus, TestResult, WifiObservation
+from app.models import ResultStatus, RfChannelStat, TestResult, WifiObservation
 
 log = logging.getLogger(__name__)
 
@@ -58,18 +58,26 @@ def apply_retention(db: Session, now: datetime) -> dict[str, int]:
     deleted_wifi = db.execute(
         delete(WifiObservation).where(WifiObservation.scanned_at < delete_before)
     ).rowcount
+    deleted_channels = db.execute(
+        delete(RfChannelStat).where(RfChannelStat.measured_at < delete_before)
+    ).rowcount
 
     daily_results = _rollup_results(db, delete_before, daily_before, "day")
     hourly_results = _rollup_results(db, daily_before, hourly_before, "hour")
     daily_wifi = _rollup_wifi(db, delete_before, daily_before, "day")
     hourly_wifi = _rollup_wifi(db, daily_before, hourly_before, "hour")
+    daily_channels = _rollup_channels(db, delete_before, daily_before, "day")
+    hourly_channels = _rollup_channels(db, daily_before, hourly_before, "hour")
     summary = {
         "deleted_results": deleted_results or 0,
         "deleted_wifi": deleted_wifi or 0,
+        "deleted_channels": deleted_channels or 0,
         "daily_results": daily_results,
         "hourly_results": hourly_results,
         "daily_wifi": daily_wifi,
         "hourly_wifi": hourly_wifi,
+        "daily_channels": daily_channels,
+        "hourly_channels": hourly_channels,
     }
     log.info("measurement retention %s", summary)
     return summary
@@ -131,13 +139,40 @@ def _rollup_wifi(db: Session, start: datetime, end: datetime, resolution: str) -
             channel=latest.channel,
             channel_width=latest.channel_width,
             rssi_dbm=_mean(m.rssi_dbm for m in members),
-            noise_dbm=_mean(m.noise_dbm for m in members),
+            noise_dbm=_mean_or_none(m.noise_dbm for m in members),
             security=latest.security,
             phy=latest.phy,
             max_link_rate_mbps=round(_mean(m.max_link_rate_mbps for m in members)),
         )
         db.execute(delete(WifiObservation).where(WifiObservation.id.in_([m.id for m in members])))
         db.add(averaged)
+    return rolled
+
+
+def _rollup_channels(db: Session, start: datetime, end: datetime, resolution: str) -> int:
+    rows = db.scalars(
+        select(RfChannelStat).where(RfChannelStat.measured_at >= start, RfChannelStat.measured_at < end)
+    ).all()
+    groups: dict[tuple, list[RfChannelStat]] = defaultdict(list)
+    for row in rows:
+        groups[(row.monitor_id, row.band, row.channel, _bucket(row.measured_at, resolution))].append(row)
+    rolled = 0
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        rolled += 1
+        latest = max(members, key=lambda row: row.measured_at)
+        db.execute(delete(RfChannelStat).where(RfChannelStat.id.in_([m.id for m in members])))
+        db.add(
+            RfChannelStat(
+                monitor_id=latest.monitor_id,
+                measured_at=_bucket(latest.measured_at, resolution),
+                band=latest.band,
+                channel=latest.channel,
+                noise_dbm=_mean_or_none(m.noise_dbm for m in members),
+                busy_pct=_mean_or_none(m.busy_pct for m in members),
+            )
+        )
     return rolled
 
 
@@ -236,6 +271,13 @@ def _mean(values) -> float:
     nums = [v for v in values if isinstance(v, (int, float))]
     if not nums:
         return 0.0
+    return sum(nums) / len(nums)
+
+
+def _mean_or_none(values) -> float | None:
+    nums = [v for v in values if isinstance(v, (int, float))]
+    if not nums:
+        return None
     return sum(nums) / len(nums)
 
 

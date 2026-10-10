@@ -13,10 +13,20 @@ from sqlalchemy.orm import Session
 from app.api.routes import _resolve_monitor_identity
 from app.auth import get_current_user, require_admin
 from app.db import get_db
-from app.models import ApInventory, Monitor, User, WifiObservation
-from app.rf_view import bucket_seconds, bucket_start, hill_points, parse_iw_scan, range_start, recommend_band
+from app.models import ApInventory, Monitor, RfChannelStat, User, WifiObservation
+from app.rf_view import (
+    bucket_seconds,
+    bucket_start,
+    hill_points,
+    noise_by_frequency,
+    parse_iw_scan,
+    parse_iw_survey,
+    range_start,
+    recommend_band,
+)
 from app.schemas import (
     RfApOut,
+    RfChannelBusy,
     RfChannelSnapshotOut,
     RfHillSeries,
     RfHistoryPoint,
@@ -72,7 +82,8 @@ def post_wifi_scans(
     scanned_at = body.scanned_at
     if scanned_at.tzinfo is None:
         scanned_at = scanned_at.replace(tzinfo=timezone.utc)
-    aps = parse_iw_scan(body.raw)
+    survey = parse_iw_survey(body.survey)
+    aps = parse_iw_scan(body.raw, noise_by_frequency(survey))
     stored = 0
     for ap in aps:
         bssid = ap["bssid"]
@@ -95,7 +106,7 @@ def post_wifi_scans(
                     channel=int(ap["channel"]),
                     channel_width=int(ap["channel_width"]),
                     rssi_dbm=float(ap["rssi_dbm"]),
-                    noise_dbm=float(ap["noise_dbm"]),
+                    noise_dbm=ap["noise_dbm"],
                     security=ap["security"][:32],
                     phy=ap["phy"][:8],
                     max_link_rate_mbps=int(ap["max_link_rate_mbps"]),
@@ -103,6 +114,28 @@ def post_wifi_scans(
             )
             stored += 1
         _remember(db, monitor.id, bssid, scanned_at)
+    for row in survey:
+        band_name = str(row["band"])[:8]
+        channel = int(row["channel"])
+        exists = db.scalar(
+            select(RfChannelStat.id).where(
+                RfChannelStat.monitor_id == monitor.id,
+                RfChannelStat.measured_at == scanned_at,
+                RfChannelStat.band == band_name,
+                RfChannelStat.channel == channel,
+            )
+        )
+        if exists is None:
+            db.add(
+                RfChannelStat(
+                    monitor_id=monitor.id,
+                    measured_at=scanned_at,
+                    band=band_name,
+                    channel=channel,
+                    noise_dbm=row["noise_dbm"],
+                    busy_pct=row["busy_pct"],
+                )
+            )
     monitor.scan_requested_at = None
     db.commit()
     return {"stored": stored}
@@ -274,6 +307,34 @@ def rf_ap_history(
     return points
 
 
+def _busy_channels(db: Session, monitor_id: UUID, band: str, latest: datetime | None) -> list[RfChannelBusy]:
+    if latest is None:
+        return []
+    moment = db.scalar(
+        select(func.max(RfChannelStat.measured_at)).where(
+            RfChannelStat.monitor_id == monitor_id,
+            RfChannelStat.band == band,
+            RfChannelStat.measured_at <= latest,
+        )
+    )
+    if moment is None:
+        return []
+    rows = db.scalars(
+        select(RfChannelStat)
+        .where(
+            RfChannelStat.monitor_id == monitor_id,
+            RfChannelStat.band == band,
+            RfChannelStat.measured_at == moment,
+        )
+        .order_by(RfChannelStat.channel)
+    ).all()
+    return [
+        RfChannelBusy(channel=row.channel, noise_dbm=row.noise_dbm, busy_pct=row.busy_pct)
+        for row in rows
+        if row.busy_pct is not None or row.noise_dbm is not None
+    ]
+
+
 @router.get("/rf/channel-snapshot", response_model=RfChannelSnapshotOut)
 def rf_channel_snapshot(
     db: Annotated[Session, Depends(get_db)],
@@ -307,6 +368,7 @@ def rf_channel_snapshot(
         recommended_channel=advice["recommended_channel"],
         reason=advice["reason"],
         series=series,
+        channels=_busy_channels(db, monitor.id, band, _latest),
     )
 
 

@@ -198,6 +198,7 @@ class TunnelIssueOut(BaseModel):
 class DeviceConfigOut(BaseModel):
     name: str
     health_interval_seconds: int
+    scan_interval_seconds: int = 300
     config_version: int
     tests: list[ScheduledTestOut] = Field(default_factory=list)
     restart: bool = False
@@ -352,7 +353,7 @@ class WifiObservationOut(BaseModel):
     channel: int
     channel_width: int
     rssi_dbm: float
-    noise_dbm: float
+    noise_dbm: Optional[float] = None
     security: str
     phy: str
     max_link_rate_mbps: int
@@ -361,6 +362,8 @@ class WifiObservationOut(BaseModel):
 class WifiScanIn(BaseModel):
     scanned_at: datetime
     raw: str = ""
+    survey: str = ""
+    scan_iface_role: Optional[str] = None
 
 
 class RfBandAdvice(BaseModel):
@@ -429,11 +432,18 @@ class RfHillSeries(BaseModel):
     points: list[RfHillPoint]
 
 
+class RfChannelBusy(BaseModel):
+    channel: int
+    noise_dbm: Optional[float] = None
+    busy_pct: Optional[float] = None
+
+
 class RfChannelSnapshotOut(BaseModel):
     band: str
     recommended_channel: int
     reason: str
     series: list[RfHillSeries]
+    channels: list[RfChannelBusy] = Field(default_factory=list)
 
 
 class RfScanRequestOut(BaseModel):

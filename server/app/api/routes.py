@@ -361,6 +361,7 @@ def _config_out(db: Session, monitor: Monitor) -> DeviceConfigOut:
     return DeviceConfigOut(
         name=monitor.name,
         health_interval_seconds=monitor.health_interval_seconds,
+        scan_interval_seconds=monitor.scan_interval_seconds,
         config_version=monitor.config_version,
         tests=[ScheduledTestOut(**item) for item in scheduled_tests(db, monitor)],
         restart=monitor.restart_requested_at is not None,

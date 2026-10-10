@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from checks import run_check
+from checks import link_is_busy, link_lock, run_check, scan_may_run, wifi_roles
 
 AGENT_VERSION = "0.3.10"
 # Latency checks wait on the network, so a few of them run at once.
@@ -34,6 +34,8 @@ _scan_lock = threading.Lock()
 _stop = threading.Event()
 _health_started = False
 _tests_started = False
+_scan_started = False
+_last_link_scan = 0.0
 _restarting = False
 _last_error = ""
 _last_health_at = ""
@@ -286,7 +288,7 @@ def poll_restart(config: dict) -> None:
         return
     honor_restart(config, bool(body.get("restart")))
     if body.get("scan"):
-        upload_wifi_scan(config)
+        upload_wifi_scan(config, forced=True)
 
 
 def sample(config: dict) -> dict:
@@ -320,6 +322,10 @@ def apply_config(config: dict, body: dict) -> bool:
     if interval and int(interval) != int(config.get("health_interval_seconds") or 60):
         config["health_interval_seconds"] = int(interval)
         changed = True
+    scan_interval = body.get("scan_interval_seconds")
+    if scan_interval and int(scan_interval) != int(config.get("scan_interval_seconds") or 300):
+        config["scan_interval_seconds"] = int(scan_interval)
+        changed = True
     version = body.get("config_version")
     if version is not None and int(version) != int(config.get("config_version") or 0):
         config["config_version"] = int(version)
@@ -350,53 +356,74 @@ def report_once(config: dict) -> None:
     _last_error = ""
     _last_health_at = time.strftime("%Y-%m-%d %H:%M:%S")
     honor_restart(config, bool(body.get("restart")))
-    upload_wifi_scan(config)
 
 
-def wifi_interface() -> str | None:
-    try:
-        listing = subprocess.check_output(["iw", "dev"], text=True, timeout=5, stderr=subprocess.DEVNULL)
-    except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
-        return None
-    iface = None
-    for line in listing.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("Interface "):
-            iface = stripped.split()[1]
-            continue
-        if iface and stripped == "type managed":
-            return iface
-    return iface
-
-
-def wifi_scan_text() -> str | None:
-    iface = wifi_interface()
-    if not iface:
-        return None
+def wifi_scan_text(iface: str) -> str | None:
     try:
         return subprocess.check_output(["iw", "dev", iface, "scan"], text=True, timeout=25, stderr=subprocess.STDOUT)
     except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
         return None
 
 
-def upload_wifi_scan(config: dict) -> None:
-    """Post one real scan. Skip if another scan is already running."""
+def wifi_survey_text(iface: str) -> str:
+    try:
+        return subprocess.check_output(
+            ["iw", "dev", iface, "survey", "dump"],
+            text=True,
+            timeout=10,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+        return ""
+
+
+def upload_wifi_scan(config: dict, forced: bool = False) -> None:
+    """Post one real scan. The radio adapter is used whenever a second NIC exists."""
+    global _last_link_scan
     if not _scan_lock.acquire(blocking=False):
         return
+    link_held = False
     try:
-        text = wifi_scan_text()
+        roles = wifi_roles()
+        iface = roles["radio"] or roles["link"]
+        role = "radio" if roles["radio"] else "link" if roles["link"] else ""
+        if not iface or not role:
+            return
+        now = time.monotonic()
+        if not scan_may_run(
+            role=role,
+            last_link_scan=_last_link_scan,
+            now=now,
+            link_busy=link_is_busy(),
+            forced=forced,
+        ):
+            return
+        if role == "link" and not link_lock.acquire(blocking=False):
+            return
+        if role == "link":
+            link_held = True
+        text = wifi_scan_text(iface)
         if text is None:
             return
         post_json(
             f"{config['server_url'].rstrip('/')}/api/v1/monitors/wifi-scans",
-            {"scanned_at": datetime.now(timezone.utc).isoformat(), "raw": text},
+            {
+                "scanned_at": datetime.now(timezone.utc).isoformat(),
+                "raw": text,
+                "survey": wifi_survey_text(iface),
+                "scan_iface_role": role,
+            },
             config.get("token"),
             config.get("name"),
             timeout=30,
         )
+        if role == "link":
+            _last_link_scan = time.monotonic()
     except (OSError, urllib.error.URLError, TimeoutError, ValueError):
         return
     finally:
+        if link_held:
+            link_lock.release()
         _scan_lock.release()
 
 
@@ -475,6 +502,11 @@ def run_due_tests(config: dict) -> None:
     ready = due_tests(time.monotonic())
     if not ready:
         return
+    with link_lock:
+        _run_due_tests(config, ready)
+
+
+def _run_due_tests(config: dict, ready: list[dict]) -> None:
     latency = [test for test in ready if test.get("kind") not in HEAVY_KINDS | {"mtr"}]
     traces = [test for test in ready if test.get("kind") == "mtr"]
     heavy = [test for test in ready if test.get("kind") in HEAVY_KINDS]
@@ -522,17 +554,36 @@ def health_loop() -> None:
         _stop.wait(max(interval, 15))
 
 
+def scan_loop() -> None:
+    global _last_error
+    while not _stop.is_set():
+        with _lock:
+            config = load_config()
+        if config.get("token") and config.get("name") and config.get("server_url"):
+            try:
+                upload_wifi_scan(dict(config))
+            except (OSError, urllib.error.URLError, TimeoutError, ValueError, KeyError) as exc:
+                _last_error = str(exc)
+        with _lock:
+            interval = int(load_config().get("scan_interval_seconds") or 300)
+        _stop.wait(max(interval, 15))
+
+
 def ensure_health_loop() -> None:
-    global _health_started, _tests_started
+    global _health_started, _tests_started, _scan_started
     with _lock:
         start_health = not _health_started
         start_tests = not _tests_started
+        start_scan = not _scan_started
         _health_started = True
         _tests_started = True
+        _scan_started = True
     if start_health:
         threading.Thread(target=health_loop, name="health", daemon=True).start()
     if start_tests:
         threading.Thread(target=test_loop, name="internet", daemon=True).start()
+    if start_scan:
+        threading.Thread(target=scan_loop, name="wifi-scan", daemon=True).start()
 
 
 PAGE = """<!DOCTYPE html>
@@ -687,6 +738,7 @@ class Handler(BaseHTTPRequestHandler):
             "server_url": server_url,
             "token": device_key,
             "health_interval_seconds": int(accepted.get("health_interval_seconds") or 60),
+            "scan_interval_seconds": int(accepted.get("scan_interval_seconds") or 300),
             "config_version": int(accepted.get("config_version") or 1),
         }
         with _lock:

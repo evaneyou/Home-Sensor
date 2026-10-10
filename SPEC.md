@@ -78,12 +78,12 @@ Loading / empty states required. Dark/light theme when cheap. Viewer role hides 
 | **0 — Dashboard-first (this repo slice)** | Thin server + seed + core UI on Compose. No Pi required. |
 | **1 — Server hardening** | Full enrollment, config ETag, auth polish, issue engine |
 | **2 — Remote agent** | Pi package: LAN setup page, enroll, device health, HTTP, ICMP, and MTR against the server at 10.7.0.1, iperf3 against Hurricane Electric, plus web-service HTTP checks. Other staged tests and the offline spool come later |
-| **3 — Wireless / RF** | WiFiman-style spectrum, channel congestion, roam markers (full wireless later) |
+| **3 — Wireless / RF** | Airwaves. The link adapter carries traffic. A second radio adapter, preferably a USB MediaTek, runs the scans. With only one adapter, scans wait at least 15 minutes and never run during a test. |
 | **4 — Cloud** | Same Compose on a small VPS (Hetzner CX / DO droplet) + TLS |
 
 ## Out of scope for this slice
 
-Ping, MTR, Wi-Fi test runner, offline spool, Grafana, Wi-Fi/RF pages, webhooks, full enrollment ETag test matrix, Playwright journeys.
+Ping, MTR, Wi-Fi test runner, offline spool, Grafana, webhooks, full enrollment ETag test matrix, Playwright journeys.
 
 ## Design principles
 

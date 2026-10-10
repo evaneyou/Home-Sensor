@@ -130,6 +130,7 @@ class Monitor(Base):
     config_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     applied_config_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     health_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=60, server_default="60")
+    scan_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=300, server_default="300")
     # Set by an admin. The probe clears it once, then replaces its own process.
     restart_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     scan_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -247,12 +248,28 @@ class WifiObservation(Base):
     channel: Mapped[int] = mapped_column(Integer, nullable=False)
     channel_width: Mapped[int] = mapped_column(Integer, nullable=False)
     rssi_dbm: Mapped[float] = mapped_column(Float, nullable=False)
-    noise_dbm: Mapped[float] = mapped_column(Float, nullable=False)
+    noise_dbm: Mapped[Optional[float]] = mapped_column(Float)
     security: Mapped[str] = mapped_column(String(32), nullable=False)
     phy: Mapped[str] = mapped_column(String(8), nullable=False)
     max_link_rate_mbps: Mapped[int] = mapped_column(Integer, nullable=False)
 
     __table_args__ = (Index("ix_wifi_observations_monitor_scanned", "monitor_id", "scanned_at"),)
+
+
+class RfChannelStat(Base):
+    """Noise and airtime for one channel at one moment, from an iw survey or later capture."""
+
+    __tablename__ = "rf_channel_stats"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    monitor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"), nullable=False)
+    measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    band: Mapped[str] = mapped_column(String(8), nullable=False)
+    channel: Mapped[int] = mapped_column(Integer, nullable=False)
+    noise_dbm: Mapped[Optional[float]] = mapped_column(Float)
+    busy_pct: Mapped[Optional[float]] = mapped_column(Float)
+
+    __table_args__ = (Index("ix_rf_channel_stats_monitor_measured", "monitor_id", "measured_at"),)
 
 
 class ApInventory(Base):

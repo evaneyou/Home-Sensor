@@ -22,6 +22,7 @@ need=""
 command -v iperf3 >/dev/null 2>&1 || need="$need iperf3"
 command -v ping >/dev/null 2>&1 || need="$need iputils-ping"
 command -v mtr >/dev/null 2>&1 || need="$need mtr-tiny"
+command -v iw >/dev/null 2>&1 || need="$need iw"
 if [ -n "$need" ]; then
   apt-get update
   apt-get install -y $need
@@ -31,7 +32,7 @@ systemctl enable monitor.service
 systemctl restart monitor.service
 if [ -f wg0.conf ] || [ -f wg1.conf ]; then
   apt-get update
-  apt-get install -y wireguard iw
+  apt-get install -y wireguard
   install -d -m 700 /etc/wireguard
 fi
 if [ -f wg0.conf ]; then
