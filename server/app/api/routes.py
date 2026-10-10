@@ -571,10 +571,12 @@ def post_device_health(
             isp=body.isp,
             config_version=body.config_version,
             airwave_mode=body.airwave_mode if body.airwave_mode in {"kismet", "scan", "off"} else None,
+            last_error=(body.last_error or "").strip()[:600] or None,
         )
     )
     if "link_ssid" in body.model_fields_set or "link_bssid" in body.model_fields_set:
         remember_association(
+            db,
             monitor,
             body.link_ssid,
             body.link_bssid,
@@ -1288,6 +1290,7 @@ def _sample_out(row: MonitorHealth) -> dict:
         "disk_total_mb": row.disk_total_mb,
         "temp_c": row.temp_c,
         "lan_ip": row.lan_ip,
+        "last_error": row.last_error,
     }
 
 

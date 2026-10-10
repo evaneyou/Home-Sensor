@@ -333,6 +333,7 @@ def sample(config: dict) -> dict:
         "airwave_mode": airwave_mode(),
         "link_ssid": ssid,
         "link_bssid": bssid,
+        "last_error": _last_error,
     }
 
 
@@ -418,7 +419,8 @@ def report_once(config: dict) -> None:
                 config.get("name"),
             )
     remember_tests(body.get("tests"))
-    _last_error = ""
+    if not _last_error.startswith("Kismet HTTP"):
+        _last_error = ""
     _last_health_at = time.strftime("%Y-%m-%d %H:%M:%S")
     honor_restart(config, bool(body.get("restart")))
 
@@ -626,6 +628,21 @@ def _kismet_auth(user: str, password: str) -> str:
     return f"Basic {token}"
 
 
+def kismet_error_text(exc: BaseException) -> str:
+    """HTTP status and body, so a rejected field list is visible instead of an empty failure."""
+    if isinstance(exc, urllib.error.HTTPError):
+        body = ""
+        try:
+            body = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            body = ""
+        body = " ".join(body.split())[:500]
+        if body:
+            return f"Kismet HTTP {exc.code}: {body}"
+        return f"Kismet HTTP {exc.code}"
+    return str(exc)
+
+
 def kismet_get(base: str, user: str, password: str, path: str) -> object:
     request = urllib.request.Request(
         base.rstrip("/") + path,
@@ -687,7 +704,7 @@ def _drain_spool(config: dict) -> None:
 
 
 def kismet_once(config: dict) -> None:
-    global _airwave_mode, _kismet_devices_since, _kismet_alerts_since
+    global _airwave_mode, _kismet_devices_since, _kismet_alerts_since, _last_error
     if not KISMET_PATH.is_file():
         _airwave_mode = "off"
         return
@@ -697,8 +714,13 @@ def kismet_once(config: dict) -> None:
         user = str(creds["username"])
         password = str(creds["password"])
         kismet_get(base, user, password, "/system/status.json")
-    except (OSError, urllib.error.URLError, TimeoutError, ValueError, KeyError, json.JSONDecodeError):
+    except urllib.error.HTTPError as exc:
         _airwave_mode = "off"
+        _last_error = kismet_error_text(exc)
+        return
+    except (OSError, urllib.error.URLError, TimeoutError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        _airwave_mode = "off"
+        _last_error = kismet_error_text(exc)
         return
     _airwave_mode = "kismet"
     now = int(time.time())
@@ -716,7 +738,10 @@ def kismet_once(config: dict) -> None:
             rf_spool.push(SPOOL_PATH, payload)
         _kismet_devices_since = now
         _kismet_alerts_since = now
-    except (OSError, urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        if _last_error.startswith("Kismet HTTP"):
+            _last_error = ""
+    except (OSError, urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+        _last_error = kismet_error_text(exc)
         return
 
 

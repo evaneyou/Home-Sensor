@@ -9,9 +9,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select, text
 
 from app.api.enrollment_routes import NONCE_PATH
+from app.auth import hash_password
 from app.enrollment import RATE_LIMIT, nonces
 from app.main import app
-from app.models import AuditEvent, EnrollmentCheckin, InstallerCode, Monitor
+from app.models import AuditEvent, EnrollmentCheckin, InstallerCode, Monitor, User, UserRole
 from conftest import FakeAgent, login, new_installer_code
 
 WAITING = "Waiting for this code to be registered"
@@ -134,7 +135,11 @@ def test_registered_code_shows_a_waiting_card(client, room, state_dir):
     assert "code_hash" not in card
 
 
-def test_second_device_with_the_same_code_blocks_approval_until_start_over(client, room, state_dir):
+def test_second_device_with_the_same_code_blocks_approval_until_start_over(client, db, room, state_dir):
+    # Login does not depend on seed or on another test having created the admin.
+    if db.scalar(select(User).where(User.username == "admin")) is None:
+        db.add(User(username="admin", password_hash=hash_password("admin-change-me"), role=UserRole.admin, is_active=True))
+        db.commit()
     csrf = login(client)
     code = new_installer_code()
     registered = _register(client, csrf, code, f"{room}Hall").json()

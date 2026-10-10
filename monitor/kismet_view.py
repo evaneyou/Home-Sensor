@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 
-# Top-level fields this module reads. A list names a complex field and the children we keep.
+# Kismet accepts a field name or ["field", "rename"] — exactly two items. A longer list
+# makes the whole poll fail, so complex values are requested as the whole object.
 DEVICE_FIELDS = [
     "kismet.device.base.macaddr",
     "kismet.device.base.name",
@@ -13,26 +14,11 @@ DEVICE_FIELDS = [
     "kismet.device.base.manuf",
     "kismet.device.base.first_time",
     "kismet.device.base.last_time",
-    [
-        "kismet.device.base.signal",
-        "kismet.common.signal.last_signal",
-        "kismet.common.signal.min_signal",
-        "kismet.common.signal.max_signal",
-    ],
-    [
-        "kismet.device.base.packets",
-        "kismet.device.base.packets.total",
-        "kismet.device.base.packets.data",
-    ],
+    "kismet.device.base.signal",
+    "kismet.device.base.packets.total",
+    "kismet.device.base.packets.data",
     "kismet.device.base.datasize",
-    [
-        "dot11.device",
-        "dot11.device.last_bssid",
-        "dot11.device.num_associated_clients",
-        "dot11.device.num_retries",
-        "dot11.device.client_disconnects",
-        "dot11.device.probed_ssid_map",
-    ],
+    "dot11.device",
 ]
 
 
@@ -225,7 +211,8 @@ def channel_rows(payload: object) -> list[dict]:
     return [row for row in freq_map.values() if isinstance(row, dict)]
 
 
-def _rrd_last_minute(rrd: object) -> int | None:
+def _minute_vec(rrd: object) -> list | None:
+    """`minute_vec` is 60 per-second buckets in a ring. Index is time % 60, so the tail is not the latest sample."""
     if not isinstance(rrd, dict):
         return None
     vec = rrd.get("kismet.common.rrd.minute_vec")
@@ -233,10 +220,31 @@ def _rrd_last_minute(rrd: object) -> int | None:
         vec = vec.get("kismet.common.rrd.minute_vec")
     if not isinstance(vec, list) or not vec:
         return None
-    last = vec[-1]
-    if isinstance(last, bool) or not isinstance(last, (int, float)):
+    return vec
+
+
+def _minute_numbers(rrd: object) -> list[float] | None:
+    vec = _minute_vec(rrd)
+    if vec is None:
         return None
-    return int(last)
+    numbers = [float(value) for value in vec if isinstance(value, (int, float)) and not isinstance(value, bool)]
+    if not numbers:
+        return None
+    return numbers
+
+
+def _rrd_packets(rrd: object) -> int | None:
+    numbers = _minute_numbers(rrd)
+    if numbers is None:
+        return None
+    return int(sum(numbers))
+
+
+def _rrd_devices(rrd: object) -> int | None:
+    numbers = _minute_numbers(rrd)
+    if numbers is None:
+        return None
+    return int(max(numbers))
 
 
 def map_channels(rows: list[dict]) -> list[dict]:
@@ -255,8 +263,8 @@ def map_channels(rows: list[dict]) -> list[dict]:
                 "band": band,
                 "channel": channel,
                 "airtime_pct": None,
-                "packets": _rrd_last_minute(row.get("kismet.channelrec.packets_rrd")),
-                "devices": _rrd_last_minute(row.get("kismet.channelrec.device_rrd")),
+                "packets": _rrd_packets(row.get("kismet.channelrec.packets_rrd")),
+                "devices": _rrd_devices(row.get("kismet.channelrec.device_rrd")),
                 "busy_pct": None,
             }
         )

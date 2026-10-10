@@ -237,6 +237,7 @@ export type DeviceSample = {
   disk_total_mb: number;
   temp_c: number | null;
   lan_ip: string | null;
+  last_error: string | null;
 };
 
 export type DeviceReport = {
