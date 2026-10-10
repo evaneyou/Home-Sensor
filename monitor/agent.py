@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from checks import link_is_busy, link_lock, run_check, scan_may_run, wifi_roles
+from checks import link_is_busy, link_lock, parse_link_ssid, run_check, scan_may_run, wifi_roles
 from kismet_view import as_list, iw_scan_skipped, map_alerts, map_channels, map_devices, visible_clients
 import rf_spool
 
@@ -322,7 +322,24 @@ def sample(config: dict) -> dict:
         "isp": isp,
         "config_version": int(config.get("config_version") or 0),
         "airwave_mode": airwave_mode(),
+        "link_ssid": joined_ssid(),
     }
+
+
+def joined_ssid() -> str:
+    iface = wifi_roles().get("link")
+    if not iface:
+        return ""
+    try:
+        text = subprocess.check_output(
+            ["iw", "dev", iface, "link"],
+            text=True,
+            timeout=5,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+        return ""
+    return parse_link_ssid(text)
 
 
 def remember_trusted(body: dict) -> None:
@@ -834,6 +851,15 @@ class Handler(BaseHTTPRequestHandler):
         name = str(incoming.get("name") or "").strip()
         server_url = str(incoming.get("server_url") or "").strip().rstrip("/")
         device_key = str(incoming.get("device_key") or "").strip()
+        with _lock:
+            config = load_config()
+        if config.get("token") and self.client_address[0] not in {"127.0.0.1", "::1"}:
+            self._send(
+                403,
+                json.dumps({"detail": "This remote agent is already enrolled"}).encode("utf-8"),
+                "application/json",
+            )
+            return
         if not name or not server_url or not device_key:
             self._send(400, json.dumps({"detail": "Name, server, and device key are required"}).encode("utf-8"), "application/json")
             return

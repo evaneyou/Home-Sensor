@@ -131,6 +131,8 @@ class Monitor(Base):
     applied_config_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     health_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=60, server_default="60")
     scan_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=300, server_default="300")
+    # SSID the link adapter is joined to. Every BSSID of this name is trusted.
+    link_ssid: Mapped[Optional[str]] = mapped_column(String(64))
     # Set by an admin. The probe clears it once, then replaces its own process.
     restart_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     scan_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -285,10 +287,21 @@ class RfClient(Base):
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     dedupe_key: Mapped[str] = mapped_column(String(128), nullable=False)
     mac: Mapped[str] = mapped_column(String(17), nullable=False)
+    vendor: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
     bssid: Mapped[str] = mapped_column(String(17), nullable=False)
     signal: Mapped[float] = mapped_column(Float, nullable=False)
+    signal_min: Mapped[Optional[float]] = mapped_column(Float)
+    signal_max: Mapped[Optional[float]] = mapped_column(Float)
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    first_seen: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     randomized: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    band: Mapped[str] = mapped_column(String(8), nullable=False, default="", server_default="")
+    channel: Mapped[Optional[int]] = mapped_column(Integer)
+    packets: Mapped[Optional[int]] = mapped_column(Integer)
+    data_bytes: Mapped[Optional[int]] = mapped_column(Integer)
+    retries: Mapped[Optional[int]] = mapped_column(Integer)
+    disconnects: Mapped[Optional[int]] = mapped_column(Integer)
+    probed_ssids: Mapped[str] = mapped_column(Text, nullable=False, default="[]", server_default="[]")
 
     __table_args__ = (
         UniqueConstraint("monitor_id", "observed_at", "dedupe_key", name="uq_rf_clients_capture"),

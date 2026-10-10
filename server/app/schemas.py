@@ -153,6 +153,7 @@ class DeviceHealthIn(BaseModel):
     isp: Optional[str] = Field(default=None, max_length=128)
     config_version: int = Field(default=0, ge=0)
     airwave_mode: Optional[str] = None
+    link_ssid: Optional[str] = Field(default=None, max_length=64)
 
     @field_validator("public_ip")
     @classmethod
@@ -470,9 +471,21 @@ class RfClientPoint(BaseModel):
 class RfClientOut(BaseModel):
     mac: str
     bssid: str
+    ssid: str = ""
+    vendor: str = ""
     randomized: bool
     signal: float
+    signal_min: Optional[float] = None
+    signal_max: Optional[float] = None
     last_seen: datetime
+    first_seen: Optional[datetime] = None
+    band: str = ""
+    channel: Optional[int] = None
+    packets: Optional[int] = None
+    data_bytes: Optional[int] = None
+    retries: Optional[int] = None
+    disconnects: Optional[int] = None
+    probed_ssids: list[str] = Field(default_factory=list)
     points: list[RfClientPoint]
 
 
@@ -491,6 +504,17 @@ class RfCaptureClient(BaseModel):
     signal: float = -100
     last_seen: int = 0
     randomized: bool = False
+    vendor: str = ""
+    signal_min: Optional[float] = None
+    signal_max: Optional[float] = None
+    first_seen: int = 0
+    band: str = ""
+    channel: Optional[int] = None
+    packets: Optional[int] = None
+    data_bytes: Optional[int] = None
+    retries: Optional[int] = None
+    disconnects: Optional[int] = None
+    probed_ssids: list[str] = Field(default_factory=list)
 
 
 class RfCaptureChannel(BaseModel):

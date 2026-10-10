@@ -104,26 +104,54 @@ EOF
   fi
   user="hnw$(python3 -c 'import secrets; print(secrets.token_hex(4))')"
   password="$(python3 -c 'import secrets; print(secrets.token_urlsafe(18))')"
-  install -d -m 755 /etc/kismet
+  if ! getent group kismet >/dev/null; then
+    groupadd --system kismet
+  fi
+  if ! id kismet >/dev/null 2>&1; then
+    useradd --system --gid kismet --home-dir /var/lib/kismet --shell /usr/sbin/nologin kismet
+  fi
+  install -d -o kismet -g kismet -m 750 /var/lib/kismet
+  install -d -o root -g kismet -m 750 /etc/kismet
+  umask 077
   cat > /etc/kismet/kismet_site.conf <<EOF
 server_name=HomeNetWatch
-gps=false
 httpd_bind_address=127.0.0.1
 httpd_port=2501
 httpd_username=${user}
 httpd_password=${password}
 source=hnwradio0:name=hnw-radio,hop=true
-log_types=
+enable_logging=false
 tracker_device_timeout=600
 EOF
-  python3 - "$user" "$password" <<'PY'
-import json, sys
+  chown root:kismet /etc/kismet/kismet_site.conf
+  chmod 0640 /etc/kismet/kismet_site.conf
+  HNW_KISMET_USER="$user" HNW_KISMET_PASSWORD="$password" python3 <<'PY'
+import json, os
 from pathlib import Path
 path = Path("/etc/monitor/kismet.json")
-path.write_text(json.dumps({"username": sys.argv[1], "password": sys.argv[2], "url": "http://127.0.0.1:2501"}) + "\n")
+path.write_text(json.dumps({
+    "username": os.environ["HNW_KISMET_USER"],
+    "password": os.environ["HNW_KISMET_PASSWORD"],
+    "url": "http://127.0.0.1:2501",
+}) + "\n")
+os.chmod(path, 0o640)
 PY
   chown root:monitor /etc/monitor/kismet.json
   chmod 0640 /etc/monitor/kismet.json
+  if [ -e /usr/bin/kismet_cap_hak5_wifi_coconut ]; then
+    dpkg-statoverride --remove /usr/bin/kismet_cap_hak5_wifi_coconut 2>/dev/null || true
+    dpkg-statoverride --update --add root kismet 0754 /usr/bin/kismet_cap_hak5_wifi_coconut
+  fi
+  umask 022
+  rm -f /tmp/.kismet_cap_linux_wifi_interface_lock
+  install -d -m 755 /etc/systemd/system/kismet.service.d
+  cat > /etc/systemd/system/kismet.service.d/privileges.conf <<EOF
+[Service]
+User=kismet
+Group=kismet
+WorkingDirectory=/var/lib/kismet
+EOF
+  systemctl daemon-reload
   systemctl enable kismet.service
   systemctl restart kismet.service
   echo "Kismet is listening on 127.0.0.1:2501 only."

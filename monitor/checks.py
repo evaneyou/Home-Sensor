@@ -271,6 +271,15 @@ def _iw_first_interface() -> str | None:
     return None
 
 
+def parse_link_ssid(text: str) -> str:
+    """SSID from `iw dev <iface> link`. Empty when the adapter is not joined."""
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("SSID:"):
+            return stripped.split(":", 1)[1].strip()[:64]
+    return ""
+
+
 def wifi_roles(root: Path | None = None, ipv4_of=None) -> dict[str, str | None]:
     """link carries traffic. radio is the other wireless NIC, with a USB MediaTek preferred."""
     sys_root = root or Path("/sys/class/net")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 from uuid import UUID
@@ -11,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.routes import _resolve_monitor_identity
+from app.link_trust import matches_link
 from app.auth import get_current_user, require_admin
 from app.db import get_db
 from app.models import (
@@ -64,6 +66,25 @@ def _monitor_or_404(db: Session, agent_id: UUID) -> Monitor:
     if monitor is None:
         raise HTTPException(status_code=404, detail="Remote agent not found")
     return monitor
+
+
+def _probed_text(names: list[str]) -> str:
+    clean: list[str] = []
+    for name in names:
+        text = name.strip()[:64]
+        if text and text not in clean:
+            clean.append(text)
+    return json.dumps(clean[:12])
+
+
+def _probed_list(raw: str) -> list[str]:
+    try:
+        parsed = json.loads(raw or "[]")
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(item) for item in parsed if str(item).strip()]
 
 
 def _remember(db: Session, monitor_id: UUID, bssid: str, seen: datetime) -> ApInventory:
@@ -131,7 +152,9 @@ def post_wifi_scans(
                 )
             )
             stored += 1
-        _remember(db, monitor.id, bssid, scanned_at)
+        record = _remember(db, monitor.id, bssid, scanned_at)
+        if matches_link(monitor, ap["ssid"]):
+            record.trusted = True
     for row in survey:
         band_name = str(row["band"])[:8]
         channel = int(row["channel"])
@@ -203,7 +226,6 @@ def post_rf_capture(
 ) -> dict[str, int]:
     monitor = _resolve_monitor_identity(db, authorization, x_monitor_name)
     captured = body.captured_at if body.captured_at.tzinfo else body.captured_at.replace(tzinfo=timezone.utc)
-    trusted = _trusted_set(db, monitor.id)
     stored = 0
     for ap in body.aps:
         if ap.band not in {"2.4", "5"}:
@@ -238,13 +260,18 @@ def post_rf_capture(
             stored += 1
         else:
             row.client_count = max(ap.client_count, 0)
-        _remember(db, monitor.id, bssid, captured)
+        record = _remember(db, monitor.id, bssid, captured)
+        if matches_link(monitor, ap.ssid):
+            record.trusted = True
+    db.flush()
+    trusted = _trusted_set(db, monitor.id)
     for client in body.clients:
         bssid = client.bssid.lower()
         if bssid not in trusted:
             continue
         mac = client.mac.lower()
         seen = datetime.fromtimestamp(client.last_seen, timezone.utc) if client.last_seen else captured
+        opened = datetime.fromtimestamp(client.first_seen, timezone.utc) if client.first_seen else None
         exists = db.scalar(
             select(RfClient.id).where(
                 RfClient.monitor_id == monitor.id,
@@ -259,10 +286,21 @@ def post_rf_capture(
                     observed_at=captured,
                     dedupe_key=mac,
                     mac=mac,
+                    vendor=(client.vendor or "")[:64],
                     bssid=bssid,
                     signal=client.signal,
+                    signal_min=client.signal_min,
+                    signal_max=client.signal_max,
                     last_seen=seen,
+                    first_seen=opened,
                     randomized=client.randomized,
+                    band=(client.band or "")[:8],
+                    channel=client.channel,
+                    packets=client.packets,
+                    data_bytes=client.data_bytes,
+                    retries=client.retries,
+                    disconnects=client.disconnects,
+                    probed_ssids=_probed_text(client.probed_ssids),
                 )
             )
             stored += 1
@@ -610,6 +648,20 @@ def rf_clients(
         .where(RfClient.monitor_id == agent_id, RfClient.observed_at >= range_start(range_key))
         .order_by(RfClient.observed_at)
     ).all()
+    bssids = {row.bssid.lower() for row in rows}
+    networks: dict[str, str] = {}
+    if bssids:
+        named = db.execute(
+            select(WifiObservation.bssid, WifiObservation.ssid)
+            .where(
+                WifiObservation.monitor_id == agent_id,
+                WifiObservation.bssid.in_(bssids),
+                WifiObservation.ssid != "",
+            )
+            .distinct(WifiObservation.bssid)
+            .order_by(WifiObservation.bssid, WifiObservation.scanned_at.desc())
+        ).all()
+        networks = {bssid.lower(): ssid for bssid, ssid in named}
     grouped: dict[str, list[RfClient]] = {}
     for row in rows:
         if row.bssid.lower() not in trusted:
@@ -624,13 +676,35 @@ def rf_clients(
             points.append(RfClientPoint(t=sample.observed_at, rssi_dbm=sample.signal, bssid=sample.bssid, roam=roam))
             previous = sample.bssid
         last = samples[-1]
+        vendor = next((sample.vendor for sample in reversed(samples) if sample.vendor), "")
+        heard = [sample.signal for sample in samples if sample.signal]
+        lows = [sample.signal_min for sample in samples if sample.signal_min is not None]
+        highs = [sample.signal_max for sample in samples if sample.signal_max is not None]
+        opened = [sample.first_seen for sample in samples if sample.first_seen is not None]
+        probed: list[str] = []
+        for sample in samples:
+            for name in _probed_list(sample.probed_ssids):
+                if name not in probed:
+                    probed.append(name)
         found.append(
             RfClientOut(
                 mac=mac,
                 bssid=last.bssid,
+                ssid=networks.get(last.bssid.lower(), ""),
+                vendor=vendor,
                 randomized=last.randomized,
-                signal=last.signal,
+                signal=heard[-1] if heard else 0,
+                signal_min=min(lows) if lows else None,
+                signal_max=max(highs) if highs else None,
                 last_seen=last.last_seen,
+                first_seen=min(opened) if opened else None,
+                band=next((sample.band for sample in reversed(samples) if sample.band), ""),
+                channel=next((sample.channel for sample in reversed(samples) if sample.channel), None),
+                packets=next((sample.packets for sample in reversed(samples) if sample.packets), None),
+                data_bytes=next((sample.data_bytes for sample in reversed(samples) if sample.data_bytes), None),
+                retries=next((sample.retries for sample in reversed(samples) if sample.retries), None),
+                disconnects=next((sample.disconnects for sample in reversed(samples) if sample.disconnects), None),
+                probed_ssids=probed,
                 points=points,
             )
         )
