@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import ipaddress
 import json
 import os
@@ -20,6 +21,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from checks import link_is_busy, link_lock, run_check, scan_may_run, wifi_roles
+from kismet_view import as_list, iw_scan_skipped, map_alerts, map_channels, map_devices, visible_clients
+import rf_spool
 
 AGENT_VERSION = "0.3.10"
 # Latency checks wait on the network, so a few of them run at once.
@@ -35,7 +38,14 @@ _stop = threading.Event()
 _health_started = False
 _tests_started = False
 _scan_started = False
+_kismet_started = False
 _last_link_scan = 0.0
+_trusted_bssids: set[str] = set()
+_airwave_mode = "off"
+_kismet_devices_since = 0
+_kismet_alerts_since = 0
+KISMET_PATH = CONFIG_PATH.with_name("kismet.json")
+SPOOL_PATH = CONFIG_PATH.with_name("rf-capture.sqlite")
 _restarting = False
 _last_error = ""
 _last_health_at = ""
@@ -286,6 +296,7 @@ def poll_restart(config: dict) -> None:
         )
     except (OSError, urllib.error.URLError, TimeoutError, ValueError):
         return
+    remember_trusted(body)
     honor_restart(config, bool(body.get("restart")))
     if body.get("scan"):
         upload_wifi_scan(config, forced=True)
@@ -310,7 +321,24 @@ def sample(config: dict) -> dict:
         "public_ip": public_ip,
         "isp": isp,
         "config_version": int(config.get("config_version") or 0),
+        "airwave_mode": airwave_mode(),
     }
+
+
+def remember_trusted(body: dict) -> None:
+    global _trusted_bssids
+    raw = body.get("trusted_bssids")
+    if isinstance(raw, list):
+        _trusted_bssids = {str(item).lower() for item in raw}
+
+
+def airwave_mode() -> str:
+    if _airwave_mode == "kismet":
+        return "kismet"
+    roles = wifi_roles()
+    if roles["radio"] or roles["link"]:
+        return "scan"
+    return "off"
 
 
 def apply_config(config: dict, body: dict) -> bool:
@@ -343,6 +371,7 @@ def report_once(config: dict) -> None:
         config.get("token"),
         config.get("name"),
     )
+    remember_trusted(body)
     if apply_config(config, body):
         save_config(config)
         if int(config.get("config_version") or 0) != sent:
@@ -385,6 +414,8 @@ def upload_wifi_scan(config: dict, forced: bool = False) -> None:
     link_held = False
     try:
         roles = wifi_roles()
+        if iw_scan_skipped(airwave_mode(), roles["radio"]):
+            return
         iface = roles["radio"] or roles["link"]
         role = "radio" if roles["radio"] else "link" if roles["link"] else ""
         if not iface or not role:
@@ -554,6 +585,95 @@ def health_loop() -> None:
         _stop.wait(max(interval, 15))
 
 
+def _kismet_auth(user: str, password: str) -> str:
+    token = base64.b64encode(f"{user}:{password}".encode()).decode("ascii")
+    return f"Basic {token}"
+
+
+def kismet_get(base: str, user: str, password: str, path: str) -> object:
+    request = urllib.request.Request(
+        base.rstrip("/") + path,
+        headers={"Authorization": _kismet_auth(user, password), "KISMET": "fields=dot11.device"},
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _capture_body(devices: list[dict], channels: list[dict], alerts: list[dict]) -> dict:
+    mapped = map_devices(devices)
+    return {
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "aps": mapped["aps"],
+        "clients": visible_clients(mapped["clients"], _trusted_bssids),
+        "channels": map_channels(channels),
+        "alerts": map_alerts(alerts),
+    }
+
+
+def _post_capture(config: dict, payload: dict) -> None:
+    post_json(
+        f"{config['server_url'].rstrip('/')}/api/v1/monitors/rf-capture",
+        payload,
+        config.get("token"),
+        config.get("name"),
+        timeout=30,
+    )
+
+
+def _drain_spool(config: dict) -> None:
+    for row_id, payload in rf_spool.pending(SPOOL_PATH):
+        _post_capture(config, payload)
+        rf_spool.drop(SPOOL_PATH, row_id)
+
+
+def kismet_once(config: dict) -> None:
+    global _airwave_mode, _kismet_devices_since, _kismet_alerts_since
+    if not KISMET_PATH.is_file():
+        _airwave_mode = "off"
+        return
+    try:
+        creds = json.loads(KISMET_PATH.read_text(encoding="utf-8"))
+        base = str(creds.get("url") or "http://127.0.0.1:2501")
+        user = str(creds["username"])
+        password = str(creds["password"])
+        kismet_get(base, user, password, "/system/status.json")
+    except (OSError, urllib.error.URLError, TimeoutError, ValueError, KeyError, json.JSONDecodeError):
+        _airwave_mode = "off"
+        return
+    _airwave_mode = "kismet"
+    now = int(time.time())
+    device_since = _kismet_devices_since or now - 60
+    alert_since = _kismet_alerts_since or now - 60
+    try:
+        devices = as_list(kismet_get(base, user, password, f"/devices/last-time/{device_since}/devices.json"))
+        channels = as_list(kismet_get(base, user, password, "/channels/channels.json"))
+        alerts = as_list(kismet_get(base, user, password, f"/alerts/last-time/{alert_since}/alerts.json"))
+        payload = _capture_body(devices, channels, alerts)
+        try:
+            _drain_spool(config)
+            _post_capture(config, payload)
+        except (OSError, urllib.error.URLError, TimeoutError, ValueError):
+            rf_spool.push(SPOOL_PATH, payload)
+            return
+        _kismet_devices_since = now
+        _kismet_alerts_since = now
+    except (OSError, urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return
+
+
+def kismet_loop() -> None:
+    global _last_error
+    while not _stop.is_set():
+        with _lock:
+            config = load_config()
+        if config.get("token") and config.get("name") and config.get("server_url"):
+            try:
+                kismet_once(dict(config))
+            except (OSError, urllib.error.URLError, TimeoutError, ValueError, KeyError) as exc:
+                _last_error = str(exc)
+        _stop.wait(60)
+
+
 def scan_loop() -> None:
     global _last_error
     while not _stop.is_set():
@@ -570,20 +690,24 @@ def scan_loop() -> None:
 
 
 def ensure_health_loop() -> None:
-    global _health_started, _tests_started, _scan_started
+    global _health_started, _tests_started, _scan_started, _kismet_started
     with _lock:
         start_health = not _health_started
         start_tests = not _tests_started
         start_scan = not _scan_started
+        start_kismet = not _kismet_started
         _health_started = True
         _tests_started = True
         _scan_started = True
+        _kismet_started = True
     if start_health:
         threading.Thread(target=health_loop, name="health", daemon=True).start()
     if start_tests:
         threading.Thread(target=test_loop, name="internet", daemon=True).start()
     if start_scan:
         threading.Thread(target=scan_loop, name="wifi-scan", daemon=True).start()
+    if start_kismet:
+        threading.Thread(target=kismet_loop, name="kismet", daemon=True).start()
 
 
 PAGE = """<!DOCTYPE html>
@@ -643,7 +767,8 @@ PAGE = """<!DOCTYPE html>
       }
       lead.textContent = status.name + " is connected to " + status.server_url + ". The name and key must still match the server.";
       message.className = status.last_error ? "error" : "ok";
-      message.textContent = status.last_error || (status.last_health_at ? "Last report " + status.last_health_at : "Waiting for the first report");
+      const mode = status.airwave_mode ? " Airwave capture is " + status.airwave_mode + "." : "";
+      message.textContent = status.last_error || (status.last_health_at ? "Last report " + status.last_health_at + "." + mode : "Waiting for the first report." + mode);
     }
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -690,6 +815,7 @@ class Handler(BaseHTTPRequestHandler):
                 "server_url": config.get("server_url") or "",
                 "last_health_at": _last_health_at,
                 "last_error": _last_error,
+                "airwave_mode": airwave_mode(),
             }
             self._send(200, json.dumps(payload).encode("utf-8"), "application/json")
             return

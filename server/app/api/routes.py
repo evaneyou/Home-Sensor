@@ -42,6 +42,7 @@ from app.path_view import build_trace
 from app.services.stability import cell_quorum, preset_name, service_status
 from app.regions import REGIONS_BY_COUNTRY
 from app.models import (
+    ApInventory,
     AuditEvent,
     Group,
     Issue,
@@ -357,6 +358,13 @@ def _home_group(db: Session) -> Group:
     return group
 
 
+def _trusted_bssids(db: Session, monitor_id: UUID) -> list[str]:
+    rows = db.scalars(
+        select(ApInventory.bssid).where(ApInventory.monitor_id == monitor_id, ApInventory.trusted.is_(True))
+    ).all()
+    return sorted(row.lower() for row in rows)
+
+
 def _config_out(db: Session, monitor: Monitor) -> DeviceConfigOut:
     return DeviceConfigOut(
         name=monitor.name,
@@ -366,6 +374,7 @@ def _config_out(db: Session, monitor: Monitor) -> DeviceConfigOut:
         tests=[ScheduledTestOut(**item) for item in scheduled_tests(db, monitor)],
         restart=monitor.restart_requested_at is not None,
         scan=monitor.scan_requested_at is not None,
+        trusted_bssids=_trusted_bssids(db, monitor.id),
     )
 
 
@@ -560,6 +569,7 @@ def post_device_health(
             public_ip=body.public_ip,
             isp=body.isp,
             config_version=body.config_version,
+            airwave_mode=body.airwave_mode if body.airwave_mode in {"kismet", "scan", "off"} else None,
         )
     )
     cutoff = now - timedelta(days=7)
@@ -576,7 +586,11 @@ def probe_command(
     x_monitor_name: Annotated[Optional[str], Header()] = None,
 ) -> ProbeCommandOut:
     monitor = _resolve_monitor_identity(db, authorization, x_monitor_name)
-    return ProbeCommandOut(restart=monitor.restart_requested_at is not None, scan=monitor.scan_requested_at is not None)
+    return ProbeCommandOut(
+        restart=monitor.restart_requested_at is not None,
+        scan=monitor.scan_requested_at is not None,
+        trusted_bssids=_trusted_bssids(db, monitor.id),
+    )
 
 
 @router.post("/monitors/command", response_model=ProbeCommandOut)
@@ -589,7 +603,11 @@ def ack_probe_command(
     monitor = _resolve_monitor_identity(db, authorization, x_monitor_name)
     monitor.restart_requested_at = None
     db.commit()
-    return ProbeCommandOut(restart=False, scan=monitor.scan_requested_at is not None)
+    return ProbeCommandOut(
+        restart=False,
+        scan=monitor.scan_requested_at is not None,
+        trusted_bssids=_trusted_bssids(db, monitor.id),
+    )
 
 
 @router.post("/monitors/{monitor_id}/restart")

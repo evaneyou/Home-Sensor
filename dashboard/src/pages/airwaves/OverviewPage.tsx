@@ -23,7 +23,7 @@ export default function AirwavesOverview() {
   if (!overview?.last_scan_at) {
     return (
       <div className="state-box">
-        No data yet. {ctx.agent.name} uploads a scan with each health report.
+        No data yet. {ctx.agent.name} uploads scans on its own.
         {ctx.admin ? <ScanButton ctx={ctx} pending={scan.isPending} onScan={() => scan.mutate()} /> : null}
       </div>
     );
@@ -33,6 +33,20 @@ export default function AirwavesOverview() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <p className="air-reason">{overview.headline}</p>
+      <div className="air-kicker">{modeLabel(overview.airwave_mode)}</div>
+      <section className="npv-card">
+        <h2>Recent alerts</h2>
+        {overview.alerts.length === 0 ? (
+          <p className="npv-hint">No alerts in this range.</p>
+        ) : (
+          overview.alerts.map((alert) => (
+            <p key={`${alert.observed_at}-${alert.alert_type}-${alert.bssid}`}>
+              {alert.alert_type}
+              {alert.bssid ? ` · ${alert.bssid}` : ""} · {alert.text}
+            </p>
+          ))
+        )}
+      </section>
       <div className="npv-stats">
         {overview.bands.map((band) => (
           <BandCard key={band.band} band={band} overview={overview} />
@@ -56,6 +70,12 @@ export default function AirwavesOverview() {
       </div>
     </div>
   );
+}
+
+function modeLabel(mode: string): string {
+  if (mode === "kismet") return "Kismet capture";
+  if (mode === "scan") return "Scan capture";
+  return "Capture off";
 }
 
 function BandCard({ band, overview }: { band: RfBandAdvice; overview: RfOverview }) {

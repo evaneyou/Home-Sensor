@@ -110,15 +110,15 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
               Best pick · Ch {recommended}
             </text>
             {axis.labels.map((channel) => {
-              const busy = snapshot.channels.find((item) => item.channel === channel && item.busy_pct != null);
+              const load = channelLoad(snapshot, channel);
               return (
                 <g key={channel}>
                   <text x={xOf(channel)} y={336} fill="#c5cee3" fontSize={14} fontWeight={800} textAnchor="middle">
                     {channel}
                   </text>
-                  {busy ? (
+                  {load ? (
                     <text x={xOf(channel)} y={354} fill="#9aa6c0" fontSize={11} fontWeight={700} textAnchor="middle">
-                      {Math.round(busy.busy_pct ?? 0)}% busy
+                      {load.short}
                     </text>
                   ) : null}
                 </g>
@@ -219,9 +219,23 @@ function Empty({ title, body }: { title: string; body: string }) {
   );
 }
 
+function channelLoad(snapshot: RfChannelSnapshot, channel: number): { text: string; short: string } | null {
+  const row = snapshot.channels.find((item) => item.channel === channel);
+  if (!row) return null;
+  if (row.airtime_pct != null) {
+    const pct = Math.round(row.airtime_pct);
+    return { text: `${pct}% airtime`, short: `${pct}% airtime` };
+  }
+  if (row.busy_pct != null) {
+    const pct = Math.round(row.busy_pct);
+    return { text: `${pct}% busy`, short: `${pct}% busy` };
+  }
+  return null;
+}
+
 function busyText(snapshot: RfChannelSnapshot, channel: number): string {
-  const row = snapshot.channels.find((item) => item.channel === channel && item.busy_pct != null);
-  return row ? ` · ${Math.round(row.busy_pct ?? 0)}% busy` : "";
+  const load = channelLoad(snapshot, channel);
+  return load ? ` · ${load.text}` : "";
 }
 
 function dbmText(rssi: number): string {

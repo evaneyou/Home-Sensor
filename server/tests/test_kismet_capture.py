@@ -1,0 +1,164 @@
+"""Kismet mapping, the airwave spool, and rf-capture ingest. No live Kismet."""
+
+import importlib.util
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import quote
+
+from sqlalchemy import func, select
+
+from app.models import ApInventory, Issue, IssueStatus, RfAlert, RfClient, WifiObservation
+
+
+def _load(name: str, filename: str):
+    here = Path(__file__).resolve()
+    candidates = [here.parents[2] / "monitor" / filename, Path("/monitor") / filename]
+    path = next(item for item in candidates if item.is_file())
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+AP = "11:22:33:44:55:66"
+CLIENT = "02:aa:bb:cc:dd:01"
+OTHER = "aa:bb:cc:dd:ee:10"
+CLIENT_BSSID = "11:22:33:44:55:66"
+
+DEVICES = [
+    {
+        "kismet.device.base.macaddr": AP,
+        "kismet.device.base.name": "Home",
+        "kismet.device.base.type": "Wi-Fi AP",
+        "kismet.device.base.channel": "6",
+        "kismet.device.base.frequency": 2437,
+        "kismet.device.base.signal": {"kismet.common.signal.last_signal": -42},
+        "dot11.device": {"dot11.device.num_associated_clients": 2},
+    },
+    {
+        "kismet.device.base.macaddr": CLIENT,
+        "kismet.device.base.type": "Wi-Fi Client",
+        "kismet.device.base.frequency": 2437,
+        "kismet.device.base.channel": "6",
+        "kismet.device.base.signal": {"kismet.common.signal.last_signal": -60},
+        "kismet.device.base.last_time": 1_700_000_000,
+        "dot11.device": {"dot11.device.last_bssid": AP},
+    },
+    {
+        "kismet.device.base.macaddr": OTHER,
+        "kismet.device.base.type": "Wi-Fi Client",
+        "kismet.device.base.frequency": 5180,
+        "kismet.device.base.channel": "36",
+        "kismet.device.base.signal": -70,
+        "dot11.device": {"dot11.device.last_bssid": "aa:bb:cc:dd:ee:99"},
+    },
+    {
+        "kismet.device.base.macaddr": "10:20:30:40:50:60",
+        "kismet.device.base.type": "Wi-Fi AP",
+        "kismet.device.base.frequency": 5955,
+        "kismet.device.base.channel": "1",
+        "kismet.device.base.signal": -40,
+    },
+]
+
+
+def test_kismet_json_maps_aps_clients_channels_and_alerts():
+    view = _load("kismet_view", "kismet_view.py")
+    mapped = view.map_devices(DEVICES)
+    assert mapped["aps"] == [
+        {"bssid": AP.lower(), "ssid": "Home", "band": "2.4", "channel": 6, "signal": -42.0, "client_count": 2}
+    ]
+    assert len(mapped["clients"]) == 2
+    home_client = mapped["clients"][0]
+    assert home_client["randomized"] is True
+    kept = view.visible_clients(mapped["clients"], {AP})
+    assert [item["mac"] for item in kept] == [CLIENT.lower()]
+    channels = view.map_channels(
+        [{"kismet.channel.channel": "6", "kismet.channel.frequency": 2437, "kismet.channel.airtime": 12.5, "kismet.channel.packets": 40}]
+    )
+    assert channels[0]["airtime_pct"] == 12.5
+    alerts = view.map_alerts(
+        [{"kismet.alert.header": "DEAUTHFLOOD", "kismet.alert.text": "flood", "kismet.alert.bssid": AP, "kismet.alert.timestamp": 10}]
+    )
+    assert alerts[0]["type"] == "DEAUTHFLOOD"
+    assert view.iw_scan_skipped("kismet", "hnwradio0") is True
+    assert view.iw_scan_skipped("kismet", None) is False
+    assert view.iw_scan_skipped("scan", "hnwradio0") is False
+    assert view.iw_scan_skipped("off", None) is False
+
+
+def test_spool_keeps_five_days_and_caps_size(tmp_path: Path):
+    spool = _load("rf_spool", "rf_spool.py")
+    path = tmp_path / "rf-capture.sqlite"
+    now = time.time()
+    spool.MAX_BYTES = 40
+    spool.push(path, {"old": True}, now=now - spool.MAX_AGE_SECONDS - 5)
+    spool.push(path, {"n": 1}, now=now)
+    assert [row[1] for row in spool.pending(path)] == [{"n": 1}]
+    spool.MAX_BYTES = 10
+    spool.push(path, {"n": 2}, now=now)
+    assert [row[1] for row in spool.pending(path)] == [{"n": 2}]
+
+
+def _headers(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}", "X-Monitor-Name": quote("Pi Test", safe="")}
+
+
+def _body(captured: datetime) -> dict:
+    return {
+        "captured_at": captured.isoformat(),
+        "aps": [
+            {"bssid": AP, "ssid": "Home", "band": "2.4", "channel": 6, "signal": -40, "client_count": 2},
+        ],
+        "clients": [
+            {"mac": CLIENT, "bssid": AP, "signal": -55, "last_seen": 1_700_000_000, "randomized": True},
+            {"mac": OTHER, "bssid": "aa:bb:cc:dd:ee:99", "signal": -70, "last_seen": 1_700_000_100, "randomized": False},
+        ],
+        "channels": [{"band": "2.4", "channel": 6, "airtime_pct": 18.0, "packets": 90}],
+        "alerts": [
+            {"type": "DEAUTHFLOOD", "bssid": AP, "text": "Deauth flood on Home", "ts": 1_700_000_200},
+            {"type": "DEAUTHFLOOD", "bssid": "aa:bb:cc:dd:ee:99", "text": "ignored", "ts": 1_700_000_200},
+        ],
+    }
+
+
+def test_rf_capture_is_idempotent_and_keeps_trusted_clients(client, db, monitor_token):
+    captured = datetime(2026, 10, 9, 21, 0, tzinfo=timezone.utc)
+    from app.models import Monitor
+
+    monitor = db.scalar(select(Monitor).where(Monitor.slug == db.info["monitor_slug"]))
+    assert monitor is not None
+    monitor_id = monitor.id
+    db.add(
+        ApInventory(
+            monitor_id=monitor_id,
+            bssid=AP.lower(),
+            trusted=True,
+            label="Home",
+            first_seen=captured,
+            last_seen=captured,
+        )
+    )
+    db.commit()
+    first = client.post("/api/v1/monitors/rf-capture", headers=_headers(monitor_token), json=_body(captured))
+    assert first.status_code == 200, first.text
+    again = client.post("/api/v1/monitors/rf-capture", headers=_headers(monitor_token), json=_body(captured))
+    assert again.status_code == 200, again.text
+    db.expire_all()
+    clients = db.scalars(select(RfClient).where(RfClient.monitor_id == monitor_id)).all()
+    assert [row.mac for row in clients] == [CLIENT.lower()]
+    obs = db.scalar(select(WifiObservation).where(WifiObservation.monitor_id == monitor_id, WifiObservation.bssid == AP.lower()))
+    assert obs is not None
+    assert obs.client_count == 2
+    assert db.scalar(select(func.count()).select_from(RfAlert).where(RfAlert.monitor_id == monitor_id)) == 2
+    issues = db.scalars(select(Issue).where(Issue.monitor_id == monitor_id, Issue.status == IssueStatus.open)).all()
+    assert len(issues) == 1
+    assert issues[0].root_cause_stage == "airwave"
+    assert issues[0].severity.value == "critical"
+    later = captured.replace(minute=5)
+    third = client.post("/api/v1/monitors/rf-capture", headers=_headers(monitor_token), json=_body(later))
+    assert third.status_code == 200, third.text
+    db.expire_all()
+    assert db.scalar(select(func.count()).select_from(Issue).where(Issue.monitor_id == monitor_id)) == 1

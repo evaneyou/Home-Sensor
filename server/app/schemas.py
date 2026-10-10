@@ -152,6 +152,7 @@ class DeviceHealthIn(BaseModel):
     public_ip: Optional[str] = Field(default=None, max_length=64)
     isp: Optional[str] = Field(default=None, max_length=128)
     config_version: int = Field(default=0, ge=0)
+    airwave_mode: Optional[str] = None
 
     @field_validator("public_ip")
     @classmethod
@@ -203,11 +204,13 @@ class DeviceConfigOut(BaseModel):
     tests: list[ScheduledTestOut] = Field(default_factory=list)
     restart: bool = False
     scan: bool = False
+    trusted_bssids: list[str] = Field(default_factory=list)
 
 
 class ProbeCommandOut(BaseModel):
     restart: bool
     scan: bool = False
+    trusted_bssids: list[str] = Field(default_factory=list)
 
 
 class UserOut(BaseModel):
@@ -390,6 +393,8 @@ class RfOverviewOut(BaseModel):
     bands: list[RfBandAdvice]
     headline: str
     sparkline: list[RfSparkPoint]
+    airwave_mode: str = "off"
+    alerts: list["RfAlertOut"] = Field(default_factory=list)
 
 
 class RfApOut(BaseModel):
@@ -436,6 +441,8 @@ class RfChannelBusy(BaseModel):
     channel: int
     noise_dbm: Optional[float] = None
     busy_pct: Optional[float] = None
+    airtime_pct: Optional[float] = None
+    packets: Optional[int] = None
 
 
 class RfChannelSnapshotOut(BaseModel):
@@ -444,6 +451,68 @@ class RfChannelSnapshotOut(BaseModel):
     reason: str
     series: list[RfHillSeries]
     channels: list[RfChannelBusy] = Field(default_factory=list)
+
+
+class RfAlertOut(BaseModel):
+    alert_type: str
+    bssid: str
+    text: str
+    observed_at: datetime
+
+
+class RfClientPoint(BaseModel):
+    t: datetime
+    rssi_dbm: float
+    bssid: str
+    roam: bool = False
+
+
+class RfClientOut(BaseModel):
+    mac: str
+    bssid: str
+    randomized: bool
+    signal: float
+    last_seen: datetime
+    points: list[RfClientPoint]
+
+
+class RfCaptureAp(BaseModel):
+    bssid: str
+    ssid: str = ""
+    band: str
+    channel: int
+    signal: float = -100
+    client_count: int = 0
+
+
+class RfCaptureClient(BaseModel):
+    mac: str
+    bssid: str
+    signal: float = -100
+    last_seen: int = 0
+    randomized: bool = False
+
+
+class RfCaptureChannel(BaseModel):
+    band: str
+    channel: int
+    airtime_pct: Optional[float] = None
+    packets: Optional[int] = None
+
+
+class RfCaptureAlert(BaseModel):
+    type: str
+    bssid: str = ""
+    text: str = ""
+    ts: int = 0
+
+
+class RfCaptureIn(BaseModel):
+    captured_at: datetime
+    aps: list[RfCaptureAp] = Field(default_factory=list)
+    clients: list[RfCaptureClient] = Field(default_factory=list)
+    channels: list[RfCaptureChannel] = Field(default_factory=list)
+    alerts: list[RfCaptureAlert] = Field(default_factory=list)
 
 
 class RfScanRequestOut(BaseModel):

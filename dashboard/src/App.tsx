@@ -16,6 +16,7 @@ import AirwavesLayout from "./pages/airwaves/shared";
 import AirwavesOverview from "./pages/airwaves/OverviewPage";
 import AirwavesNetworks from "./pages/airwaves/NetworksPage";
 import AirwavesChannels from "./pages/airwaves/ChannelsPage";
+import AirwavesClients from "./pages/airwaves/ClientsPage";
 import InternetServicePage from "./pages/InternetServicePage";
 import WebServicesPage from "./pages/WebServicesPage";
 import TestPage from "./pages/TestPage";
@@ -223,6 +224,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           <Route path="/airwaves" element={<AirwavesLayout />}>
             <Route index element={<AirwavesOverview />} />
             <Route path="networks" element={<AirwavesNetworks />} />
+            <Route path="clients" element={<AirwavesClients />} />
             <Route path="channels" element={<AirwavesChannels />} />
           </Route>
           <Route path="/monitors/:id" element={<MonitorPage />} />

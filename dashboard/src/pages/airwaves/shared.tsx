@@ -100,6 +100,7 @@ export default function AirwavesLayout() {
   const pages = [
     { path: "/airwaves", label: "Overview" },
     { path: "/airwaves/networks", label: "Nearby networks" },
+    { path: "/airwaves/clients", label: "Clients" },
     { path: "/airwaves/channels", label: "Channel graph" },
   ];
   const band = params.get("band") === "5" ? "5" : "2.4";
@@ -124,7 +125,7 @@ export default function AirwavesLayout() {
       </div>
       <div className="npv-card air-controls">
         <div className="air-agent">
-          <span id="air-agent-label">Agent</span>
+          <span id="air-agent-label">Remote Agent</span>
           <div className="air-select-wrap">
             <SelectMenu
               className="air-select"

@@ -252,6 +252,7 @@ class WifiObservation(Base):
     security: Mapped[str] = mapped_column(String(32), nullable=False)
     phy: Mapped[str] = mapped_column(String(8), nullable=False)
     max_link_rate_mbps: Mapped[int] = mapped_column(Integer, nullable=False)
+    client_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
     __table_args__ = (Index("ix_wifi_observations_monitor_scanned", "monitor_id", "scanned_at"),)
 
@@ -268,8 +269,50 @@ class RfChannelStat(Base):
     channel: Mapped[int] = mapped_column(Integer, nullable=False)
     noise_dbm: Mapped[Optional[float]] = mapped_column(Float)
     busy_pct: Mapped[Optional[float]] = mapped_column(Float)
+    airtime_pct: Mapped[Optional[float]] = mapped_column(Float)
+    packets: Mapped[Optional[int]] = mapped_column(Integer)
 
     __table_args__ = (Index("ix_rf_channel_stats_monitor_measured", "monitor_id", "measured_at"),)
+
+
+class RfClient(Base):
+    """A client of a trusted access point, sent by Kismet."""
+
+    __tablename__ = "rf_clients"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    monitor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    dedupe_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    mac: Mapped[str] = mapped_column(String(17), nullable=False)
+    bssid: Mapped[str] = mapped_column(String(17), nullable=False)
+    signal: Mapped[float] = mapped_column(Float, nullable=False)
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    randomized: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    __table_args__ = (
+        UniqueConstraint("monitor_id", "observed_at", "dedupe_key", name="uq_rf_clients_capture"),
+        Index("ix_rf_clients_monitor_observed", "monitor_id", "observed_at"),
+    )
+
+
+class RfAlert(Base):
+    """One Kismet alert from a remote agent."""
+
+    __tablename__ = "rf_alerts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    monitor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    dedupe_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    alert_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    bssid: Mapped[str] = mapped_column(String(17), nullable=False, default="")
+    text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    __table_args__ = (
+        UniqueConstraint("monitor_id", "observed_at", "dedupe_key", name="uq_rf_alerts_capture"),
+        Index("ix_rf_alerts_monitor_observed", "monitor_id", "observed_at"),
+    )
 
 
 class ApInventory(Base):
@@ -307,6 +350,7 @@ class MonitorHealth(Base):
     public_ip: Mapped[Optional[str]] = mapped_column(String(64))
     isp: Mapped[Optional[str]] = mapped_column(String(128))
     config_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    airwave_mode: Mapped[Optional[str]] = mapped_column(String(16))
 
     monitor: Mapped[Monitor] = relationship(back_populates="health_samples")
 
