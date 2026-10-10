@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -14,19 +15,22 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from checks import run_check
 
-AGENT_VERSION = "0.3.8"
+AGENT_VERSION = "0.3.10"
 # Latency checks wait on the network, so a few of them run at once.
-# iperf3 stays alone: two bandwidth tests at the same time would slow each other down.
+# Bandwidth and the video call stay alone: running them together would slow each other down.
 PROBE_WORKERS = 6
+HEAVY_KINDS = {"iperf3", "librespeed", "webrtc"}
 CONFIG_PATH = Path(os.environ.get("MONITOR_CONFIG", "/etc/monitor/config.json"))
 PORT = int(os.environ.get("MONITOR_PORT", "80"))
 
 _lock = threading.Lock()
+_scan_lock = threading.Lock()
 _stop = threading.Event()
 _health_started = False
 _tests_started = False
@@ -241,10 +245,10 @@ def get_json(url: str, token: str | None = None, device_name: str | None = None)
         return json.loads(response.read().decode("utf-8"))
 
 
-def post_json(url: str, payload: dict, token: str | None = None, device_name: str | None = None) -> dict:
+def post_json(url: str, payload: dict, token: str | None = None, device_name: str | None = None, timeout: int = 10) -> dict:
     data = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(url, data=data, headers=_device_headers(token, device_name), method="POST")
-    with urllib.request.urlopen(request, timeout=10) as response:
+    with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -281,6 +285,8 @@ def poll_restart(config: dict) -> None:
     except (OSError, urllib.error.URLError, TimeoutError, ValueError):
         return
     honor_restart(config, bool(body.get("restart")))
+    if body.get("scan"):
+        upload_wifi_scan(config)
 
 
 def sample(config: dict) -> dict:
@@ -344,6 +350,54 @@ def report_once(config: dict) -> None:
     _last_error = ""
     _last_health_at = time.strftime("%Y-%m-%d %H:%M:%S")
     honor_restart(config, bool(body.get("restart")))
+    upload_wifi_scan(config)
+
+
+def wifi_interface() -> str | None:
+    try:
+        listing = subprocess.check_output(["iw", "dev"], text=True, timeout=5, stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+        return None
+    iface = None
+    for line in listing.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("Interface "):
+            iface = stripped.split()[1]
+            continue
+        if iface and stripped == "type managed":
+            return iface
+    return iface
+
+
+def wifi_scan_text() -> str | None:
+    iface = wifi_interface()
+    if not iface:
+        return None
+    try:
+        return subprocess.check_output(["iw", "dev", iface, "scan"], text=True, timeout=25, stderr=subprocess.STDOUT)
+    except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+        return None
+
+
+def upload_wifi_scan(config: dict) -> None:
+    """Post one real scan. Skip if another scan is already running."""
+    if not _scan_lock.acquire(blocking=False):
+        return
+    try:
+        text = wifi_scan_text()
+        if text is None:
+            return
+        post_json(
+            f"{config['server_url'].rstrip('/')}/api/v1/monitors/wifi-scans",
+            {"scanned_at": datetime.now(timezone.utc).isoformat(), "raw": text},
+            config.get("token"),
+            config.get("name"),
+            timeout=30,
+        )
+    except (OSError, urllib.error.URLError, TimeoutError, ValueError):
+        return
+    finally:
+        _scan_lock.release()
 
 
 def remember_tests(tests: object) -> None:
@@ -354,7 +408,7 @@ def remember_tests(tests: object) -> None:
     for item in tests:
         if not isinstance(item, dict):
             continue
-        if item.get("kind") not in {"http", "iperf3", "ping", "mtr"}:
+        if item.get("kind") not in {"http", "iperf3", "librespeed", "webrtc", "ping", "mtr"}:
             continue
         if not item.get("slug") or not item.get("target"):
             continue
@@ -370,7 +424,7 @@ def _test_key(test: dict) -> str:
 def _interval_seconds(test: dict) -> int:
     interval = int(test.get("interval_seconds") or 300)
     kind = test.get("kind")
-    if kind == "iperf3":
+    if kind in HEAVY_KINDS:
         return max(interval, 300)
     if kind == "mtr":
         return max(interval, 120)
@@ -421,13 +475,13 @@ def run_due_tests(config: dict) -> None:
     ready = due_tests(time.monotonic())
     if not ready:
         return
-    latency = [test for test in ready if test.get("kind") not in {"iperf3", "mtr"}]
+    latency = [test for test in ready if test.get("kind") not in HEAVY_KINDS | {"mtr"}]
     traces = [test for test in ready if test.get("kind") == "mtr"]
-    bandwidth = [test for test in ready if test.get("kind") == "iperf3"]
+    heavy = [test for test in ready if test.get("kind") in HEAVY_KINDS]
     results = [result for result in _probes.map(_run_one, latency) if result]
     # A trace shares the link with nothing else, so its timing is the path, not the other probes.
     results.extend(result for result in _probes.map(_run_one, traces) if result)
-    results.extend(result for result in (_run_one(test) for test in bandwidth) if result)
+    results.extend(result for result in (_run_one(test) for test in heavy) if result)
     if not results:
         return
     post_json(

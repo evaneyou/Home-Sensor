@@ -159,14 +159,23 @@ def test_health_assigns_iperf_and_web_services(client: TestClient, db):
     assert "http-path" in slugs
     assert "icmp-path" in slugs
     assert "mtr-path" in slugs
+    assert "librespeed" in slugs
+    assert "webrtc" in slugs
     assert "icmp-youtube" in slugs
     assert "mtr-youtube" not in slugs
     iperf = next(item for item in tests if item["slug"] == "iperf3")
     assert iperf["kind"] == "iperf3"
     assert iperf["target"] == "10.7.0.1"
-    assert iperf["network_slug"] == "wan"
+    assert iperf["network_slug"] == "wired"
     stored_iperf = db.scalar(text("SELECT iperf_interval_seconds FROM internet_service_settings WHERE id = 1"))
     assert iperf["interval_seconds"] == max(stored_iperf, 300)
+    transfer = next(item for item in tests if item["slug"] == "librespeed")
+    assert transfer["kind"] == "librespeed"
+    assert transfer["target"] == "10.7.0.1"
+    assert transfer["interval_seconds"] == max(stored_iperf, 300)
+    call = next(item for item in tests if item["slug"] == "webrtc")
+    assert call["kind"] == "webrtc"
+    assert call["target"] == "10.7.0.1"
     http_path = next(item for item in tests if item["slug"] == "http-path")
     assert http_path["kind"] == "http"
     assert http_path["target"] == "http://10.7.0.1:8847/api/v1/healthz"
@@ -229,3 +238,21 @@ def test_admin_can_queue_a_probe_restart(client: TestClient, db):
     assert acked.json()["restart"] is False
     cleared = client.get("/api/v1/monitors/command", headers=headers)
     assert cleared.json()["restart"] is False
+
+
+def test_video_call_classification():
+    from app.internet_tests import classify_webrtc
+    from app.models import ResultStatus
+
+    failed, reason = classify_webrtc({"frames_in": 0, "frames_out": 10, "rtt_ms": 20, "jitter_ms": 5, "loss_pct": 0})
+    assert failed == ResultStatus.fail
+    assert "did not connect" in reason
+
+    healthy, reason = classify_webrtc({"frames_in": 30, "frames_out": 30, "rtt_ms": 20, "jitter_ms": 5, "loss_pct": 0})
+    assert healthy == ResultStatus.ok
+    assert "20.0 ms" in reason
+
+    slow, reason = classify_webrtc({"frames_in": 30, "frames_out": 30, "rtt_ms": 20, "jitter_ms": 80, "loss_pct": 9})
+    assert slow == ResultStatus.degraded
+    assert "packet loss" in reason
+    assert "jitter" in reason

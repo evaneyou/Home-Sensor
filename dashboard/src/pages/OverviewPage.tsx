@@ -86,9 +86,35 @@ function checkNetworkId(cells: HealthCell[], monitorId: string, key: string, col
   return (tested ?? matches[0])?.network_id ?? null;
 }
 
-function checkHref(monitorId: string, key: string, networkId: string | null): string {
+function slugNetworkId(cells: HealthCell[], monitorId: string, slug: string): string | null {
+  const matches = cells.filter((cell) => cell.monitor_id === monitorId && cell.network_slug === slug);
+  const tested = matches.find((cell) => hasResult(cell));
+  return (tested ?? matches[0])?.network_id ?? null;
+}
+
+function internetLink(cells: HealthCell[], monitorId: string): "wired" | "wireless" | null {
+  const matches = checkCells(cells, monitorId, "internet", "internet");
+  const slug = (matches.find((cell) => hasResult(cell)) ?? matches[0])?.network_slug;
+  if (slug === "wired") return "wired";
+  if (slug === "wifi") return "wireless";
+  return null;
+}
+
+function checkHref(monitorId: string, key: string, networkId: string | null, link: string | null): string {
   if (!networkId) return `/monitors/${monitorId}`;
-  if (key === "internet") return `/monitors/${monitorId}?network=${networkId}&detail=isp`;
+  if (key === "wired" || key === "wifi") {
+    const params = new URLSearchParams({
+      network: networkId,
+      detail: "isp",
+      link: key === "wired" ? "wired" : "wireless",
+    });
+    return `/monitors/${monitorId}?${params}`;
+  }
+  if (key === "internet") {
+    const params = new URLSearchParams({ network: networkId, detail: "isp" });
+    if (link === "wired" || link === "wireless") params.set("link", link);
+    return `/monitors/${monitorId}?${params}`;
+  }
   return `/monitors/${monitorId}?network=${networkId}`;
 }
 
@@ -140,12 +166,17 @@ function viewOf(data: Summary, regionById: Map<string, string | null>) {
   const locations = data.monitors.map((monitor) => {
     const checks = CHECKS.map((check) => {
       const state = columnState(data.matrix, monitor.id, check.key, check.column);
-      const networkId = checkNetworkId(data.matrix, monitor.id, check.key, check.column);
+      const link = check.key === "internet" ? internetLink(data.matrix, monitor.id) : null;
+      const wifiId = slugNetworkId(data.matrix, monitor.id, "wifi");
+      const networkId =
+        check.key === "wifi" || link === "wireless"
+          ? (wifiId ?? checkNetworkId(data.matrix, monitor.id, check.key, check.column))
+          : checkNetworkId(data.matrix, monitor.id, check.key, check.column);
       return {
         ...check,
         state,
         detail: DEFAULT_DETAIL[check.key][state],
-        href: checkHref(monitor.id, check.key, networkId),
+        href: checkHref(monitor.id, check.key, networkId, link),
       };
     });
     const labels = (state: CheckState) => checks.filter((check) => check.state === state).map((check) => check.label);

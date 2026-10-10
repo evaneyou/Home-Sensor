@@ -1,4 +1,4 @@
-import type { InternetServiceSetting, WebServiceSetting } from "./types";
+import type { InternetServiceSetting, RfAp, RfChannelSnapshot, RfHistoryPoint, RfOverview, WebServiceSetting, WebStability } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8847";
 
@@ -46,6 +46,8 @@ export const api = {
   issueMonitorTunnel: (id: string) => request(`/api/v1/monitors/${id}/tunnel`, { method: "POST" }),
   restartMonitor: (id: string) => request(`/api/v1/monitors/${id}/restart`, { method: "POST" }),
   monitor: (id: string) => request(`/api/v1/monitors/${id}`),
+  monitorPath: (id: string, link: "wired" | "wireless", destination = "server") =>
+    request(`/api/v1/monitors/${id}/path?link=${link}&destination=${encodeURIComponent(destination)}`),
   monitorLog: (id: string, offset: number, limit: number, probe = "all") =>
     request(`/api/v1/monitors/${id}/log?offset=${offset}&limit=${limit}&probe=${encodeURIComponent(probe)}`),
   updateMonitorLocation: (
@@ -76,10 +78,36 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ services }),
     }),
+  webStability: () => request<WebStability>("/api/v1/settings/web-stability"),
+  saveWebStability: (setting: WebStability) =>
+    request<WebStability>("/api/v1/settings/web-stability", {
+      method: "PUT",
+      body: JSON.stringify(setting),
+    }),
   internetService: () => request("/api/v1/settings/internet-service"),
   saveInternetService: (setting: InternetServiceSetting) =>
     request("/api/v1/settings/internet-service", {
       method: "PUT",
       body: JSON.stringify(setting),
+    }),
+  rfOverview: (agentId: string, range: string) =>
+    request<RfOverview>(`/api/v1/rf/overview?agent_id=${agentId}&range=${range}`),
+  rfAps: (agentId: string, params: Record<string, string>) => {
+    const query = new URLSearchParams({ agent_id: agentId, ...params });
+    return request<RfAp[]>(`/api/v1/rf/aps?${query}`);
+  },
+  rfHistory: (agentId: string, bssid: string, range: string) =>
+    request<RfHistoryPoint[]>(
+      `/api/v1/rf/aps/${encodeURIComponent(bssid)}/history?agent_id=${agentId}&range=${range}`,
+    ),
+  rfChannels: (agentId: string, band: string) =>
+    request<RfChannelSnapshot>(
+      `/api/v1/rf/channel-snapshot?agent_id=${agentId}&band=${encodeURIComponent(band)}`,
+    ),
+  rfScanNow: (agentId: string) =>
+    request(`/api/v1/rf/scan-now?agent_id=${agentId}`, { method: "POST" }),
+  rfTrust: (agentId: string, bssid: string, trusted: boolean) =>
+    request<RfAp>(`/api/v1/rf/aps/${encodeURIComponent(bssid)}/trust?agent_id=${agentId}`, {
+      method: trusted ? "POST" : "DELETE",
     }),
 };

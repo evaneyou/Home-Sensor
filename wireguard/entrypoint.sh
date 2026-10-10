@@ -47,6 +47,16 @@ iptables -C FORWARD -i wg0 -o wg0 -j DROP 2>/dev/null \
   || echo "Could not add the rule that blocks peer-to-peer traffic"
 socat TCP-LISTEN:8847,bind=10.7.0.1,fork,reuseaddr TCP:${SERVER_PROXY:-server:8847} &
 socat TCP-LISTEN:8847,bind=10.7.1.1,fork,reuseaddr TCP:${SERVER_PROXY:-server:8847} &
+socat TCP-LISTEN:8080,bind=10.7.0.1,fork,reuseaddr TCP:${LIBRESPEED_PROXY:-librespeed:8080} &
+socat TCP-LISTEN:8080,bind=10.7.1.1,fork,reuseaddr TCP:${LIBRESPEED_PROXY:-librespeed:8080} &
+# Same restart idea as iperf: a crashed answerer should come back for the next call.
+start_call() {
+  while true; do
+    /webrtc-call answer --bind 10.7.0.1:8090 --bind 10.7.1.1:8090 || true
+    sleep 1
+  done
+}
+start_call &
 # A client that disappears mid-test used to leave this process stuck, and every
 # later test waited on it. Receive and send timeouts end that session, and the
 # loop starts a fresh server if the process exits.

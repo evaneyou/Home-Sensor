@@ -52,6 +52,8 @@ class TestKind(str, enum.Enum):
     wifi = "wifi"
     mtr = "mtr"
     iperf3 = "iperf3"
+    librespeed = "librespeed"
+    webrtc = "webrtc"
 
 
 class ResultStatus(str, enum.Enum):
@@ -130,6 +132,7 @@ class Monitor(Base):
     health_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=60, server_default="60")
     # Set by an admin. The probe clears it once, then replaces its own process.
     restart_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    scan_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     group: Mapped[Group] = relationship(back_populates="monitors")
@@ -168,6 +171,10 @@ class Test(Base):
     target: Mapped[str] = mapped_column(String(255), nullable=False)
     interval_seconds: Mapped[int] = mapped_column(Integer, default=300, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    stable_status: Mapped[ResultStatus] = mapped_column(
+        Enum(ResultStatus, name="result_status"), nullable=False, default=ResultStatus.ok, server_default="ok"
+    )
+    state_since: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     monitor: Mapped[Monitor] = relationship(back_populates="tests")
@@ -246,6 +253,22 @@ class WifiObservation(Base):
     max_link_rate_mbps: Mapped[int] = mapped_column(Integer, nullable=False)
 
     __table_args__ = (Index("ix_wifi_observations_monitor_scanned", "monitor_id", "scanned_at"),)
+
+
+class ApInventory(Base):
+    """Trusted flag and first/last seen for one access point at one agent."""
+
+    __tablename__ = "ap_inventory"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    monitor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"), nullable=False)
+    bssid: Mapped[str] = mapped_column(String(17), nullable=False)
+    trusted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    label: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (UniqueConstraint("monitor_id", "bssid", name="uq_ap_inventory_monitor_bssid"),)
 
 
 class MonitorHealth(Base):
@@ -362,3 +385,28 @@ class InternetServiceSetting(Base):
     iperf_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
     iperf_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     iperf_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=900)
+    librespeed_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
+    librespeed_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    librespeed_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=900)
+    webrtc_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    webrtc_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    webrtc_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=900)
+
+
+class WebStabilitySetting(Base):
+    """One row. These numbers apply to every web service."""
+
+    __tablename__ = "web_stability_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    poll_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=300)
+    window_size: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    degraded_count: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    fail_count: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    recover_count: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    pct_floor: Mapped[int] = mapped_column(Integer, nullable=False, default=50)
+    abs_floor_http_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=40)
+    abs_floor_icmp_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=20)
+    abs_floor_jitter_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=15)
+    quorum_degraded_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
+    quorum_fail_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=40)

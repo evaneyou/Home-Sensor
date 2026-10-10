@@ -1,9 +1,14 @@
 export function networkLabel(network: { slug: string; name: string }): string {
   if (network.slug === "wifi-main") return "Wi-Fi";
-  if (network.slug === "wan") return "Internet Service";
+  if (network.slug === "wan") return "Web";
   if (network.slug === "wired") return "Wired";
-  if (network.slug === "wifi") return "Wireless";
+  if (network.slug === "wifi") return "Wi-Fi";
   return network.name;
+}
+
+export function checkLabel(check: { slug?: string | null; name?: string | null }): string {
+  if (check.slug === "librespeed" || check.name === "LibreSpeed") return "File Transfer";
+  return check.name || check.slug || "";
 }
 
 export function networkOrder(network: { slug: string }): number {

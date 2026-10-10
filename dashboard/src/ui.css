@@ -1,0 +1,566 @@
+/* Design system for every screen except the overview (index). The overview keeps overview.css. */
+
+.app-shell:not(.dash-shell),
+.login-wrap {
+  color-scheme: dark;
+  --bg: #0e1320;
+  --bg-elevated: #161d2f;
+  --bg-soft: #1d2640;
+  --bg-inset: #10172a;
+  --line: #232d49;
+  --ink: #e8ecf8;
+  --muted: #9aa6c4;
+  --ok: #6ee7a8;
+  --degraded: #ffc24d;
+  --fail: #ff6f91;
+  --unknown: #8793b2;
+  --accent: #4fd1b5;
+  --on-accent: #0e1320;
+  --banner-critical: color-mix(in srgb, var(--fail) 12%, var(--bg-elevated));
+  --banner-warning: color-mix(in srgb, var(--degraded) 12%, var(--bg-elevated));
+  --role-home: #e3d3b0;
+  --role-isp: #4fd1b5;
+  --role-ixp: #b79cff;
+  --role-transit: #6cb4ff;
+  --role-unknown: #8793b2;
+  --role-destination: #ff8a7a;
+  --r-xs: 8px;
+  --r-sm: 12px;
+  --r-md: 16px;
+  --r-lg: 22px;
+  --r-xl: 28px;
+  --r-pill: 999px;
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --font-ui: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Nunito", system-ui, sans-serif;
+  --font-addr: "DM Mono", ui-monospace, monospace;
+  --font-mono: "Nunito", system-ui, sans-serif;
+  --shadow-float: 0 12px 40px rgba(0, 0, 0, 0.35);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.app-shell:not(.dash-shell) h1,
+.app-shell:not(.dash-shell) h2,
+.app-shell:not(.dash-shell) h3,
+.app-shell:not(.dash-shell) .page-title,
+.login-wrap h1 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.app-shell:not(.dash-shell) .page-title,
+.login-wrap h1 {
+  font-size: 40px;
+  line-height: 1.1;
+}
+
+.app-shell:not(.dash-shell) h2,
+.app-shell:not(.dash-shell) .panel h2,
+.app-shell:not(.dash-shell) .monitor-dialog-head h2 {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.app-shell:not(.dash-shell) .page-sub,
+.login-wrap .login-card p {
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.app-shell:not(.dash-shell) .main {
+  padding: var(--s-5);
+}
+
+.app-shell:not(.dash-shell) .panel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  padding: var(--s-5);
+  margin-bottom: var(--s-5);
+}
+
+.app-shell:not(.dash-shell) .page-title,
+.app-shell:not(.dash-shell) .monitor-head {
+  align-items: flex-end;
+  gap: 20px;
+}
+
+.app-shell:not(.dash-shell) .monitor-head .page-title {
+  margin-bottom: 0;
+}
+
+.app-shell:not(.dash-shell) .main .btn,
+.app-shell:not(.dash-shell) .monitor-dialog .btn,
+.login-wrap .btn {
+  border-radius: var(--r-pill);
+  min-height: 48px;
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 800;
+  border: 1px solid var(--line);
+  background: var(--bg-elevated);
+  color: var(--ink);
+}
+
+.app-shell:not(.dash-shell) .main .btn-primary,
+.app-shell:not(.dash-shell) .monitor-dialog .btn-primary,
+.app-shell:not(.dash-shell) .confirm-actions .btn-primary,
+.login-wrap .btn-primary,
+.login-wrap .login-card .btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.app-shell:not(.dash-shell) .main .btn:hover,
+.app-shell:not(.dash-shell) .monitor-dialog .btn:hover,
+.login-wrap .btn:hover {
+  background: var(--bg-soft);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.app-shell:not(.dash-shell) .main .btn-primary:hover,
+.app-shell:not(.dash-shell) .monitor-dialog .btn-primary:hover,
+.app-shell:not(.dash-shell) .confirm-actions .btn-primary:hover,
+.login-wrap .btn-primary:hover,
+.login-wrap .login-card .btn-primary:hover {
+  background: color-mix(in srgb, white 12%, var(--accent));
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.app-shell:not(.dash-shell) .main .btn:disabled,
+.app-shell:not(.dash-shell) .monitor-dialog .btn:disabled,
+.login-wrap .btn:disabled {
+  background: var(--bg-soft);
+  color: var(--ink);
+  cursor: progress;
+}
+
+.app-shell:not(.dash-shell) .main .tab,
+.app-shell:not(.dash-shell) .range-row .tab {
+  border-radius: var(--r-pill);
+  font-size: 14px;
+  font-weight: 700;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+.app-shell:not(.dash-shell) .main .tab:hover,
+.app-shell:not(.dash-shell) .range-row .tab:hover {
+  color: var(--ink);
+  background: var(--bg-soft);
+  border-color: var(--line);
+}
+
+.app-shell:not(.dash-shell) .main .tab.active,
+.app-shell:not(.dash-shell) .range-row .tab.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-elevated));
+  border-color: var(--accent);
+}
+
+.app-shell:not(.dash-shell) .main input:not([type="checkbox"]):not([type="radio"]),
+.app-shell:not(.dash-shell) .main textarea,
+.app-shell:not(.dash-shell) .monitor-dialog input:not([type="checkbox"]):not([type="radio"]),
+.app-shell:not(.dash-shell) .monitor-dialog textarea,
+.login-wrap input {
+  background: var(--bg-inset);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+}
+
+.app-shell:not(.dash-shell) .main select:not(.npv-select),
+.app-shell:not(.dash-shell) .monitor-dialog select,
+.app-shell:not(.dash-shell) .log-filter select {
+  background: var(--bg-inset);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  color: var(--ink);
+  padding-inline: 16px;
+}
+
+.app-shell:not(.dash-shell) .log-filter select {
+  border-radius: var(--r-pill);
+  padding-inline: 14px;
+}
+
+.app-shell:not(.dash-shell) .table-scroll {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: auto;
+}
+
+.app-shell:not(.dash-shell) .table th {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.app-shell:not(.dash-shell) .table tbody tr:hover td {
+  background: var(--bg-soft);
+}
+
+.app-shell:not(.dash-shell) .menu-panel,
+.app-shell:not(.dash-shell) .monitor-dialog,
+.app-shell:not(.dash-shell) .confirm-dialog {
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-float);
+}
+
+.app-shell:not(.dash-shell) .menu-panel {
+  border-radius: var(--r-lg);
+}
+
+.app-shell:not(.dash-shell) .monitor-dialog,
+.app-shell:not(.dash-shell) .confirm-dialog,
+.login-wrap .login-card {
+  border-radius: var(--r-xl);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+}
+
+.login-wrap .login-card {
+  width: min(420px, 100%);
+  box-shadow: var(--shadow-float);
+}
+
+.app-shell:not(.dash-shell) .monitor-dialog-backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.app-shell:not(.dash-shell) .state-box {
+  border-radius: var(--r-xl);
+  border: 1px dashed var(--line);
+  background: var(--bg-elevated);
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.app-shell:not(.dash-shell) .banner.critical {
+  background: var(--banner-critical);
+  border: 1px solid color-mix(in srgb, var(--fail) 45%, transparent);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+}
+
+.app-shell:not(.dash-shell) .banner.warning {
+  background: var(--banner-warning);
+  border: 1px solid color-mix(in srgb, var(--degraded) 45%, transparent);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+}
+
+.app-shell:not(.dash-shell) .sev {
+  border-radius: var(--r-pill);
+  font-weight: 800;
+  padding: 3px 9px;
+}
+
+.app-shell:not(.dash-shell) .settings-nav a {
+  border-radius: var(--r-pill);
+  font-weight: 700;
+}
+
+.app-shell:not(.dash-shell) .settings-nav a.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-elevated));
+  border: 1px solid var(--accent);
+}
+
+.app-shell:not(.dash-shell) .monitor-card,
+.app-shell:not(.dash-shell) .saas-tile {
+  border-radius: var(--r-lg);
+  background: var(--bg-elevated);
+}
+
+.app-shell:not(.dash-shell) .isp-card {
+  border-radius: var(--r-xl);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+
+.app-shell:not(.dash-shell) .isp-stat {
+  border-radius: var(--r-md);
+  background: var(--bg-inset);
+}
+
+.app-shell:not(.dash-shell) .isp-stat strong,
+.app-shell:not(.dash-shell) .device-stats strong {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.app-shell:not(.dash-shell) .monitor-status-box {
+  border-radius: var(--r-pill);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+}
+
+.app-shell:not(.dash-shell) .status-mark-ok { --mark: var(--ok); }
+.app-shell:not(.dash-shell) .status-mark-degraded { --mark: var(--degraded); }
+.app-shell:not(.dash-shell) .status-mark-offline { --mark: var(--fail); }
+
+.app-shell:not(.dash-shell) .npv {
+  --surface: var(--bg-elevated);
+  --chip: var(--bg-inset);
+  --text: var(--ink);
+  --mint: var(--accent);
+  --warn: var(--degraded);
+  --soft: var(--muted);
+  --arrow: var(--unknown);
+  --bg: #0e1320;
+  --line: #232d49;
+  --ok: #6ee7a8;
+  --font-mono: var(--font-addr);
+}
+
+.app-shell:not(.dash-shell) .npv-run:disabled {
+  background: var(--bg-soft);
+  color: var(--ink);
+}
+
+.app-shell:not(.dash-shell) .npv-legend,
+.app-shell:not(.dash-shell) .npv-notice.silent {
+  color: var(--muted);
+}
+
+.app-shell:not(.dash-shell) .npv-insight,
+.app-shell:not(.dash-shell) .npv-match.no {
+  background: color-mix(in srgb, var(--degraded) 12%, var(--bg-elevated));
+  border-color: color-mix(in srgb, var(--degraded) 45%, transparent);
+  color: var(--ink);
+}
+
+.app-shell:not(.dash-shell) .npv-notice.inferred {
+  background: color-mix(in srgb, var(--role-ixp) 12%, var(--bg-elevated));
+  border-color: color-mix(in srgb, var(--role-ixp) 45%, transparent);
+  color: var(--ink);
+}
+
+.app-shell:not(.dash-shell) .npv-match.yes {
+  background: color-mix(in srgb, var(--ok) 12%, var(--bg-elevated));
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  color: var(--ink);
+}
+
+.app-shell:not(.dash-shell) .recharts-cartesian-axis-tick text {
+  fill: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.app-shell:not(.dash-shell) .recharts-default-tooltip {
+  background-color: var(--bg-elevated) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 14px !important;
+  padding: 8px 12px !important;
+}
+
+.app-shell:not(.dash-shell) .recharts-default-tooltip,
+.app-shell:not(.dash-shell) .recharts-tooltip-item {
+  color: var(--ink) !important;
+  font-weight: 700;
+}
+
+.app-shell:not(.dash-shell) .npv-chip:hover {
+  background: var(--chip);
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--c) 50%, transparent);
+}
+
+.app-shell:not(.dash-shell) .npv-chip[aria-pressed="true"]:hover {
+  background: color-mix(in srgb, var(--c) 24%, transparent);
+  border-color: var(--c);
+  color: var(--ink);
+}
+
+.app-shell:not(.dash-shell) .npv-run:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: transparent;
+}
+
+.app-shell:not(.dash-shell) .npv-col:hover {
+  background: transparent;
+  border-color: transparent;
+  color: inherit;
+}
+
+.app-shell:not(.dash-shell) .saas-tile:hover,
+.app-shell:not(.dash-shell) .isp-card:hover,
+.app-shell:not(.dash-shell) .monitor-pick:hover {
+  background: var(--bg-soft);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.app-shell:not(.dash-shell) .menu-panel a:hover,
+.app-shell:not(.dash-shell) .menu-item:hover {
+  background: var(--bg-soft);
+  color: var(--ink);
+  border-color: transparent;
+}
+
+.app-shell:not(.dash-shell) .menu-panel a.active,
+.app-shell:not(.dash-shell) .menu-panel a.active:hover {
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-elevated));
+  color: var(--accent);
+}
+
+.app-shell:not(.dash-shell) :focus-visible,
+.login-wrap :focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 3px;
+}
+
+.app-shell:not(.dash-shell) select:not(.npv-select):focus,
+.app-shell:not(.dash-shell) select:not(.npv-select):focus-visible,
+.login-wrap select:focus,
+.login-wrap select:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.select-menu {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.select-menu-trigger {
+  width: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-inset);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-shell:not(.dash-shell) .select-menu-trigger:focus,
+.app-shell:not(.dash-shell) .select-menu-trigger:focus-visible {
+  outline: none;
+  border-color: transparent;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.select-menu-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-menu-chevron {
+  flex: none;
+  color: var(--muted);
+}
+
+.select-menu-panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(24rem, 80vw);
+  max-height: min(320px, 60vh);
+  overflow: auto;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+}
+
+.select-menu-group {
+  padding: 8px 14px 4px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.select-menu-option {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.select-menu-option:hover,
+.select-menu-option[data-active="true"] {
+  background: var(--bg-soft);
+}
+
+.select-menu-option[aria-selected="true"] {
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-soft));
+  color: var(--accent);
+}
+
+.select-menu-option:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.field .select-menu,
+.log-filter .select-menu,
+.field .select-menu-trigger,
+.log-filter .select-menu-trigger {
+  width: 100%;
+}
+
+.log-filter .select-menu {
+  min-width: 18rem;
+}
+
+@media (max-width: 560px) {
+  .app-shell:not(.dash-shell) .page-title,
+  .login-wrap h1,
+  .app-shell:not(.dash-shell) .npv h1 {
+    font-size: 30px;
+  }
+
+  .app-shell:not(.dash-shell) .panel,
+  .login-wrap .login-card {
+    padding: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell:not(.dash-shell) *,
+  .login-wrap * {
+    transition: none !important;
+  }
+}

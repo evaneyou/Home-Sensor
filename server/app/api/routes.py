@@ -26,14 +26,20 @@ from app.enrollment import CONNECTED_WITHIN, is_token_hash, token_hash
 from app.internet_tests import (
     ensure_internet_tests,
     explain_result,
+    is_web_check,
     load_internet_service,
     load_web_services,
+    load_web_stability,
     log_slug_filter,
     matrix_column,
     save_internet_service,
     save_web_services,
+    save_web_stability,
     scheduled_tests,
+    stability_config,
 )
+from app.path_view import build_trace
+from app.services.stability import cell_quorum, preset_name, service_status
 from app.regions import REGIONS_BY_COUNTRY
 from app.models import (
     AuditEvent,
@@ -71,6 +77,8 @@ from app.schemas import (
     InternetServiceSettingOut,
     WebServiceSettingOut,
     WebServiceSettingsIn,
+    WebStabilityIn,
+    WebStabilityOut,
     ResultOut,
     ResultPage,
     SummaryResponse,
@@ -136,6 +144,46 @@ def put_web_services(
     return [_web_service_out(row) for row in rows]
 
 
+def _web_stability_out(row) -> WebStabilityOut:
+    cfg = stability_config(row)
+    return WebStabilityOut(
+        poll_interval_seconds=row.poll_interval_seconds,
+        window_size=row.window_size,
+        degraded_count=row.degraded_count,
+        fail_count=row.fail_count,
+        recover_count=row.recover_count,
+        pct_floor=row.pct_floor,
+        abs_floor_http_ms=row.abs_floor_http_ms,
+        abs_floor_icmp_ms=row.abs_floor_icmp_ms,
+        abs_floor_jitter_ms=row.abs_floor_jitter_ms,
+        quorum_degraded_pct=row.quorum_degraded_pct,
+        quorum_fail_pct=row.quorum_fail_pct,
+        preset=preset_name(cfg),
+    )
+
+
+@router.get("/settings/web-stability", response_model=WebStabilityOut)
+def get_web_stability(
+    db: Annotated[Session, Depends(get_db)],
+    _user: Annotated[User, Depends(get_current_user)],
+) -> WebStabilityOut:
+    return _web_stability_out(load_web_stability(db))
+
+
+@router.put("/settings/web-stability", response_model=WebStabilityOut)
+def put_web_stability(
+    body: WebStabilityIn,
+    db: Annotated[Session, Depends(get_db)],
+    _admin: Annotated[User, Depends(require_admin)],
+) -> WebStabilityOut:
+    try:
+        row = save_web_stability(db, body.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    db.commit()
+    return _web_stability_out(row)
+
+
 def _internet_service_out(row) -> InternetServiceSettingOut:
     return InternetServiceSettingOut(
         interval_seconds=row.interval_seconds,
@@ -148,6 +196,12 @@ def _internet_service_out(row) -> InternetServiceSettingOut:
         iperf_enabled=row.iperf_enabled,
         iperf_interval_seconds=row.iperf_interval_seconds,
         iperf_variance_pct=row.iperf_variance_pct,
+        librespeed_enabled=row.librespeed_enabled,
+        librespeed_interval_seconds=row.librespeed_interval_seconds,
+        librespeed_variance_pct=row.librespeed_variance_pct,
+        webrtc_enabled=row.webrtc_enabled,
+        webrtc_interval_seconds=row.webrtc_interval_seconds,
+        webrtc_variance_pct=row.webrtc_variance_pct,
     )
 
 
@@ -310,6 +364,7 @@ def _config_out(db: Session, monitor: Monitor) -> DeviceConfigOut:
         config_version=monitor.config_version,
         tests=[ScheduledTestOut(**item) for item in scheduled_tests(db, monitor)],
         restart=monitor.restart_requested_at is not None,
+        scan=monitor.scan_requested_at is not None,
     )
 
 
@@ -520,7 +575,7 @@ def probe_command(
     x_monitor_name: Annotated[Optional[str], Header()] = None,
 ) -> ProbeCommandOut:
     monitor = _resolve_monitor_identity(db, authorization, x_monitor_name)
-    return ProbeCommandOut(restart=monitor.restart_requested_at is not None)
+    return ProbeCommandOut(restart=monitor.restart_requested_at is not None, scan=monitor.scan_requested_at is not None)
 
 
 @router.post("/monitors/command", response_model=ProbeCommandOut)
@@ -533,7 +588,7 @@ def ack_probe_command(
     monitor = _resolve_monitor_identity(db, authorization, x_monitor_name)
     monitor.restart_requested_at = None
     db.commit()
-    return ProbeCommandOut(restart=False)
+    return ProbeCommandOut(restart=False, scan=monitor.scan_requested_at is not None)
 
 
 @router.post("/monitors/{monitor_id}/restart")
@@ -578,6 +633,57 @@ def _result_to_out(r: TestResult) -> ResultOut:
         status_reason=r.status_reason
         or explain_result(test.kind.value, r.status.value, r.metrics, r.stages, r.message),
     )
+
+
+def _fill_web_quorum(tests, latest_by_test, cell_map, cfg) -> None:
+    """Web Services cell color comes from how many services are steadily bad, not one sample."""
+    groups: dict[tuple, dict[str, dict[str, Test]]] = {}
+    for test in tests:
+        if not test.enabled:
+            continue
+        column = matrix_column(test.network.slug, test.slug)
+        if column != "web" or not is_web_check(test.slug):
+            continue
+        kind, _, key = test.slug.partition("-")
+        groups.setdefault((test.monitor_id, test.network_id, column), {}).setdefault(key, {})[kind] = test
+
+    now = datetime.now(timezone.utc)
+    for cell_key, services in groups.items():
+        cell = cell_map.get(cell_key)
+        if cell is None:
+            continue
+        statuses = []
+        sustained_fail = False
+        last_at = None
+        for kinds in services.values():
+            http = kinds.get("http")
+            icmp = kinds.get("icmp")
+            for probe in (http, icmp):
+                if probe is None:
+                    continue
+                result = latest_by_test.get(probe.id)
+                if result is not None and (last_at is None or result.started_at > last_at):
+                    last_at = result.started_at
+            http_status = http.stable_status if http is not None and latest_by_test.get(http.id) else None
+            icmp_status = icmp.stable_status if icmp is not None and latest_by_test.get(icmp.id) else None
+            stable = service_status(http_status, icmp_status)
+            if stable is None:
+                continue
+            statuses.append(stable)
+            if (
+                http is not None
+                and http.stable_status == ResultStatus.fail
+                and http.state_since is not None
+                and now - http.state_since >= timedelta(minutes=15)
+            ):
+                sustained_fail = True
+        if not statuses:
+            continue
+        status, bad, total = cell_quorum(statuses, cfg, sustained_fail)
+        cell.status = status
+        cell.failing_tests = bad
+        cell.last_test_at = last_at
+        cell.quorum = {"bad": bad, "total": total}
 
 
 @router.get("/summary", response_model=SummaryResponse)
@@ -637,7 +743,7 @@ def summary(
         if column is None:
             continue
         cell = cell_map.get((test.monitor_id, test.network_id, column))
-        if cell is None:
+        if cell is None or column == "web":
             continue
         result = latest_by_test.get(test.id)
         if result is None:
@@ -649,6 +755,8 @@ def summary(
             cell.last_test_at = result.started_at
         if status_val in ("fail", "degraded"):
             cell.failing_tests += 1
+
+    _fill_web_quorum(tests, latest_by_test, cell_map, stability_config(load_web_stability(db)))
 
     open_issues = db.scalars(
         select(Issue)
@@ -938,6 +1046,35 @@ def wifi_scans(
     ]
 
 
+def _metric_number(metrics: dict, key: str) -> float | None:
+    value = metrics.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _latest_test_fields(test: Test, row: TestResult | None) -> dict:
+    if row is None:
+        return {
+            "latest_status": "unknown",
+            "latest_at": None,
+            "latest_reason": None,
+            "latest_rtt_ms": None,
+            "latest_loss_pct": None,
+        }
+    metrics = row.metrics or {}
+    reason = row.status_reason or explain_result(
+        test.kind.value, row.status.value, metrics, row.stages, row.message
+    )
+    return {
+        "latest_status": row.status.value,
+        "latest_at": row.started_at.isoformat(),
+        "latest_reason": reason,
+        "latest_rtt_ms": _metric_number(metrics, "rtt_ms"),
+        "latest_loss_pct": _metric_number(metrics, "loss_pct"),
+    }
+
+
 @router.get("/monitors/{monitor_id}")
 def get_monitor(
     monitor_id: UUID,
@@ -993,13 +1130,82 @@ def get_monitor(
                 "network_id": str(t.network_id),
                 "network_slug": t.network.slug,
                 "network_name": t.network.name,
-                "latest_status": latest[t.id].status.value if t.id in latest else "unknown",
-                "latest_at": latest[t.id].started_at.isoformat() if t.id in latest else None,
+                **_latest_test_fields(t, latest.get(t.id)),
                 "enabled": t.enabled,
             }
             for t in tests
         ],
     }
+
+
+@router.get("/monitors/{monitor_id}/path")
+def monitor_path(
+    monitor_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+    _user: Annotated[User, Depends(get_current_user)],
+    link: str = Query(pattern="^(wired|wireless)$"),
+    destination: str = Query(default="server", pattern="^[a-z0-9-]{1,32}$"),
+) -> dict:
+    monitor = db.get(Monitor, monitor_id)
+    if monitor is None:
+        raise HTTPException(status_code=404, detail="Remote agent not found")
+    if destination == "server":
+        slug = "mtr-path"
+        target_name = "HomeNetWatch server"
+        target_ip = ""
+    else:
+        service = next((row for row in load_web_services(db) if row.key == destination), None)
+        if service is None:
+            raise HTTPException(status_code=404, detail="Destination not found")
+        slug = f"mtr-{service.key}"
+        target_name = service.label
+        target_ip = service.host
+    network_slug = "wired" if link == "wired" else "wifi"
+    test = db.scalars(
+        select(Test)
+        .join(Network, Test.network_id == Network.id)
+        .where(Test.monitor_id == monitor_id, Test.slug == slug, Network.slug == network_slug)
+    ).first()
+    rows = []
+    if test is not None:
+        target_ip = test.target.split("/")[0] or target_ip
+        rows = list(
+            db.scalars(
+                select(TestResult)
+                .where(TestResult.test_id == test.id)
+                .order_by(desc(TestResult.started_at))
+                .limit(24)
+            ).all()
+        )
+    latest = rows[0] if rows else None
+    raw_hops = (latest.metrics or {}).get("hops") if latest else []
+    history: dict[str, list[float | None]] = {}
+    for row in reversed(rows):
+        for item in (row.metrics or {}).get("hops") or []:
+            if not isinstance(item, dict):
+                continue
+            ttl = item.get("hop")
+            if ttl is None:
+                continue
+            host = str(item.get("host") or "")
+            loss = item.get("loss_pct")
+            avg = item.get("avg_ms")
+            silent = host.strip() in {"", "?", "???", "*", "***"} or (
+                isinstance(loss, (int, float)) and loss >= 100 and (not isinstance(avg, (int, float)) or avg <= 0)
+            )
+            history.setdefault(str(int(ttl)), []).append(None if silent or not isinstance(avg, (int, float)) else float(avg))
+    body = build_trace(
+        raw_hops if isinstance(raw_hops, list) else [],
+        isp_name=monitor.isp,
+        target_name=target_name,
+    )
+    body["status"] = "complete" if body["hops"] else "empty"
+    body["traced_at"] = latest.started_at.isoformat() if latest else None
+    body["probes_per_hop"] = 5
+    body["agent"] = {"name": monitor.name, "online": monitor.status == MonitorStatus.online}
+    body["target"] = {"name": target_name, "ip": target_ip}
+    body["history"] = history
+    return body
 
 
 _HEALTH_RANK = {"ok": 0, "degraded": 1, "fail": 2}

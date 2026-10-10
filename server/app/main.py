@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.enrollment_routes import router as enrollment_router
+from app.api.rf_routes import router as rf_router
 from app.api.routes import router
 from app.config import get_settings
 
@@ -59,6 +60,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(router)
+    app.include_router(rf_router)
     app.include_router(enrollment_router)
     return app
 

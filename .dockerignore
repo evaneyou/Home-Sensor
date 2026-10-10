@@ -1,0 +1,6 @@
+*
+!webrtc-call
+!webrtc-call/**
+!wireguard
+!wireguard/**
+webrtc-call/target

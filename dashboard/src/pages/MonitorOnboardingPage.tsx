@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import ConfirmDialog from "../components/ConfirmDialog";
+import SelectMenu from "../components/SelectMenu";
 import StatusMark from "../components/StatusMark";
 import type { MonitorAdmin, MonitorKey, TunnelIssue, User } from "../types";
 
@@ -39,7 +40,7 @@ function tunnelAction(monitor: MonitorAdmin): "issue" | "wireless" | "replace" {
 
 function tunnelLabel(monitor: MonitorAdmin): string {
   const action = tunnelAction(monitor);
-  if (action === "wireless") return "Issue wireless tunnel";
+  if (action === "wireless") return "Issue Wi-Fi tunnel";
   if (action === "replace") return "Replace tunnels";
   return "Issue tunnels";
 }
@@ -251,7 +252,7 @@ export default function MonitorOnboardingPage() {
           <li>Add the device and copy the key. The key is shown only once.</li>
           <li>
             On the Pi, install both WireGuard configs (<span className="mono">wg0.conf</span> for wired and{" "}
-            <span className="mono">wg1.conf</span> for wireless), then open{" "}
+            <span className="mono">wg1.conf</span> for Wi-Fi), then open{" "}
             <span className="mono">http://&lt;hostname&gt;.local/</span> and enter the same name, the server address{" "}
             <span className="mono">http://10.7.0.1:8847</span>, and the key.
           </li>
@@ -326,8 +327,8 @@ export default function MonitorOnboardingPage() {
             {issued.wireless_tunnel_config ? (
               <>
                 <p>
-                  Wireless tunnel for <strong>{issued.name}</strong>. Save it as <span className="mono">wg1.conf</span>{" "}
-                  next to the installer. It cannot be shown again. Wireless path checks use{" "}
+                  Wi-Fi tunnel for <strong>{issued.name}</strong>. Save it as <span className="mono">wg1.conf</span>{" "}
+                  next to the installer. It cannot be shown again. Wi-Fi path checks use{" "}
                   <span className="mono">http://10.7.1.1:8847</span>.
                 </p>
                 <div className="copy-row">
@@ -335,7 +336,7 @@ export default function MonitorOnboardingPage() {
                     className="mono"
                     readOnly
                     value={issued.wireless_tunnel_config}
-                    aria-label={`Wireless WireGuard config for ${issued.name}`}
+                    aria-label={`Wi-Fi WireGuard config for ${issued.name}`}
                   />
                   <button
                     className="btn"
@@ -408,7 +409,7 @@ export default function MonitorOnboardingPage() {
                           </div>
                           <div className="field">
                             <label htmlFor="onboard-interval">Report every</label>
-                            <select
+                            <SelectMenu
                               id="onboard-interval"
                               value={intervalSeconds}
                               onChange={(event) => setIntervalSeconds(Number(event.target.value))}
@@ -418,7 +419,7 @@ export default function MonitorOnboardingPage() {
                                   {item.label}
                                 </option>
                               ))}
-                            </select>
+                            </SelectMenu>
                           </div>
                           <div className="form-actions">
                             <button className={`btn btn-primary${setupDirty ? " is-dirty" : ""}`} type="submit" disabled={busy}>
@@ -529,22 +530,22 @@ function confirmText(
     const action = tunnelAction(pending.monitor);
     if (action === "wireless") {
       return {
-        title: "Issue wireless tunnel",
-        confirmLabel: "Issue wireless tunnel",
-        body: `Create the wireless tunnel for “${pending.monitor.name}”? The wired tunnel keeps working. The wireless config is shown once. Wireless checks use http://10.7.1.1:8847.`,
+        title: "Issue Wi-Fi tunnel",
+        confirmLabel: "Issue Wi-Fi tunnel",
+        body: `Create the Wi-Fi tunnel for “${pending.monitor.name}”? The wired tunnel keeps working. The Wi-Fi config is shown once. Wi-Fi checks use http://10.7.1.1:8847.`,
       };
     }
     if (action === "replace") {
       return {
         title: "Replace tunnels",
         confirmLabel: "Replace tunnels",
-        body: `Replace the wired and wireless tunnels for “${pending.monitor.name}”? The current tunnels stop working. Both configs are shown once.`,
+        body: `Replace the wired and Wi-Fi tunnels for “${pending.monitor.name}”? The current tunnels stop working. Both configs are shown once.`,
       };
     }
     return {
       title: "Issue tunnels",
       confirmLabel: "Issue tunnels",
-      body: `Create a wired tunnel and a wireless tunnel for “${pending.monitor.name}”? Both configs are shown once. Wired checks use http://10.7.0.1:8847 and wireless checks use http://10.7.1.1:8847.`,
+      body: `Create a wired tunnel and a Wi-Fi tunnel for “${pending.monitor.name}”? Both configs are shown once. Wired checks use http://10.7.0.1:8847 and Wi-Fi checks use http://10.7.1.1:8847.`,
     };
   }
   const current = selected?.name ?? "this device";

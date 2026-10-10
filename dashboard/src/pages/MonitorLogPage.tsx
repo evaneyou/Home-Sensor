@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api";
+import SelectMenu from "../components/SelectMenu";
 import StatusMark from "../components/StatusMark";
-import { networkLabel } from "../labels";
+import { checkLabel, networkLabel } from "../labels";
 import type { MonitorDetail, Result, ResultPage } from "../types";
 
 const PAGE = 100;
@@ -19,7 +20,7 @@ function metric(value: number | undefined): string {
 function probeGroups(tests: MonitorDetail["tests"]): ProbeGroup[] {
   const internet = INTERNET_SLUGS.flatMap((slug) => {
     const test = tests.find((item) => item.slug === slug);
-    return test ? [{ value: `slug:${slug}`, label: test.name }] : [];
+    return test ? [{ value: `slug:${slug}`, label: checkLabel(test) }] : [];
   });
   const web = new Map<string, string>();
   const other: ProbeOption[] = [];
@@ -27,11 +28,11 @@ function probeGroups(tests: MonitorDetail["tests"]): ProbeGroup[] {
     if (INTERNET_SLUGS.includes(test.slug)) continue;
     const match = /^(http|icmp|mtr)-([a-z0-9-]+)$/.exec(test.slug);
     if (match) {
-      const label = test.name.replace(/ (HTTP|ICMP|MTR)$/, "");
+      const label = checkLabel(test).replace(/ (HTTP|ICMP|MTR)$/, "");
       if (!web.has(match[2])) web.set(match[2], label);
       continue;
     }
-    other.push({ value: `slug:${test.slug}`, label: test.name });
+    other.push({ value: `slug:${test.slug}`, label: checkLabel(test) });
   }
   const groups: ProbeGroup[] = [];
   if (internet.length > 0) {
@@ -110,7 +111,7 @@ export default function MonitorLogPage() {
       <div className="panel">
         <div className="log-filter">
           <label htmlFor="log-probe">Show</label>
-          <select id="log-probe" value={probe} onChange={(event) => setProbe(event.target.value)}>
+          <SelectMenu id="log-probe" value={probe} onChange={(event) => setProbe(event.target.value)}>
             <option value="all">All</option>
             {groups.map((group) => (
               <optgroup key={group.label} label={group.label}>
@@ -121,7 +122,7 @@ export default function MonitorLogPage() {
                 ))}
               </optgroup>
             ))}
-          </select>
+          </SelectMenu>
         </div>
         <div className="log-pager">
           <span className="muted">
@@ -177,7 +178,7 @@ function LogRow({ row }: { row: Result }) {
     <tr>
       <td className="mono">{new Date(row.started_at).toLocaleString()}</td>
       <td>
-        <Link to={`/tests/${row.test_id}`}>{row.test_name}</Link>
+        <Link to={`/tests/${row.test_id}`}>{checkLabel({ slug: row.test_slug, name: row.test_name })}</Link>
       </td>
       <td>{networkLabel({ slug: row.network_slug, name: row.network_name })}</td>
       <td>

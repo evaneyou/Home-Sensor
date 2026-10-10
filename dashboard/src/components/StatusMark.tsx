@@ -84,10 +84,12 @@ export default function StatusMark({
   status,
   layout = "inline",
   detail,
+  focusable = true,
 }: {
   status: string;
   layout?: "inline" | "stack";
   detail?: string | null;
+  focusable?: boolean;
 }) {
   const view = PRESENTATION[status] ?? { kind: "unknown" as const, label: statusLabel(status) };
   const [tip, setTip] = useState<{ x: number; y: number; below: boolean } | null>(null);
@@ -105,7 +107,7 @@ export default function StatusMark({
       className={`status-mark ${layout} status-mark-${view.kind}${detail ? " has-detail" : ""}`}
       role="img"
       aria-label={label}
-      tabIndex={detail ? 0 : undefined}
+      tabIndex={detail && focusable ? 0 : undefined}
       onMouseEnter={(event) => show(event.currentTarget)}
       onMouseLeave={() => setTip(null)}
       onFocus={(event) => show(event.currentTarget)}

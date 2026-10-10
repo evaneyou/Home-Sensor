@@ -13,12 +13,20 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "../api";
+import { CHART_COLORS } from "../chartTheme";
 import { formatChartTick, chartTicks, chartWindow, zoomedDomain } from "../chartTime";
 import type { MetricsResponse, MonitorDetail } from "../types";
 import { useChartZoom } from "../useChartZoom";
-import StatusMark from "./StatusMark";
+import StatusMark, { statusLabel } from "./StatusMark";
 
 const RANGES = ["1h", "6h", "12h", "24h", "7d"] as const;
+const RANGE_HOURS: Record<(typeof RANGES)[number], number> = {
+  "1h": 1,
+  "6h": 6,
+  "12h": 12,
+  "24h": 24,
+  "7d": 24 * 7,
+};
 const STRIP_RANGES = [
   { id: "1h", label: "1h", hours: 1 },
   { id: "3h", label: "3h", hours: 3 },
@@ -27,7 +35,7 @@ const STRIP_RANGES = [
 ] as const;
 
 type StripRange = (typeof STRIP_RANGES)[number]["id"];
-const COLORS = ["#4c9df3", "#3fa266", "#f1b467", "#e34671", "#88c0d0", "#aaa0fa"];
+const COLORS = CHART_COLORS;
 const ISP_SLUGS = ["http-path", "icmp-path", "mtr-path", "iperf3"] as const;
 
 const APPS = [
@@ -43,6 +51,7 @@ const APPS = [
 
 type AppKey = (typeof APPS)[number]["key"];
 type DetailKey = "isp" | AppKey;
+type CheckKey = "iperf3" | "librespeed" | "webrtc";
 
 function probeKinds(_key: AppKey): ("http" | "icmp")[] {
   return ["http", "icmp"];
@@ -171,7 +180,12 @@ function isDetail(value: string | null): value is DetailKey {
   return value === "isp" || APPS.some((app) => app.key === value);
 }
 
-export function logProbeForDetail(detail: string | null): string | null {
+function isCheck(value: string | null): value is CheckKey {
+  return value === "iperf3" || value === "librespeed" || value === "webrtc";
+}
+
+export function logProbeForDetail(detail: string | null, check: string | null = null): string | null {
+  if (detail === "isp" && isCheck(check)) return `slug:${check}`;
   if (detail === "isp") return "internet";
   if (APPS.some((app) => app.key === detail)) return `svc:${detail}`;
   return null;
@@ -201,11 +215,9 @@ function useSeries(tests: TestRow[], range: string) {
 
 export default function InternetPath({
   tests,
-  publicIp,
   isp,
 }: {
   tests: MonitorDetail["tests"];
-  publicIp: string | null;
   isp: string | null;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -219,177 +231,68 @@ export default function InternetPath({
   function openDetail(key: DetailKey, nextLink?: string) {
     const next = new URLSearchParams(searchParams);
     next.set("detail", key);
-    if (nextLink) next.set("link", nextLink);
-    else next.delete("link");
+    next.delete("check");
+    next.delete("view");
+    if (nextLink === "wireless") {
+      const wifiId = wireless[0]?.network_id;
+      if (wifiId) next.set("network", wifiId);
+      next.set("link", "wireless");
+    } else if (nextLink === "wired") {
+      const wiredId = wired[0]?.network_id;
+      if (wiredId) next.set("network", wiredId);
+      next.set("link", "wired");
+    } else if (nextLink) {
+      next.set("link", nextLink);
+    } else {
+      next.delete("link");
+    }
     setSearchParams(next);
   }
 
   if (detail) {
-    const pool = link === "wireless" ? wireless : link === "wired" ? wired : wan;
+    const networkId = searchParams.get("network");
+    const selectedSlug = tests.find((test) => test.network_id === networkId)?.network_slug ?? "";
+    const resolved =
+      link === "wireless"
+        ? "wireless"
+        : link === "wired"
+          ? "wired"
+          : selectedSlug === "wifi"
+            ? "wireless"
+            : selectedSlug === "wired" || wired.length > 0
+              ? "wired"
+              : "";
+    // The old Internet-network copies stop updating once a wired or wireless link is reporting.
+    const pool = resolved === "wireless" ? wireless : resolved === "wired" ? wired : wan;
     return (
-      <InternetDetail
-        tests={pool.length > 0 ? pool : tests}
-        detail={detail}
-        isp={isp}
-        linkLabel={link === "wired" ? "Wired" : link === "wireless" ? "Wireless" : null}
-      />
+      <>
+        <InternetDetail
+          tests={pool.length > 0 ? pool : tests}
+          detail={detail}
+          isp={isp}
+          linkLabel={resolved === "wired" ? "Wired" : resolved === "wireless" ? "Wi-Fi" : null}
+        />
+      </>
     );
   }
   if (wired.length > 0 && wireless.length > 0) {
     return (
-      <>
-        <PerformanceDelta wired={wired} wireless={wireless} />
-        <div className="link-compare">
-          <section>
-            <h2 className="wifi-heading">Wired</h2>
-            <InternetDashboard
-              tests={wired}
-              publicIp={publicIp}
-              isp={isp}
-              onOpen={(key) => openDetail(key, "wired")}
-            />
-          </section>
-          <section>
-            <h2 className="wifi-heading">Wireless</h2>
-            <InternetDashboard
-              tests={wireless}
-              publicIp={publicIp}
-              isp={isp}
-              onOpen={(key) => openDetail(key, "wireless")}
-            />
-          </section>
-        </div>
-      </>
+      <ServiceCompare
+        wired={wired}
+        wireless={wireless}
+        onOpen={(key, linkName) => openDetail(key, linkName)}
+      />
     );
   }
   return (
-    <InternetDashboard tests={wan.length > 0 ? wan : tests} publicIp={publicIp} isp={isp} onOpen={openDetail} />
+    <InternetDashboard tests={wan.length > 0 ? wan : tests} onOpen={openDetail} />
   );
 }
 
-function signedDelta(wired: number | null, wireless: number | null, unit: string): string {
-  if (wired == null || wireless == null || Number.isNaN(wired) || Number.isNaN(wireless)) return "—";
-  const diff = wireless - wired;
-  const sign = diff > 0 ? "+" : "";
-  return `${sign}${diff.toFixed(1)} ${unit}`;
-}
-
-function PerformanceDelta({ wired, wireless }: { wired: TestRow[]; wireless: TestRow[] }) {
-  const wiredBy = useMemo(() => new Map(wired.map((test) => [test.slug, test])), [wired]);
-  const wirelessBy = useMemo(() => new Map(wireless.map((test) => [test.slug, test])), [wireless]);
-  const slugs = useMemo(() => {
-    const names = ["http-path", "icmp-path", "iperf3"];
-    for (const app of APPS) {
-      names.push(`http-${app.key}`, `icmp-${app.key}`);
-    }
-    return names.filter((slug) => wiredBy.has(slug) && wirelessBy.has(slug));
-  }, [wiredBy, wirelessBy]);
-  const wiredSeries = useSeries(
-    slugs.flatMap((slug) => {
-      const test = wiredBy.get(slug);
-      return test ? [test] : [];
-    }),
-    "1h",
-  );
-  const wirelessSeries = useSeries(
-    slugs.flatMap((slug) => {
-      const test = wirelessBy.get(slug);
-      return test ? [test] : [];
-    }),
-    "1h",
-  );
-  const rows = slugs.map((slug) => {
-    const left = (wiredSeries.points.get(slug) ?? []).at(-1);
-    const right = (wirelessSeries.points.get(slug) ?? []).at(-1);
-    const app = APPS.find((item) => slug === `http-${item.key}` || slug === `icmp-${item.key}`);
-    const label =
-      slug === "http-path"
-        ? "Internet HTTP"
-        : slug === "icmp-path"
-          ? "Internet ICMP"
-          : app
-            ? `${app.label} ${slug.startsWith("http-") ? "HTTP" : "ICMP"}`
-            : slug;
-    if (slug === "iperf3") {
-      const wiredSpeed = speed(left);
-      const wirelessSpeed = speed(right);
-      return {
-        label: "Download",
-        wired: fmt(wiredSpeed.down),
-        wireless: fmt(wirelessSpeed.down),
-        delta: signedDelta(wiredSpeed.down, wirelessSpeed.down, "Mbps"),
-        extra: {
-          label: "Upload",
-          wired: fmt(wiredSpeed.up),
-          wireless: fmt(wirelessSpeed.up),
-          delta: signedDelta(wiredSpeed.up, wirelessSpeed.up, "Mbps"),
-        },
-      };
-    }
-    const wiredMs = slug.startsWith("http-") ? httpTime(left) : (left?.rtt_ms ?? null);
-    const wirelessMs = slug.startsWith("http-") ? httpTime(right) : (right?.rtt_ms ?? null);
-    return {
-      label,
-      wired: wiredMs == null ? "—" : fmt(wiredMs),
-      wireless: wirelessMs == null ? "—" : fmt(wirelessMs),
-      delta: signedDelta(wiredMs, wirelessMs, "ms"),
-      extra: null,
-    };
-  });
-  const flat = rows.flatMap((row) => (row.extra ? [row, row.extra] : [row]));
-
-  return (
-    <section className="panel link-delta">
-      <h2 style={{ marginTop: 0, fontSize: "1rem" }}>Wired compared with wireless</h2>
-      <p className="muted">Delta is wireless minus wired. A positive latency means wireless is slower.</p>
-      <div className="table-scroll">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Check</th>
-              <th>Wired</th>
-              <th>Wireless</th>
-              <th>Delta</th>
-            </tr>
-          </thead>
-          <tbody>
-            {flat.map((row) => (
-              <tr key={row.label}>
-                <td>{row.label}</td>
-                <td className="mono">{row.wired}</td>
-                <td className="mono">{row.wireless}</td>
-                <td className="mono">{row.delta}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-function InternetDashboard({
-  tests,
-  publicIp,
-  isp,
-  onOpen,
-}: {
-  tests: TestRow[];
-  publicIp: string | null;
-  isp: string | null;
-  onOpen: (key: DetailKey) => void;
-}) {
-  const [stripRange, setStripRange] = useState<StripRange>("1h");
+function useAppStrips(tests: TestRow[], stripRange: StripRange) {
   const bySlug = useMemo(() => new Map(tests.map((test) => [test.slug, test])), [tests]);
-  const watched = useMemo(() => {
-    return ["http-path", "icmp-path", "iperf3"].flatMap((slug) => {
-      const test = bySlug.get(slug);
-      return test ? [test] : [];
-    });
-  }, [bySlug]);
-  const { points } = useSeries(watched, "1h");
   const stripTests = useMemo(() => {
-    const slugs: string[] = [...ISP_SLUGS];
+    const slugs: string[] = [];
     for (const app of APPS) {
       for (const kind of probeKinds(app.key)) slugs.push(`${kind}-${app.key}`);
     }
@@ -401,15 +304,6 @@ function InternetDashboard({
   }, [bySlug]);
   const { points: stripPoints } = useSeries(stripTests, stripRange);
   const stripHours = STRIP_RANGES.find((item) => item.id === stripRange)?.hours ?? 1;
-  const strip = useMemo(() => {
-    const series = new Map<string, Point[]>();
-    for (const slug of ISP_SLUGS) {
-      const test = bySlug.get(slug);
-      if (!test || test.enabled === false) continue;
-      series.set(slug, stripPoints.get(slug) ?? []);
-    }
-    return ispStrip(series, stripHours);
-  }, [bySlug, stripPoints, stripHours]);
   const appStrips = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const app of APPS) {
@@ -423,92 +317,152 @@ function InternetDashboard({
       map.set(app.key, ispStrip(series, stripHours));
     }
     return map;
-  }, [stripPoints, stripHours]);
+  }, [bySlug, stripPoints, stripHours]);
 
-  const httpPoint = (points.get("http-path") ?? []).at(-1);
-  const icmpPoint = (points.get("icmp-path") ?? []).at(-1);
-  const speedPoint = speed((points.get("iperf3") ?? []).at(-1));
-  const ispStatus = currentRag(
-    ISP_SLUGS.flatMap((slug) => {
-      const test = bySlug.get(slug);
-      return test && test.enabled !== false ? [test.latest_status] : [];
-    }),
-  );
+  function probesFor(key: AppKey): TestRow[] {
+    return probeKinds(key).flatMap((kind) => {
+      const test = bySlug.get(`${kind}-${key}`);
+      return test && test.enabled !== false ? [test] : [];
+    });
+  }
+
+  function statusFor(key: AppKey): string {
+    return currentRag(probesFor(key).map((test) => test.latest_status));
+  }
+
+  function detailFor(key: AppKey): string | null {
+    const blocks = probesFor(key).map(probeEvent);
+    return blocks.length ? blocks.join("\n\n") : null;
+  }
 
   const stripLabel = STRIP_RANGES.find((item) => item.id === stripRange)?.label ?? "1 hour";
+  return { appStrips, statusFor, detailFor, stripLabel };
+}
+
+function probeEvent(test: TestRow): string {
+  const name = test.kind === "http" ? "HTTP" : test.kind === "ping" ? "ICMP" : test.name;
+  const when = test.latest_at ? new Date(test.latest_at).toLocaleString() : "No sample yet";
+  const lines = [`${name} · ${when}`, test.latest_reason?.trim() || statusLabel(test.latest_status)];
+  const metrics: string[] = [];
+  if (test.latest_rtt_ms != null) metrics.push(`RTT ${fmt(test.latest_rtt_ms)} ms`);
+  if (test.latest_loss_pct != null) metrics.push(`Loss ${fmt(test.latest_loss_pct)}%`);
+  if (metrics.length) lines.push(metrics.join(" · "));
+  return lines.join("\n");
+}
+
+function StripRangeTabs({ range, onChange }: { range: StripRange; onChange: (range: StripRange) => void }) {
+  return (
+    <div className="range-row">
+      {STRIP_RANGES.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          className={`tab ${range === item.id ? "active" : ""}`}
+          onClick={() => onChange(item.id)}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ServiceSide({
+  label,
+  status,
+  detail,
+  strip,
+  stripLabel,
+  onOpen,
+}: {
+  label: string;
+  status: string;
+  detail: string | null;
+  strip: string[];
+  stripLabel: string;
+  onOpen: () => void;
+}) {
+  return (
+    <button className="saas-tile" type="button" onClick={onOpen}>
+      <span className="saas-tile-head">
+        <strong>{label}</strong>
+        <StatusMark status={status} detail={detail} focusable={false} />
+      </span>
+      <span className="isp-strip" title={stripLabel} style={{ background: stripGradient(strip) }} />
+    </button>
+  );
+}
+
+function ServiceCompare({
+  wired,
+  wireless,
+  onOpen,
+}: {
+  wired: TestRow[];
+  wireless: TestRow[];
+  onOpen: (key: DetailKey, link: "wired" | "wireless") => void;
+}) {
+  const [stripRange, setStripRange] = useState<StripRange>("1h");
+  const wiredView = useAppStrips(wired, stripRange);
+  const wirelessView = useAppStrips(wireless, stripRange);
+
+  return (
+    <div className="service-compare">
+      <StripRangeTabs range={stripRange} onChange={setStripRange} />
+      {APPS.map((app) => (
+        <section className="panel service-pair" key={app.key}>
+          <h2>{app.label}</h2>
+          <div className="service-pair-links">
+            <ServiceSide
+              label="Wired"
+              status={wiredView.statusFor(app.key)}
+              detail={wiredView.detailFor(app.key)}
+              strip={wiredView.appStrips.get(app.key) ?? []}
+              stripLabel={wiredView.stripLabel}
+              onOpen={() => onOpen(app.key, "wired")}
+            />
+            <ServiceSide
+              label="Wi-Fi"
+              status={wirelessView.statusFor(app.key)}
+              detail={wirelessView.detailFor(app.key)}
+              strip={wirelessView.appStrips.get(app.key) ?? []}
+              stripLabel={wirelessView.stripLabel}
+              onOpen={() => onOpen(app.key, "wireless")}
+            />
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function InternetDashboard({
+  tests,
+  onOpen,
+}: {
+  tests: TestRow[];
+  onOpen: (key: DetailKey) => void;
+}) {
+  const [stripRange, setStripRange] = useState<StripRange>("1h");
+  const { appStrips, statusFor, detailFor, stripLabel } = useAppStrips(tests, stripRange);
 
   return (
     <>
-      <div className="range-row">
-        {STRIP_RANGES.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={`tab ${stripRange === item.id ? "active" : ""}`}
-            onClick={() => setStripRange(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+      <StripRangeTabs range={stripRange} onChange={setStripRange} />
       <div className="panel">
-      <h2 style={{ marginTop: 0, fontSize: "1rem" }}>Internet Service</h2>
-      <button className="isp-card" type="button" onClick={() => onOpen("isp")}>
-        <span className="isp-card-head">
-          <StatusMark status={ispStatus} />
-          <span className="isp-card-title">
-            <strong>{isp || "ISP"}</strong>
-            <span className="mono">{publicIp || "Internet path"}</span>
-          </span>
-        </span>
-        <span className="isp-stats">
-          <span className="isp-stat">
-            <em>HTTP</em>
-            <strong className="mono">{fmt(httpTime(httpPoint))} ms</strong>
-          </span>
-          <span className="isp-stat">
-            <em>ICMP</em>
-            <strong className="mono">{fmt(icmpPoint?.rtt_ms)} ms</strong>
-          </span>
-          <span className="isp-stat">
-            <em>Loss</em>
-            <strong className="mono">{fmt(icmpPoint?.loss_pct)}%</strong>
-          </span>
-          <span className="isp-stat">
-            <em>Down</em>
-            <strong className="mono">{fmt(speedPoint.down)} Mbps</strong>
-          </span>
-          <span className="isp-stat">
-            <em>Up</em>
-            <strong className="mono">{fmt(speedPoint.up)} Mbps</strong>
-          </span>
-        </span>
-        <span className="isp-strip" title={stripLabel} style={{ background: stripGradient(strip) }} />
-      </button>
-
       <h3 className="wifi-heading">Web Services</h3>
       <div className="saas-grid">
-        {APPS.map((app) => {
-          const status = currentRag(
-            probeKinds(app.key).flatMap((kind) => {
-              const test = bySlug.get(`${kind}-${app.key}`);
-              return test && test.enabled !== false ? [test.latest_status] : [];
-            }),
-          );
-          return (
-            <button key={app.key} className="saas-tile" type="button" onClick={() => onOpen(app.key)}>
-              <span className="saas-tile-head">
-                <strong>{app.label}</strong>
-                <StatusMark status={status} />
-              </span>
-              <span
-                className="isp-strip"
-                title={stripLabel}
-                style={{ background: stripGradient(appStrips.get(app.key) ?? []) }}
-              />
-            </button>
-          );
-        })}
+        {APPS.map((app) => (
+          <ServiceSide
+            key={app.key}
+            label={app.label}
+            status={statusFor(app.key)}
+            detail={detailFor(app.key)}
+            strip={appStrips.get(app.key) ?? []}
+            stripLabel={stripLabel}
+            onOpen={() => onOpen(app.key)}
+          />
+        ))}
       </div>
     </div>
     </>
@@ -526,12 +480,13 @@ function InternetDetail({
   isp: string | null;
   linkLabel?: string | null;
 }) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [range, setRange] = useState<(typeof RANGES)[number]>("24h");
   const bySlug = useMemo(() => new Map(tests.map((test) => [test.slug, test])), [tests]);
   const app = APPS.find((item) => item.key === detail);
   const slugs =
     detail === "isp"
-      ? [...ISP_SLUGS]
+      ? [...ISP_SLUGS, "librespeed", "webrtc"]
       : probeKinds(detail).map((kind) => `${kind}-${detail}`);
   const watched = slugs.flatMap((slug) => {
     const test = bySlug.get(slug);
@@ -602,8 +557,155 @@ function InternetDetail({
     [points],
   );
 
+  const transferChart = useMemo(
+    () =>
+      (points.get("librespeed") ?? []).map((point) => {
+        const sample = speed(point);
+        return {
+          t: point.t,
+          ts: new Date(point.t).getTime(),
+          down: sample.down,
+          up: sample.up,
+          ping: point.rtt_ms,
+          jitter: point.jitter_ms,
+        };
+      }),
+    [points],
+  );
+
+  const callChart = useMemo(
+    () =>
+      (points.get("webrtc") ?? []).map((point) => ({
+        t: point.t,
+        ts: new Date(point.t).getTime(),
+        rtt: point.rtt_ms,
+        jitter: point.jitter_ms,
+        loss: point.loss_pct,
+      })),
+    [points],
+  );
+
   const latestHops = (points.get(mtrSlug) ?? []).at(-1)?.hops ?? [];
+  const latestSpeed = speed((points.get("iperf3") ?? []).at(-1));
+  const latestLibre = (points.get("librespeed") ?? []).at(-1);
+  const latestCall = (points.get("webrtc") ?? []).at(-1);
+  const bandwidthStrip = useMemo(
+    () => statusStrip(points.get("iperf3") ?? [], range),
+    [points, range],
+  );
+  const transferStrip = useMemo(
+    () => statusStrip(points.get("librespeed") ?? [], range),
+    [points, range],
+  );
+  const callStrip = useMemo(
+    () => statusStrip(points.get("webrtc") ?? [], range),
+    [points, range],
+  );
   const span = chartWindow(range);
+  const linkHealth = detail === "isp" && (linkLabel === "Wired" || linkLabel === "Wi-Fi");
+  const requestedCheck = searchParams.get("check");
+  const check = linkHealth && isCheck(requestedCheck) ? requestedCheck : null;
+
+  function openCheck(key: CheckKey) {
+    const next = new URLSearchParams(searchParams);
+    next.set("check", key);
+    setSearchParams(next);
+  }
+
+  if (linkHealth && !check) {
+    return (
+      <section className="panel network-health">
+        <h2 style={{ marginTop: 0, fontSize: "1rem" }}>{linkLabel} Network Health</h2>
+        <RangeTabs range={range} onChange={setRange} />
+        {loading ? (
+          <div className="muted">Loading internet checks…</div>
+        ) : failed ? (
+          <div className="muted">Could not load internet checks.</div>
+        ) : (
+          <div className="health-stack">
+            <HealthBar
+              title="Bandwidth"
+              detail={`${fmt(latestSpeed.down)} Mbps down · ${fmt(latestSpeed.up)} Mbps up`}
+              strip={bandwidthStrip}
+              empty={speedChart.length === 0}
+              onOpen={() => openCheck("iperf3")}
+            />
+            <HealthBar
+              title="Transfer Speed"
+              detail={`${fmt(speed(latestLibre).down)} Mbps down · ${fmt(speed(latestLibre).up)} Mbps up · ping ${fmt(latestLibre?.rtt_ms)} ms · jitter ${fmt(latestLibre?.jitter_ms)} ms`}
+              strip={transferStrip}
+              empty={transferChart.length === 0}
+              onOpen={() => openCheck("librespeed")}
+            />
+            <HealthBar
+              title="Video call"
+              detail={`${fmt(latestCall?.rtt_ms)} ms · jitter ${fmt(latestCall?.jitter_ms)} ms · loss ${fmt(latestCall?.loss_pct)}%`}
+              strip={callStrip}
+              empty={callChart.length === 0}
+              onOpen={() => openCheck("webrtc")}
+            />
+          </div>
+        )}
+      </section>
+    );
+  }
+
+  if (check === "librespeed") {
+    return (
+      <div className="panel">
+        <h2 style={{ marginTop: 0, fontSize: "1.4rem" }}>
+          {linkLabel} · File Transfer
+        </h2>
+        <RangeTabs range={range} onChange={setRange} />
+        {loading ? (
+          <div className="muted">Loading internet checks…</div>
+        ) : failed ? (
+          <div className="muted">Could not load internet checks.</div>
+        ) : (
+          <>
+            <PathChart
+              title="Bandwidth"
+              data={transferChart}
+              span={span}
+              series={[
+                { key: "down", label: "Download" },
+                { key: "up", label: "Upload" },
+              ]}
+              unit=" Mbps"
+            />
+            <div className="chart-pair">
+              <PathChart title="Ping" data={transferChart} span={span} dataKey="ping" label="Ping" unit=" ms" />
+              <PathChart title="Jitter" data={transferChart} span={span} dataKey="jitter" label="Jitter" unit=" ms" />
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  if (check === "webrtc") {
+    return (
+      <div className="panel">
+        <h2 style={{ marginTop: 0, fontSize: "1.4rem" }}>
+          {linkLabel} · Video call
+        </h2>
+        <RangeTabs range={range} onChange={setRange} />
+        {loading ? (
+          <div className="muted">Loading internet checks…</div>
+        ) : failed ? (
+          <div className="muted">Could not load internet checks.</div>
+        ) : (
+          <>
+            <div className="chart-pair">
+              <PathChart title="Round-trip" data={callChart} span={span} dataKey="rtt" label="Round-trip" unit=" ms" />
+              <PathChart title="Jitter" data={callChart} span={span} dataKey="jitter" label="Jitter" unit=" ms" />
+            </div>
+            <PathChart title="Packet loss" data={callChart} span={span} dataKey="loss" label="Loss" unit=" %" />
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="panel">
@@ -611,18 +713,7 @@ function InternetDetail({
         {linkLabel ? `${linkLabel} · ` : ""}
         {detail === "isp" ? isp || "ISP" : app?.label}
       </h2>
-      <div className="range-row">
-        {RANGES.map((item) => (
-          <button
-            key={item}
-            type="button"
-            className={`tab ${range === item ? "active" : ""}`}
-            onClick={() => setRange(item)}
-          >
-            {item}
-          </button>
-        ))}
-      </div>
+      <RangeTabs range={range} onChange={setRange} />
       {loading ? (
         <div className="muted">Loading internet checks…</div>
       ) : failed ? (
@@ -701,6 +792,66 @@ function InternetDetail({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function statusStrip(samples: Point[], range: (typeof RANGES)[number]): string[] {
+  const series = new Map<string, Point[]>();
+  series.set("sample", samples);
+  return ispStrip(series, RANGE_HOURS[range]);
+}
+
+function RangeTabs({
+  range,
+  onChange,
+}: {
+  range: (typeof RANGES)[number];
+  onChange: (range: (typeof RANGES)[number]) => void;
+}) {
+  return (
+    <div className="range-row">
+      {RANGES.map((item) => (
+        <button
+          key={item}
+          type="button"
+          className={`tab ${range === item ? "active" : ""}`}
+          onClick={() => onChange(item)}
+        >
+          {item}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function HealthBar({
+  title,
+  detail,
+  strip,
+  empty,
+  onOpen,
+}: {
+  title: string;
+  detail: string;
+  strip: string[];
+  empty: boolean;
+  onOpen?: () => void;
+}) {
+  return (
+    <div className="health-row">
+      <div className="health-row-head">
+        {onOpen ? (
+          <button className="health-row-title" type="button" onClick={onOpen}>
+            {title}
+          </button>
+        ) : (
+          <strong>{title}</strong>
+        )}
+        <span className="mono">{detail}</span>
+      </div>
+      <span className="isp-strip health-bar" title={title} style={{ background: stripGradient(strip) }} />
+      {empty ? <div className="muted">No samples in this range.</div> : null}
     </div>
   );
 }

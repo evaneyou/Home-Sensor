@@ -53,9 +53,9 @@ export default function CityMap({
     ).addTo(map);
     L.circleMarker([latitude, longitude], {
       radius: 6,
-      color: "#e4e4e4",
+      color: "var(--ink)",
       weight: 1,
-      fillColor: "#4c9df3",
+      fillColor: "var(--accent)",
       fillOpacity: 1,
     }).addTo(map);
     const frame = window.requestAnimationFrame(() => map.invalidateSize());

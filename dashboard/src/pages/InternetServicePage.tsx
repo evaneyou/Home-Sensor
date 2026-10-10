@@ -15,7 +15,113 @@ const EMPTY: InternetServiceSetting = {
   iperf_enabled: true,
   iperf_interval_seconds: 900,
   iperf_variance_pct: 25,
+  librespeed_enabled: true,
+  librespeed_interval_seconds: 900,
+  librespeed_variance_pct: 25,
+  webrtc_enabled: true,
+  webrtc_interval_seconds: 900,
+  webrtc_variance_pct: 5,
 };
+
+type EnabledField = "http_enabled" | "icmp_enabled" | "mtr_enabled" | "iperf_enabled" | "librespeed_enabled" | "webrtc_enabled";
+type VarianceField =
+  | "http_variance_pct"
+  | "icmp_variance_pct"
+  | "mtr_variance_pct"
+  | "iperf_variance_pct"
+  | "librespeed_variance_pct"
+  | "webrtc_variance_pct";
+type IntervalField = "interval_seconds" | "iperf_interval_seconds" | "librespeed_interval_seconds" | "webrtc_interval_seconds";
+
+const SIGNATURE_FIELDS = [
+  "interval_seconds",
+  "http_enabled",
+  "icmp_enabled",
+  "mtr_enabled",
+  "http_variance_pct",
+  "icmp_variance_pct",
+  "mtr_variance_pct",
+  "iperf_enabled",
+  "iperf_interval_seconds",
+  "iperf_variance_pct",
+  "librespeed_enabled",
+  "librespeed_interval_seconds",
+  "librespeed_variance_pct",
+  "webrtc_enabled",
+  "webrtc_interval_seconds",
+  "webrtc_variance_pct",
+] as const;
+
+function signatureOf(row: InternetServiceSetting): string {
+  return SIGNATURE_FIELDS.map((field) => String(row[field])).join(":");
+}
+
+function ToolRow({
+  label,
+  intervalLabel,
+  intervalField,
+  enabledLabel,
+  enabledField,
+  varianceLabel,
+  varianceField,
+  row,
+  locked,
+  onNumber,
+  onToggle,
+}: {
+  label: string;
+  intervalLabel: string;
+  intervalField: IntervalField;
+  enabledLabel: string;
+  enabledField: EnabledField;
+  varianceLabel: string;
+  varianceField: VarianceField;
+  row: InternetServiceSetting;
+  locked: boolean;
+  onNumber: (field: IntervalField | VarianceField, value: string) => void;
+  onToggle: (field: EnabledField, value: boolean) => void;
+}) {
+  return (
+    <tr>
+      <td>{label}</td>
+      <td>
+        <input
+          aria-label={intervalLabel}
+          type="number"
+          min={300}
+          max={86400}
+          step={60}
+          value={row[intervalField]}
+          disabled={locked}
+          onChange={(event) => onNumber(intervalField, event.target.value)}
+        />
+        <span className="muted"> s</span>
+      </td>
+      <td className="check">
+        <input
+          aria-label={enabledLabel}
+          type="checkbox"
+          checked={row[enabledField]}
+          disabled={locked}
+          onChange={(event) => onToggle(enabledField, event.target.checked)}
+        />
+      </td>
+      <td>
+        <input
+          aria-label={varianceLabel}
+          type="number"
+          min={0}
+          max={500}
+          step={5}
+          value={row[varianceField]}
+          disabled={locked}
+          onChange={(event) => onNumber(varianceField, event.target.value)}
+        />
+        <span className="muted"> %</span>
+      </td>
+    </tr>
+  );
+}
 
 function errorText(error: Error): string {
   try {
@@ -39,20 +145,7 @@ export default function InternetServicePage() {
   const [synced, setSynced] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const signature = settingQ.data
-    ? [
-        settingQ.data.interval_seconds,
-        settingQ.data.http_enabled,
-        settingQ.data.icmp_enabled,
-        settingQ.data.mtr_enabled,
-        settingQ.data.http_variance_pct,
-        settingQ.data.icmp_variance_pct,
-        settingQ.data.mtr_variance_pct,
-        settingQ.data.iperf_enabled,
-        settingQ.data.iperf_interval_seconds,
-        settingQ.data.iperf_variance_pct,
-      ].join(":")
-    : "";
+  const signature = settingQ.data ? signatureOf(settingQ.data) : "";
 
   useEffect(() => {
     if (!settingQ.data || synced === signature) return;
@@ -76,40 +169,20 @@ export default function InternetServicePage() {
     },
   });
 
-  function setNumber(
-    field:
-      | "interval_seconds"
-      | "iperf_interval_seconds"
-      | "http_variance_pct"
-      | "icmp_variance_pct"
-      | "mtr_variance_pct"
-      | "iperf_variance_pct",
-    value: string,
-  ) {
+  function setNumber(field: IntervalField | VarianceField, value: string) {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return;
     setRow((current) => ({ ...current, [field]: parsed }));
   }
 
-  function setToggle(field: "http_enabled" | "icmp_enabled" | "mtr_enabled" | "iperf_enabled", value: boolean) {
+  function setToggle(field: EnabledField, value: boolean) {
     setRow((current) => ({ ...current, [field]: value }));
   }
 
   if (settingQ.isLoading) return <div className="state-box">Loading Internet Service…</div>;
   if (settingQ.isError) return <div className="state-box">Could not load Internet Service settings.</div>;
 
-  const currentSignature = [
-    row.interval_seconds,
-    row.http_enabled,
-    row.icmp_enabled,
-    row.mtr_enabled,
-    row.http_variance_pct,
-    row.icmp_variance_pct,
-    row.mtr_variance_pct,
-    row.iperf_enabled,
-    row.iperf_interval_seconds,
-    row.iperf_variance_pct,
-  ].join(":");
+  const currentSignature = signatureOf(row);
   const dirty = synced !== "" && currentSignature !== signature;
   const locked = !admin || save.isPending;
 
@@ -117,10 +190,12 @@ export default function InternetServicePage() {
     <div>
       <h2 className="page-title">Internet Service</h2>
       <p className="page-sub">
-        Each protocol has its own variance. A response more than that percent off the recent normal is amber, as is
-        an error status or packet loss. Red means an active check got no response. HTTP, ICMP, and MTR share one poll
-        interval. MTR runs at least every 2 minutes. iperf3 runs at least every 5 minutes and turns amber when
-        download or upload falls more than its own percent below the recent normal.
+        Each check has its own variance. A response more than that percent off the recent normal is amber, as is an
+        error status or packet loss. Red means an active check got no response. HTTP, ICMP, and MTR share one poll
+        interval. MTR runs at least every 2 minutes. Bandwidth, File Transfer, and Video call each run at least every
+        5 minutes. Bandwidth and File Transfer turn amber when download or upload falls more than their percent below
+        the recent normal. Video call variance is the packet-loss percent that turns the check amber. Jitter above 30
+        ms does the same, and red means the call did not connect.
       </p>
       <div className="panel table-scroll">
         <table className="table web-service-table">
@@ -223,44 +298,45 @@ export default function InternetServicePage() {
                 <span className="muted"> %</span>
               </td>
             </tr>
-            <tr>
-              <td>iperf3</td>
-              <td>
-                <input
-                  aria-label="iperf3 interval"
-                  type="number"
-                  min={300}
-                  max={86400}
-                  step={60}
-                  value={row.iperf_interval_seconds}
-                  disabled={locked}
-                  onChange={(event) => setNumber("iperf_interval_seconds", event.target.value)}
-                />
-                <span className="muted"> s</span>
-              </td>
-              <td className="check">
-                <input
-                  aria-label="iperf3"
-                  type="checkbox"
-                  checked={row.iperf_enabled}
-                  disabled={locked}
-                  onChange={(event) => setToggle("iperf_enabled", event.target.checked)}
-                />
-              </td>
-              <td>
-                <input
-                  aria-label="iperf3 variance"
-                  type="number"
-                  min={0}
-                  max={500}
-                  step={5}
-                  value={row.iperf_variance_pct}
-                  disabled={locked}
-                  onChange={(event) => setNumber("iperf_variance_pct", event.target.value)}
-                />
-                <span className="muted"> %</span>
-              </td>
-            </tr>
+            <ToolRow
+              label="Bandwidth"
+              intervalLabel="Bandwidth interval"
+              intervalField="iperf_interval_seconds"
+              enabledLabel="Bandwidth"
+              enabledField="iperf_enabled"
+              varianceLabel="Bandwidth variance"
+              varianceField="iperf_variance_pct"
+              row={row}
+              locked={locked}
+              onNumber={setNumber}
+              onToggle={setToggle}
+            />
+            <ToolRow
+              label="File Transfer"
+              intervalLabel="File Transfer interval"
+              intervalField="librespeed_interval_seconds"
+              enabledLabel="File Transfer"
+              enabledField="librespeed_enabled"
+              varianceLabel="File Transfer variance"
+              varianceField="librespeed_variance_pct"
+              row={row}
+              locked={locked}
+              onNumber={setNumber}
+              onToggle={setToggle}
+            />
+            <ToolRow
+              label="Video call"
+              intervalLabel="Video call interval"
+              intervalField="webrtc_interval_seconds"
+              enabledLabel="Video call"
+              enabledField="webrtc_enabled"
+              varianceLabel="Video call variance"
+              varianceField="webrtc_variance_pct"
+              row={row}
+              locked={locked}
+              onNumber={setNumber}
+              onToggle={setToggle}
+            />
           </tbody>
         </table>
       </div>
@@ -287,7 +363,7 @@ export default function InternetServicePage() {
           onConfirm={() => save.mutate()}
           onCancel={() => setConfirming(false)}
         >
-          Save path checks, iperf3, and variance? Agents pick up the schedule on the next health report.
+          Save path checks, Bandwidth, File Transfer, Video call, and variance? Agents pick up the schedule on the next health report.
         </ConfirmDialog>
       ) : null}
     </div>
