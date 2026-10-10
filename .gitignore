@@ -32,3 +32,6 @@ dashboard/dist/
 .idea/
 .vscode/
 Thumbs.db
+
+# Backups
+backups/

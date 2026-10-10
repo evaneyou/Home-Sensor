@@ -74,3 +74,4 @@ jobs:
         run: |
           cp .env.example .env
           docker compose config --quiet
+          DOMAIN=ci.example.com docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet

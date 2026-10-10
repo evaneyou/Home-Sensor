@@ -83,6 +83,11 @@ Open the dashboard at <http://127.0.0.1:3847>.
 > These are development defaults. Change every secret in `.env` before you expose the stack to
 > anything beyond your own machine. See [SECURITY.md](./SECURITY.md).
 
+### Deploy to a server
+
+A production overlay adds automatic HTTPS and closes internal ports. The step-by-step guide for
+Oracle Cloud's free tier (it works on any small VPS) is in [`docs/deploy-oracle.md`](./docs/deploy-oracle.md).
+
 ### Ports
 
 | Service | Host port | Notes |
@@ -150,7 +155,9 @@ server/        FastAPI app, Alembic migrations, seed data, tests
 dashboard/     React + Vite + TypeScript UI
 monitor/       Raspberry Pi agent package (setup page, health, checks, installer)
 wireguard/     WireGuard hub container
-scripts/       Local helpers (bring-up, server tests, version bump)
+deploy/        Caddy config for the production overlay (docker-compose.prod.yml)
+docs/          Deployment guide
+scripts/       Local helpers (bring-up, server tests, backup, version bump)
 SPEC.md        Architecture, API and phase plan
 CHANGELOG.md   Release history
 VERSION        Current project version
