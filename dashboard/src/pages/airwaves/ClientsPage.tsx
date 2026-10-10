@@ -36,7 +36,7 @@ export default function AirwavesClients() {
 
 function ClientCard({ client }: { client: RfClient }) {
   const roams = client.points.filter((point) => point.roam);
-  const plotted = client.points.filter((point) => point.rssi_dbm !== 0);
+  const plotted = client.points.filter((point) => point.rssi_dbm != null && point.rssi_dbm !== 0);
   const named = Boolean(client.vendor) && !client.randomized;
   const title = client.randomized ? "Private address" : client.vendor || client.mac;
   const facts = clientFacts(client);

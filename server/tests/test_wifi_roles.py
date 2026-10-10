@@ -63,7 +63,9 @@ def test_link_ssid_comes_from_the_iw_association():
     checks = _checks()
     text = "Connected to 7c:9a:54:76:24:5d (on wlan0)\n\tSSID: GenZen-WiFi\n\tfreq: 5785\n"
     assert checks.parse_link_ssid(text) == "GenZen-WiFi"
+    assert checks.parse_link_bssid(text) == "7c:9a:54:76:24:5d"
     assert checks.parse_link_ssid("Not connected.\n") == ""
+    assert checks.parse_link_bssid("Not connected.\n") == ""
     assert checks.parse_link_ssid("\tSSID: my:net\n") == "my:net"
 
 
@@ -80,3 +82,21 @@ def test_link_scans_wait_for_tests_and_fifteen_minutes():
     finally:
         checks.link_lock.release()
     assert not checks.link_is_busy()
+
+
+def test_lan_reenroll_requires_the_current_device_key():
+    here = Path(__file__).resolve()
+    candidates = [here.parents[2] / "monitor" / "agent.py", Path("/monitor/agent.py")]
+    path = next(item for item in candidates if item.is_file())
+    import sys
+
+    sys.path.insert(0, str(path.parent))
+    spec = importlib.util.spec_from_file_location("monitor_agent_setup", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    assert module.setup_allowed(False, "10.0.0.8", "", "") is True
+    assert module.setup_allowed(True, "127.0.0.1", "", "secret") is True
+    assert module.setup_allowed(True, "10.0.0.8", "secret", "secret") is True
+    assert module.setup_allowed(True, "10.0.0.8", "wrong", "secret") is False
+    assert "sudo hnw-reset" in module.PAGE

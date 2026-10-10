@@ -37,6 +37,18 @@ if [ -n "$need" ]; then
   apt-get update
   apt-get install -y $need
 fi
+cat > /usr/local/bin/hnw-reset <<'EOF'
+#!/bin/sh
+set -eu
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Run as root: sudo hnw-reset" >&2
+  exit 1
+fi
+rm -f /etc/monitor/config.json
+systemctl restart monitor.service
+echo "Enrollment cleared. Open this Pi's setup page to connect again."
+EOF
+chmod 755 /usr/local/bin/hnw-reset
 systemctl daemon-reload
 systemctl enable monitor.service
 systemctl restart monitor.service
@@ -89,7 +101,19 @@ install_kismet() {
     echo "Kismet was not installed. The official apt repo has no packages for ${codename}."
     return 0
   fi
+  echo "kismet-capture-common kismet-capture-common/install-setuid boolean true" | debconf-set-selections
   apt-get install -y kismet
+  if [ ! -e /usr/bin/kismet_cap_linux_wifi ]; then
+    echo "kismet_cap_linux_wifi was not installed." >&2
+    exit 1
+  fi
+  dpkg-statoverride --remove /usr/bin/kismet_cap_linux_wifi 2>/dev/null || true
+  dpkg-statoverride --update --add root kismet 4750 /usr/bin/kismet_cap_linux_wifi
+  mode="$(stat -c '%a %U:%G' /usr/bin/kismet_cap_linux_wifi)"
+  if [ "$mode" != "4750 root:kismet" ]; then
+    echo "kismet_cap_linux_wifi is ${mode}, expected 4750 root:kismet" >&2
+    exit 1
+  fi
   mac="$(cat "/sys/class/net/${radio}/address")"
   install -d -m 755 /etc/systemd/network
   cat > /etc/systemd/network/10-hnwradio.link <<EOF

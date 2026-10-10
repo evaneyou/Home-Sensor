@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.routes import _resolve_monitor_identity
-from app.link_trust import matches_link
+from app.link_trust import note_new_ap
 from app.auth import get_current_user, require_admin
 from app.db import get_db
 from app.models import (
@@ -87,7 +87,7 @@ def _probed_list(raw: str) -> list[str]:
     return [str(item) for item in parsed if str(item).strip()]
 
 
-def _remember(db: Session, monitor_id: UUID, bssid: str, seen: datetime) -> ApInventory:
+def _remember(db: Session, monitor_id: UUID, bssid: str, seen: datetime) -> tuple[ApInventory, bool]:
     key = bssid.lower()
     row = db.scalar(
         select(ApInventory).where(ApInventory.monitor_id == monitor_id, func.lower(ApInventory.bssid) == key)
@@ -102,12 +102,12 @@ def _remember(db: Session, monitor_id: UUID, bssid: str, seen: datetime) -> ApIn
             last_seen=seen,
         )
         db.add(row)
-        return row
+        return row, True
     if seen < row.first_seen:
         row.first_seen = seen
     if seen > row.last_seen:
         row.last_seen = seen
-    return row
+    return row, False
 
 
 @router.post("/monitors/wifi-scans")
@@ -152,9 +152,8 @@ def post_wifi_scans(
                 )
             )
             stored += 1
-        record = _remember(db, monitor.id, bssid, scanned_at)
-        if matches_link(monitor, ap["ssid"]):
-            record.trusted = True
+        record, created = _remember(db, monitor.id, bssid, scanned_at)
+        note_new_ap(db, monitor, record, ap["ssid"], created, scanned_at)
     for row in survey:
         band_name = str(row["band"])[:8]
         channel = int(row["channel"])
@@ -260,9 +259,8 @@ def post_rf_capture(
             stored += 1
         else:
             row.client_count = max(ap.client_count, 0)
-        record = _remember(db, monitor.id, bssid, captured)
-        if matches_link(monitor, ap.ssid):
-            record.trusted = True
+        record, created = _remember(db, monitor.id, bssid, captured)
+        note_new_ap(db, monitor, record, ap.ssid, created, captured)
     db.flush()
     trusted = _trusted_set(db, monitor.id)
     for client in body.clients:
@@ -288,7 +286,7 @@ def post_rf_capture(
                     mac=mac,
                     vendor=(client.vendor or "")[:64],
                     bssid=bssid,
-                    signal=client.signal,
+                    signal=client.signal if client.signal else None,
                     signal_min=client.signal_min,
                     signal_max=client.signal_max,
                     last_seen=seen,
@@ -674,6 +672,8 @@ def rf_clients(
         points = []
         previous = ""
         for sample in samples:
+            if not sample.signal:
+                continue
             roam = bool(previous) and sample.bssid != previous
             points.append(RfClientPoint(t=sample.observed_at, rssi_dbm=sample.signal, bssid=sample.bssid, roam=roam))
             previous = sample.bssid
@@ -695,7 +695,7 @@ def rf_clients(
                 ssid=networks.get(last.bssid.lower(), ""),
                 vendor=vendor,
                 randomized=last.randomized,
-                signal=heard[-1] if heard else 0,
+                signal=heard[-1] if heard else None,
                 signal_min=min(lows) if lows else None,
                 signal_max=max(highs) if highs else None,
                 last_seen=last.last_seen,
@@ -710,7 +710,7 @@ def rf_clients(
                 points=points,
             )
         )
-    found.sort(key=lambda item: item.signal, reverse=True)
+    found.sort(key=lambda item: item.signal if item.signal is not None else -999, reverse=True)
     return found
 
 
@@ -738,8 +738,9 @@ def _set_trust(db: Session, agent_id: UUID, bssid: str, trusted: bool) -> RfApOu
     row = next((item for item in rows if item.bssid.lower() == key), None)
     if row is None or latest is None:
         raise HTTPException(status_code=404, detail="Access point not found")
-    record = _remember(db, monitor.id, key, latest)
+    record, _created = _remember(db, monitor.id, key, latest)
     record.trusted = trusted
+    record.trust_source = "manual"
     db.commit()
     db.refresh(record)
     return _ap_out(row, record, latest)

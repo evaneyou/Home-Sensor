@@ -280,6 +280,17 @@ def parse_link_ssid(text: str) -> str:
     return ""
 
 
+def parse_link_bssid(text: str) -> str:
+    """BSSID from `iw dev <iface> link`. Empty when the adapter is not joined."""
+    for line in text.splitlines():
+        parts = line.strip().split()
+        if len(parts) >= 3 and parts[0].lower() == "connected" and parts[1].lower() == "to":
+            mac = parts[2].lower()
+            if len(mac.split(":")) == 6:
+                return mac
+    return ""
+
+
 def wifi_roles(root: Path | None = None, ipv4_of=None) -> dict[str, str | None]:
     """link carries traffic. radio is the other wireless NIC, with a USB MediaTek preferred."""
     sys_root = root or Path("/sys/class/net")

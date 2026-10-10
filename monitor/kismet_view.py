@@ -191,7 +191,7 @@ def map_devices(devices: list[dict]) -> dict[str, list[dict]]:
             {
                 "mac": mac,
                 "bssid": bssid,
-                "signal": last_signal if last_signal is not None else 0,
+                "signal": last_signal,
                 "signal_min": signal_min,
                 "signal_max": signal_max,
                 "last_seen": int(last_seen) if isinstance(last_seen, (int, float)) else 0,

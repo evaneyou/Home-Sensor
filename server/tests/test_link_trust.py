@@ -1,26 +1,43 @@
-"""The SSID on the Pi's link adapter is trusted on every channel."""
+"""A new sibling of the associated BSSID is trusted once. A different prefix is an evil twin."""
 
 from datetime import datetime, timezone
 from urllib.parse import quote
 
 from sqlalchemy import select
 
-from app.models import ApInventory, Monitor, WifiObservation
+from app.models import ApInventory, Issue, Monitor
+from conftest import login
 
 SEEN = datetime(2026, 10, 9, 20, 0, tzinfo=timezone.utc)
 LATER = datetime(2026, 10, 9, 20, 5, tzinfo=timezone.utc)
+HOME = "7c:9a:54:76:24:5d"
+SIBLING = "7c:9a:54:76:24:55"
+TWIN = "10:00:00:00:00:03"
 
-EXTRA = """
+HOME_SCAN = """
+BSS 7c:9a:54:76:24:55(on wlan0)
+	freq: 2462
+	signal: -40.00 dBm
+	SSID: GenZen-WiFi
+	DS Parameter set: channel 11
+BSS 7c:9a:54:76:24:5d(on wlan0)
+	freq: 5785
+	signal: -42.00 dBm
+	SSID: GenZen-WiFi
+	DS Parameter set: channel 157
+BSS aa:bb:cc:dd:ee:10(on wlan0)
+	freq: 2412
+	signal: -50.00 dBm
+	SSID: Neighbor
+	DS Parameter set: channel 1
+"""
+
+TWIN_SCAN = """
 BSS 10:00:00:00:00:03(on wlan0)
 	freq: 5745
 	signal: -40.00 dBm
 	SSID: GenZen-WiFi
 	DS Parameter set: channel 149
-BSS 10:00:00:00:00:09(on wlan0)
-	freq: 2412
-	signal: -50.00 dBm
-	SSID: Neighbor
-	DS Parameter set: channel 1
 """
 
 
@@ -28,7 +45,7 @@ def _headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}", "X-Monitor-Name": quote("Pi Test", safe="")}
 
 
-def _health(ssid: str | None = None) -> dict:
+def _health(ssid: str | None = None, bssid: str | None = None) -> dict:
     body = {
         "hostname": "pi-test",
         "agent_version": "0.3.10",
@@ -43,26 +60,9 @@ def _health(ssid: str | None = None) -> dict:
     }
     if ssid is not None:
         body["link_ssid"] = ssid
+    if bssid is not None:
+        body["link_bssid"] = bssid
     return body
-
-
-def _observe(db, monitor_id, ssid: str, bssid: str, channel: int, band: str) -> None:
-    db.add(
-        WifiObservation(
-            monitor_id=monitor_id,
-            scanned_at=SEEN,
-            ssid=ssid,
-            bssid=bssid,
-            vendor="Unknown",
-            band=band,
-            channel=channel,
-            channel_width=20,
-            rssi_dbm=-40,
-            security="WPA2",
-            phy="n",
-            max_link_rate_mbps=0,
-        )
-    )
 
 
 def _trusted(db, monitor_id) -> set[str]:
@@ -70,36 +70,69 @@ def _trusted(db, monitor_id) -> set[str]:
     return {row.lower() for row in rows.all()}
 
 
-def test_joined_ssid_is_trusted_on_every_channel(client, db, monitor_token):
-    monitor = db.scalar(select(Monitor).where(Monitor.slug == db.info["monitor_slug"]))
-    _observe(db, monitor.id, "GenZen-WiFi", "7c:9a:54:76:24:55", 11, "2.4")
-    _observe(db, monitor.id, "GenZen-WiFi", "7c:9a:54:76:24:5d", 157, "5")
-    _observe(db, monitor.id, "Neighbor", "aa:bb:cc:dd:ee:10", 6, "2.4")
-    db.commit()
+def _scan(client, token, raw: str, when: datetime):
+    return client.post(
+        "/api/v1/monitors/wifi-scans",
+        headers=_headers(token),
+        json={"scanned_at": when.isoformat(), "raw": raw},
+    )
 
-    reported = client.post("/api/v1/monitors/health", headers=_headers(monitor_token), json=_health("GenZen-WiFi"))
+
+def test_sibling_bssids_trust_once_and_a_different_prefix_is_an_evil_twin(client, db, monitor_token):
+    monitor = db.scalar(select(Monitor).where(Monitor.slug == db.info["monitor_slug"]))
+    assert monitor is not None
+
+    reported = client.post(
+        "/api/v1/monitors/health",
+        headers=_headers(monitor_token),
+        json=_health("GenZen-WiFi", HOME),
+    )
     assert reported.status_code == 200, reported.text
-    assert set(reported.json()["trusted_bssids"]) == {"7c:9a:54:76:24:55", "7c:9a:54:76:24:5d"}
     db.expire_all()
     assert monitor.link_ssid == "GenZen-WiFi"
-    assert _trusted(db, monitor.id) == {"7c:9a:54:76:24:55", "7c:9a:54:76:24:5d"}
+    assert monitor.link_bssid == HOME
+    assert _trusted(db, monitor.id) == set()
+
+    scanned = _scan(client, monitor_token, HOME_SCAN, SEEN)
+    assert scanned.status_code == 200, scanned.text
+    db.expire_all()
+    assert _trusted(db, monitor.id) == {HOME, SIBLING}
 
     kept = client.post("/api/v1/monitors/health", headers=_headers(monitor_token), json=_health())
     assert kept.status_code == 200
     db.expire_all()
     assert monitor.link_ssid == "GenZen-WiFi"
+    assert monitor.link_bssid == HOME
 
-    scanned = client.post(
-        "/api/v1/monitors/wifi-scans",
-        headers=_headers(monitor_token),
-        json={"scanned_at": LATER.isoformat(), "raw": EXTRA},
-    )
-    assert scanned.status_code == 200, scanned.text
+    admin = login(client)
+    removed = client.delete(f"/api/v1/rf/aps/{SIBLING}/trust", params={"agent_id": str(monitor.id)}, headers=admin)
+    assert removed.status_code == 200, removed.text
+    again = _scan(client, monitor_token, HOME_SCAN, LATER)
+    assert again.status_code == 200, again.text
     db.expire_all()
-    assert _trusted(db, monitor.id) == {"7c:9a:54:76:24:55", "7c:9a:54:76:24:5d", "10:00:00:00:00:03"}
+    assert SIBLING not in _trusted(db, monitor.id)
+    assert HOME in _trusted(db, monitor.id)
+    row = db.scalar(select(ApInventory).where(ApInventory.monitor_id == monitor.id, ApInventory.bssid == SIBLING))
+    assert row is not None
+    assert row.trust_source == "manual"
 
-    cleared = client.post("/api/v1/monitors/health", headers=_headers(monitor_token), json=_health(""))
+    twin = _scan(client, monitor_token, TWIN_SCAN, LATER.replace(minute=6))
+    assert twin.status_code == 200, twin.text
+    db.expire_all()
+    assert TWIN not in _trusted(db, monitor.id)
+    title = f"Possible evil twin GenZen-WiFi on {TWIN}"
+    issue = db.scalar(select(Issue).where(Issue.monitor_id == monitor.id, Issue.title == title))
+    assert issue is not None
+    assert issue.severity.value == "warning"
+    assert issue.root_cause_stage == "airwave"
+
+    cleared = client.post(
+        "/api/v1/monitors/health",
+        headers=_headers(monitor_token),
+        json=_health("", ""),
+    )
     assert cleared.status_code == 200
     db.expire_all()
     assert monitor.link_ssid is None
-    assert "7c:9a:54:76:24:55" in _trusted(db, monitor.id)
+    assert monitor.link_bssid is None
+    assert HOME in _trusted(db, monitor.id)

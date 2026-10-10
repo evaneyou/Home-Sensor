@@ -23,7 +23,7 @@ from app.auth import (
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.enrollment import CONNECTED_WITHIN, is_token_hash, token_hash
-from app.link_trust import remember_link_ssid
+from app.link_trust import remember_association
 from app.internet_tests import (
     ensure_internet_tests,
     explain_result,
@@ -573,8 +573,14 @@ def post_device_health(
             airwave_mode=body.airwave_mode if body.airwave_mode in {"kismet", "scan", "off"} else None,
         )
     )
-    if "link_ssid" in body.model_fields_set:
-        remember_link_ssid(db, monitor, body.link_ssid, now)
+    if "link_ssid" in body.model_fields_set or "link_bssid" in body.model_fields_set:
+        remember_association(
+            monitor,
+            body.link_ssid,
+            body.link_bssid,
+            ssid_set="link_ssid" in body.model_fields_set,
+            bssid_set="link_bssid" in body.model_fields_set,
+        )
     cutoff = now - timedelta(days=7)
     db.execute(delete(MonitorHealth).where(MonitorHealth.reported_at < cutoff))
     ensure_internet_tests(db, monitor)

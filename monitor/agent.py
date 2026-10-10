@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from checks import link_is_busy, link_lock, parse_link_ssid, run_check, scan_may_run, wifi_roles
+from checks import link_is_busy, link_lock, parse_link_bssid, parse_link_ssid, run_check, scan_may_run, wifi_roles
 from kismet_view import (
     DEVICE_FIELDS,
     iw_scan_skipped,
@@ -314,6 +314,7 @@ def sample(config: dict) -> dict:
     mem_used, mem_total = memory_mb()
     disk_used, disk_total = disk_mb()
     public_ip, isp = public_network()
+    ssid, bssid = joined_link()
     return {
         "hostname": socket.gethostname(),
         "agent_version": AGENT_VERSION,
@@ -330,14 +331,15 @@ def sample(config: dict) -> dict:
         "isp": isp,
         "config_version": int(config.get("config_version") or 0),
         "airwave_mode": airwave_mode(),
-        "link_ssid": joined_ssid(),
+        "link_ssid": ssid,
+        "link_bssid": bssid,
     }
 
 
-def joined_ssid() -> str:
+def joined_link() -> tuple[str, str]:
     iface = wifi_roles().get("link")
     if not iface:
-        return ""
+        return "", ""
     try:
         text = subprocess.check_output(
             ["iw", "dev", iface, "link"],
@@ -346,8 +348,17 @@ def joined_ssid() -> str:
             stderr=subprocess.DEVNULL,
         )
     except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
-        return ""
-    return parse_link_ssid(text)
+        return "", ""
+    return parse_link_ssid(text), parse_link_bssid(text)
+
+
+def setup_allowed(enrolled: bool, host: str, current_key: str, stored_token: str) -> bool:
+    """An enrolled agent accepts a LAN change only when the current device key is presented."""
+    if not enrolled:
+        return True
+    if host in {"127.0.0.1", "::1"}:
+        return True
+    return bool(stored_token) and current_key == stored_token
 
 
 def remember_trusted(body: dict) -> None:
@@ -640,10 +651,12 @@ def kismet_devices(base: str, user: str, password: str, since: int) -> object:
 
 
 def kismet_survey_text() -> str:
-    radio = wifi_survey_text("hnwradio0")
-    link = str(wifi_roles().get("link") or "")
-    link_text = "" if not link or link == "hnwradio0" else wifi_survey_text(link)
-    return prefer_survey(radio, link_text)
+    roles = wifi_roles()
+    radio = str(roles.get("radio") or "")
+    link = str(roles.get("link") or "")
+    radio_text = wifi_survey_text(radio) if radio else ""
+    link_text = "" if not link or link == radio else wifi_survey_text(link)
+    return prefer_survey(radio_text, link_text)
 
 
 def _capture_body(devices: object, channels: object, alerts: object) -> dict:
@@ -788,9 +801,12 @@ PAGE = """<!DOCTYPE html>
       <input id="server" name="server_url" placeholder="http://10.0.0.123:8847" required />
       <label for="key">Device key</label>
       <input id="key" name="device_key" required autocomplete="off" spellcheck="false" />
+      <label id="current-label" for="current" hidden>Current device key</label>
+      <input id="current" name="current_key" hidden autocomplete="off" spellcheck="false" />
       <button type="submit">Connect</button>
     </form>
     <button id="replace" type="button" hidden>Update name and key</button>
+    <p id="reset-note" hidden>To start over, run sudo hnw-reset on this Pi. That clears /etc/monitor/config.json.</p>
     <p id="message"></p>
   </main>
   <script>
@@ -798,11 +814,17 @@ PAGE = """<!DOCTYPE html>
     const message = document.getElementById("message");
     const lead = document.getElementById("lead");
     const replace = document.getElementById("replace");
+    const currentLabel = document.getElementById("current-label");
+    const currentKey = document.getElementById("current");
+    const resetNote = document.getElementById("reset-note");
     let editing = false;
     replace.addEventListener("click", () => {
       editing = true;
       form.hidden = false;
       replace.hidden = true;
+      currentLabel.hidden = false;
+      currentKey.hidden = false;
+      resetNote.hidden = false;
     });
     async function refresh() {
       const status = await fetch("/api/status").then((r) => r.json());
@@ -880,12 +902,13 @@ class Handler(BaseHTTPRequestHandler):
         name = str(incoming.get("name") or "").strip()
         server_url = str(incoming.get("server_url") or "").strip().rstrip("/")
         device_key = str(incoming.get("device_key") or "").strip()
+        current_key = str(incoming.get("current_key") or "")
         with _lock:
             config = load_config()
-        if config.get("token") and self.client_address[0] not in {"127.0.0.1", "::1"}:
+        if not setup_allowed(bool(config.get("token")), self.client_address[0], current_key, str(config.get("token") or "")):
             self._send(
                 403,
-                json.dumps({"detail": "This remote agent is already enrolled"}).encode("utf-8"),
+                json.dumps({"detail": "This remote agent is already enrolled. Enter the current device key, or run sudo hnw-reset on the Pi."}).encode("utf-8"),
                 "application/json",
             )
             return
