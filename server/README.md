@@ -1,6 +1,12 @@
-# HNS Server
+# Server
 
-FastAPI central server for Home Network Sensor.
+FastAPI central server for HomeNetWatch (package `hns-server`). It stores results in
+Postgres, runs enrollment and the WireGuard tunnel hub, and serves the API the dashboard reads.
+The interactive API docs are at `/docs` when the server is running.
+
+The package version is in `pyproject.toml` and is reported as the API version.
+
+## Run
 
 ```bash
 uv sync --extra dev

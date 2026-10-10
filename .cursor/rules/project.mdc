@@ -1,10 +1,10 @@
 ---
-description: Home Network Sensor project conventions
+description: HomeNetWatch project conventions
 globs:
 alwaysApply: true
 ---
 
-# Home Network Sensor
+# HomeNetWatch
 
 UXI-style home network monitoring: Pi remote agents push staged test results to FastAPI + Postgres; React dashboard reads APIs only.
 
