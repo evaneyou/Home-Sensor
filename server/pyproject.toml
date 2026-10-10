@@ -1,8 +1,18 @@
 [project]
 name = "hns-server"
 version = "0.1.0"
-description = "Home Network Sensor central server"
+description = "HomeNetWatch central server"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Evan You" }]
 requires-python = ">=3.12"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Framework :: FastAPI",
+  "Intended Audience :: Information Technology",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: System :: Networking :: Monitoring",
+]
 dependencies = [
   "fastapi>=0.115.0",
   "uvicorn[standard]>=0.32.0",
@@ -24,8 +34,13 @@ dev = [
   "pytest-asyncio>=0.24.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/evaneyou/Home-Sensor"
+Issues = "https://github.com/evaneyou/Home-Sensor/issues"
+Changelog = "https://github.com/evaneyou/Home-Sensor/blob/main/CHANGELOG.md"
+
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]

@@ -1,4 +1,4 @@
-# Home Network Sensor — SPEC v2
+# HomeNetWatch — SPEC v2
 
 Ops-style UXI-inspired monitoring for a home LAN: Raspberry Pi (or Linux PC) remote agents run staged connectivity tests and push results to a central FastAPI + Postgres server. A React dashboard reads those APIs only — the remote agent never talks to the browser.
 

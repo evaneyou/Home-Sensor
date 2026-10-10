@@ -1,1 +1,1 @@
-"""Home Network Monitor server package."""
+"""HomeNetWatch server package."""
