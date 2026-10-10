@@ -23,6 +23,7 @@ from app.auth import (
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.enrollment import CONNECTED_WITHIN, is_token_hash, token_hash
+from app.link_trust import remember_association
 from app.internet_tests import (
     ensure_internet_tests,
     explain_result,
@@ -42,6 +43,7 @@ from app.path_view import build_trace
 from app.services.stability import cell_quorum, preset_name, service_status
 from app.regions import REGIONS_BY_COUNTRY
 from app.models import (
+    ApInventory,
     AuditEvent,
     Group,
     Issue,
@@ -357,14 +359,23 @@ def _home_group(db: Session) -> Group:
     return group
 
 
+def _trusted_bssids(db: Session, monitor_id: UUID) -> list[str]:
+    rows = db.scalars(
+        select(ApInventory.bssid).where(ApInventory.monitor_id == monitor_id, ApInventory.trusted.is_(True))
+    ).all()
+    return sorted(row.lower() for row in rows)
+
+
 def _config_out(db: Session, monitor: Monitor) -> DeviceConfigOut:
     return DeviceConfigOut(
         name=monitor.name,
         health_interval_seconds=monitor.health_interval_seconds,
+        scan_interval_seconds=monitor.scan_interval_seconds,
         config_version=monitor.config_version,
         tests=[ScheduledTestOut(**item) for item in scheduled_tests(db, monitor)],
         restart=monitor.restart_requested_at is not None,
         scan=monitor.scan_requested_at is not None,
+        trusted_bssids=_trusted_bssids(db, monitor.id),
     )
 
 
@@ -559,8 +570,17 @@ def post_device_health(
             public_ip=body.public_ip,
             isp=body.isp,
             config_version=body.config_version,
+            airwave_mode=body.airwave_mode if body.airwave_mode in {"kismet", "scan", "off"} else None,
         )
     )
+    if "link_ssid" in body.model_fields_set or "link_bssid" in body.model_fields_set:
+        remember_association(
+            monitor,
+            body.link_ssid,
+            body.link_bssid,
+            ssid_set="link_ssid" in body.model_fields_set,
+            bssid_set="link_bssid" in body.model_fields_set,
+        )
     cutoff = now - timedelta(days=7)
     db.execute(delete(MonitorHealth).where(MonitorHealth.reported_at < cutoff))
     ensure_internet_tests(db, monitor)
@@ -575,7 +595,11 @@ def probe_command(
     x_monitor_name: Annotated[Optional[str], Header()] = None,
 ) -> ProbeCommandOut:
     monitor = _resolve_monitor_identity(db, authorization, x_monitor_name)
-    return ProbeCommandOut(restart=monitor.restart_requested_at is not None, scan=monitor.scan_requested_at is not None)
+    return ProbeCommandOut(
+        restart=monitor.restart_requested_at is not None,
+        scan=monitor.scan_requested_at is not None,
+        trusted_bssids=_trusted_bssids(db, monitor.id),
+    )
 
 
 @router.post("/monitors/command", response_model=ProbeCommandOut)
@@ -588,7 +612,11 @@ def ack_probe_command(
     monitor = _resolve_monitor_identity(db, authorization, x_monitor_name)
     monitor.restart_requested_at = None
     db.commit()
-    return ProbeCommandOut(restart=False, scan=monitor.scan_requested_at is not None)
+    return ProbeCommandOut(
+        restart=False,
+        scan=monitor.scan_requested_at is not None,
+        trusted_bssids=_trusted_bssids(db, monitor.id),
+    )
 
 
 @router.post("/monitors/{monitor_id}/restart")

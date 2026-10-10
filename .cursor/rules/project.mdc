@@ -32,4 +32,4 @@ UXI-style home network monitoring: Pi remote agents push staged test results to 
 
 ## Out of scope unless asked
 
-Staged test runner, Wi-Fi/RF pages, webhooks, full enrollment ETag matrix, Playwright journeys, Grafana.
+Staged test runner, webhooks, full enrollment ETag matrix, Playwright journeys, Grafana.

@@ -1,6 +1,6 @@
 """Channel advice and iw scan parsing. No database."""
 
-from app.rf_view import hill_points, parse_iw_scan, recommend_band
+from app.rf_view import hill_points, noise_by_frequency, parse_iw_scan, parse_iw_survey, recommend_band
 
 SCAN = """
 BSS 11:22:33:44:55:66(on wlan0)
@@ -67,6 +67,46 @@ def test_empty_band_suggests_a_clear_channel():
     advice = recommend_band([], "5")
     assert advice["recommended_channel"] == 36
     assert advice["ap_count"] == 0
+
+
+SURVEY = """
+Survey data from wlan1
+	frequency:			2412 MHz
+	noise:				-95 dBm
+	channel active time:		1000 ms
+	channel busy time:		250 ms
+Survey data from wlan1
+	frequency:			2437 MHz
+	noise:				-90 dBm
+	channel active time:		0 ms
+	channel busy time:		0 ms
+Survey data from wlan1
+	frequency:			5180 MHz
+	channel active time:		800 ms
+	channel busy time:		80 ms
+"""
+
+
+def test_survey_dump_reads_noise_and_busy_percent():
+    rows = {row["channel"]: row for row in parse_iw_survey(SURVEY)}
+    assert rows[1]["band"] == "2.4"
+    assert rows[1]["noise_dbm"] == -95
+    assert rows[1]["busy_pct"] == 25
+    assert rows[6]["noise_dbm"] == -90
+    assert rows[6]["busy_pct"] is None
+    assert rows[36]["band"] == "5"
+    assert rows[36]["noise_dbm"] is None
+    assert rows[36]["busy_pct"] == 10
+
+
+def test_scan_noise_comes_from_the_matching_frequency():
+    survey = noise_by_frequency(parse_iw_survey(SURVEY))
+    aps = {ap["ssid"]: ap for ap in parse_iw_scan(SCAN, survey)}
+    assert aps["Home"]["noise_dbm"] == -90
+    hidden = next(ap for ap in parse_iw_scan(SCAN, survey) if ap["hidden"])
+    assert hidden["noise_dbm"] == -95
+    assert aps["FarAway"]["noise_dbm"] is None
+    assert parse_iw_scan(SCAN)[0]["noise_dbm"] is None
 
 
 def test_hill_peaks_on_the_channel():

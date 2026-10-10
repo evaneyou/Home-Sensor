@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import ipaddress
 import json
 import os
@@ -19,7 +20,17 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from checks import run_check
+from checks import link_is_busy, link_lock, parse_link_bssid, parse_link_ssid, run_check, scan_may_run, wifi_roles
+from kismet_view import (
+    DEVICE_FIELDS,
+    iw_scan_skipped,
+    map_kismet_capture,
+    prefer_survey,
+    survey_channels,
+    visible_clients,
+    with_busy,
+)
+import rf_spool
 
 AGENT_VERSION = "0.3.10"
 # Latency checks wait on the network, so a few of them run at once.
@@ -34,6 +45,15 @@ _scan_lock = threading.Lock()
 _stop = threading.Event()
 _health_started = False
 _tests_started = False
+_scan_started = False
+_kismet_started = False
+_last_link_scan = 0.0
+_trusted_bssids: set[str] = set()
+_airwave_mode = "off"
+_kismet_devices_since = 0
+_kismet_alerts_since = 0
+KISMET_PATH = CONFIG_PATH.with_name("kismet.json")
+SPOOL_PATH = CONFIG_PATH.with_name("rf-capture.sqlite")
 _restarting = False
 _last_error = ""
 _last_health_at = ""
@@ -284,15 +304,17 @@ def poll_restart(config: dict) -> None:
         )
     except (OSError, urllib.error.URLError, TimeoutError, ValueError):
         return
+    remember_trusted(body)
     honor_restart(config, bool(body.get("restart")))
     if body.get("scan"):
-        upload_wifi_scan(config)
+        upload_wifi_scan(config, forced=True)
 
 
 def sample(config: dict) -> dict:
     mem_used, mem_total = memory_mb()
     disk_used, disk_total = disk_mb()
     public_ip, isp = public_network()
+    ssid, bssid = joined_link()
     return {
         "hostname": socket.gethostname(),
         "agent_version": AGENT_VERSION,
@@ -308,7 +330,51 @@ def sample(config: dict) -> dict:
         "public_ip": public_ip,
         "isp": isp,
         "config_version": int(config.get("config_version") or 0),
+        "airwave_mode": airwave_mode(),
+        "link_ssid": ssid,
+        "link_bssid": bssid,
     }
+
+
+def joined_link() -> tuple[str, str]:
+    iface = wifi_roles().get("link")
+    if not iface:
+        return "", ""
+    try:
+        text = subprocess.check_output(
+            ["iw", "dev", iface, "link"],
+            text=True,
+            timeout=5,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+        return "", ""
+    return parse_link_ssid(text), parse_link_bssid(text)
+
+
+def setup_allowed(enrolled: bool, host: str, current_key: str, stored_token: str) -> bool:
+    """An enrolled agent accepts a LAN change only when the current device key is presented."""
+    if not enrolled:
+        return True
+    if host in {"127.0.0.1", "::1"}:
+        return True
+    return bool(stored_token) and current_key == stored_token
+
+
+def remember_trusted(body: dict) -> None:
+    global _trusted_bssids
+    raw = body.get("trusted_bssids")
+    if isinstance(raw, list):
+        _trusted_bssids = {str(item).lower() for item in raw}
+
+
+def airwave_mode() -> str:
+    if _airwave_mode == "kismet":
+        return "kismet"
+    roles = wifi_roles()
+    if roles["radio"] or roles["link"]:
+        return "scan"
+    return "off"
 
 
 def apply_config(config: dict, body: dict) -> bool:
@@ -319,6 +385,10 @@ def apply_config(config: dict, body: dict) -> bool:
     interval = body.get("health_interval_seconds")
     if interval and int(interval) != int(config.get("health_interval_seconds") or 60):
         config["health_interval_seconds"] = int(interval)
+        changed = True
+    scan_interval = body.get("scan_interval_seconds")
+    if scan_interval and int(scan_interval) != int(config.get("scan_interval_seconds") or 300):
+        config["scan_interval_seconds"] = int(scan_interval)
         changed = True
     version = body.get("config_version")
     if version is not None and int(version) != int(config.get("config_version") or 0):
@@ -337,6 +407,7 @@ def report_once(config: dict) -> None:
         config.get("token"),
         config.get("name"),
     )
+    remember_trusted(body)
     if apply_config(config, body):
         save_config(config)
         if int(config.get("config_version") or 0) != sent:
@@ -350,53 +421,76 @@ def report_once(config: dict) -> None:
     _last_error = ""
     _last_health_at = time.strftime("%Y-%m-%d %H:%M:%S")
     honor_restart(config, bool(body.get("restart")))
-    upload_wifi_scan(config)
 
 
-def wifi_interface() -> str | None:
-    try:
-        listing = subprocess.check_output(["iw", "dev"], text=True, timeout=5, stderr=subprocess.DEVNULL)
-    except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
-        return None
-    iface = None
-    for line in listing.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("Interface "):
-            iface = stripped.split()[1]
-            continue
-        if iface and stripped == "type managed":
-            return iface
-    return iface
-
-
-def wifi_scan_text() -> str | None:
-    iface = wifi_interface()
-    if not iface:
-        return None
+def wifi_scan_text(iface: str) -> str | None:
     try:
         return subprocess.check_output(["iw", "dev", iface, "scan"], text=True, timeout=25, stderr=subprocess.STDOUT)
     except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
         return None
 
 
-def upload_wifi_scan(config: dict) -> None:
-    """Post one real scan. Skip if another scan is already running."""
+def wifi_survey_text(iface: str) -> str:
+    try:
+        return subprocess.check_output(
+            ["iw", "dev", iface, "survey", "dump"],
+            text=True,
+            timeout=10,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+        return ""
+
+
+def upload_wifi_scan(config: dict, forced: bool = False) -> None:
+    """Post one real scan. The radio adapter is used whenever a second NIC exists."""
+    global _last_link_scan
     if not _scan_lock.acquire(blocking=False):
         return
+    link_held = False
     try:
-        text = wifi_scan_text()
+        roles = wifi_roles()
+        if iw_scan_skipped(airwave_mode(), roles["radio"]):
+            return
+        iface = roles["radio"] or roles["link"]
+        role = "radio" if roles["radio"] else "link" if roles["link"] else ""
+        if not iface or not role:
+            return
+        now = time.monotonic()
+        if not scan_may_run(
+            role=role,
+            last_link_scan=_last_link_scan,
+            now=now,
+            link_busy=link_is_busy(),
+            forced=forced,
+        ):
+            return
+        if role == "link" and not link_lock.acquire(blocking=False):
+            return
+        if role == "link":
+            link_held = True
+        text = wifi_scan_text(iface)
         if text is None:
             return
         post_json(
             f"{config['server_url'].rstrip('/')}/api/v1/monitors/wifi-scans",
-            {"scanned_at": datetime.now(timezone.utc).isoformat(), "raw": text},
+            {
+                "scanned_at": datetime.now(timezone.utc).isoformat(),
+                "raw": text,
+                "survey": wifi_survey_text(iface),
+                "scan_iface_role": role,
+            },
             config.get("token"),
             config.get("name"),
             timeout=30,
         )
+        if role == "link":
+            _last_link_scan = time.monotonic()
     except (OSError, urllib.error.URLError, TimeoutError, ValueError):
         return
     finally:
+        if link_held:
+            link_lock.release()
         _scan_lock.release()
 
 
@@ -475,6 +569,11 @@ def run_due_tests(config: dict) -> None:
     ready = due_tests(time.monotonic())
     if not ready:
         return
+    with link_lock:
+        _run_due_tests(config, ready)
+
+
+def _run_due_tests(config: dict, ready: list[dict]) -> None:
     latency = [test for test in ready if test.get("kind") not in HEAVY_KINDS | {"mtr"}]
     traces = [test for test in ready if test.get("kind") == "mtr"]
     heavy = [test for test in ready if test.get("kind") in HEAVY_KINDS]
@@ -522,17 +621,152 @@ def health_loop() -> None:
         _stop.wait(max(interval, 15))
 
 
+def _kismet_auth(user: str, password: str) -> str:
+    token = base64.b64encode(f"{user}:{password}".encode()).decode("ascii")
+    return f"Basic {token}"
+
+
+def kismet_get(base: str, user: str, password: str, path: str) -> object:
+    request = urllib.request.Request(
+        base.rstrip("/") + path,
+        headers={"Authorization": _kismet_auth(user, password)},
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def kismet_devices(base: str, user: str, password: str, since: int) -> object:
+    """Ask Kismet for the device fields we map, instead of a full record."""
+    body = urllib.parse.urlencode({"json": json.dumps({"fields": DEVICE_FIELDS})}).encode()
+    request = urllib.request.Request(
+        f"{base.rstrip('/')}/devices/last-time/{since}/devices.json",
+        data=body,
+        headers={
+            "Authorization": _kismet_auth(user, password),
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def kismet_survey_text() -> str:
+    roles = wifi_roles()
+    radio = str(roles.get("radio") or "")
+    link = str(roles.get("link") or "")
+    radio_text = wifi_survey_text(radio) if radio else ""
+    link_text = "" if not link or link == radio else wifi_survey_text(link)
+    return prefer_survey(radio_text, link_text)
+
+
+def _capture_body(devices: object, channels: object, alerts: object) -> dict:
+    mapped = map_kismet_capture(devices, channels, alerts)
+    return {
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "aps": mapped["aps"],
+        "clients": visible_clients(mapped["clients"], _trusted_bssids),
+        "channels": with_busy(mapped["channels"], survey_channels(kismet_survey_text())),
+        "alerts": mapped["alerts"],
+    }
+
+
+def _post_capture(config: dict, payload: dict) -> None:
+    post_json(
+        f"{config['server_url'].rstrip('/')}/api/v1/monitors/rf-capture",
+        payload,
+        config.get("token"),
+        config.get("name"),
+        timeout=30,
+    )
+
+
+def _drain_spool(config: dict) -> None:
+    for row_id, payload in rf_spool.pending(SPOOL_PATH):
+        _post_capture(config, payload)
+        rf_spool.drop(SPOOL_PATH, row_id)
+
+
+def kismet_once(config: dict) -> None:
+    global _airwave_mode, _kismet_devices_since, _kismet_alerts_since
+    if not KISMET_PATH.is_file():
+        _airwave_mode = "off"
+        return
+    try:
+        creds = json.loads(KISMET_PATH.read_text(encoding="utf-8"))
+        base = str(creds.get("url") or "http://127.0.0.1:2501")
+        user = str(creds["username"])
+        password = str(creds["password"])
+        kismet_get(base, user, password, "/system/status.json")
+    except (OSError, urllib.error.URLError, TimeoutError, ValueError, KeyError, json.JSONDecodeError):
+        _airwave_mode = "off"
+        return
+    _airwave_mode = "kismet"
+    now = int(time.time())
+    device_since = _kismet_devices_since or now - 60
+    alert_since = _kismet_alerts_since or now - 60
+    try:
+        devices = kismet_devices(base, user, password, device_since)
+        channels = kismet_get(base, user, password, "/channels/channels.json")
+        alerts = kismet_get(base, user, password, f"/alerts/last-time/{alert_since}/alerts.json")
+        payload = _capture_body(devices, channels, alerts)
+        try:
+            _drain_spool(config)
+            _post_capture(config, payload)
+        except (OSError, urllib.error.URLError, TimeoutError, ValueError):
+            rf_spool.push(SPOOL_PATH, payload)
+        _kismet_devices_since = now
+        _kismet_alerts_since = now
+    except (OSError, urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return
+
+
+def kismet_loop() -> None:
+    global _last_error
+    while not _stop.is_set():
+        with _lock:
+            config = load_config()
+        if config.get("token") and config.get("name") and config.get("server_url"):
+            try:
+                kismet_once(dict(config))
+            except (OSError, urllib.error.URLError, TimeoutError, ValueError, KeyError) as exc:
+                _last_error = str(exc)
+        _stop.wait(60)
+
+
+def scan_loop() -> None:
+    global _last_error
+    while not _stop.is_set():
+        with _lock:
+            config = load_config()
+        if config.get("token") and config.get("name") and config.get("server_url"):
+            try:
+                upload_wifi_scan(dict(config))
+            except (OSError, urllib.error.URLError, TimeoutError, ValueError, KeyError) as exc:
+                _last_error = str(exc)
+        with _lock:
+            interval = int(load_config().get("scan_interval_seconds") or 300)
+        _stop.wait(max(interval, 15))
+
+
 def ensure_health_loop() -> None:
-    global _health_started, _tests_started
+    global _health_started, _tests_started, _scan_started, _kismet_started
     with _lock:
         start_health = not _health_started
         start_tests = not _tests_started
+        start_scan = not _scan_started
+        start_kismet = not _kismet_started
         _health_started = True
         _tests_started = True
+        _scan_started = True
+        _kismet_started = True
     if start_health:
         threading.Thread(target=health_loop, name="health", daemon=True).start()
     if start_tests:
         threading.Thread(target=test_loop, name="internet", daemon=True).start()
+    if start_scan:
+        threading.Thread(target=scan_loop, name="wifi-scan", daemon=True).start()
+    if start_kismet:
+        threading.Thread(target=kismet_loop, name="kismet", daemon=True).start()
 
 
 PAGE = """<!DOCTYPE html>
@@ -567,9 +801,12 @@ PAGE = """<!DOCTYPE html>
       <input id="server" name="server_url" placeholder="http://10.0.0.123:8847" required />
       <label for="key">Device key</label>
       <input id="key" name="device_key" required autocomplete="off" spellcheck="false" />
+      <label id="current-label" for="current" hidden>Current device key</label>
+      <input id="current" name="current_key" hidden autocomplete="off" spellcheck="false" />
       <button type="submit">Connect</button>
     </form>
     <button id="replace" type="button" hidden>Update name and key</button>
+    <p id="reset-note" hidden>To start over, run sudo hnw-reset on this Pi. That clears /etc/monitor/config.json.</p>
     <p id="message"></p>
   </main>
   <script>
@@ -577,11 +814,17 @@ PAGE = """<!DOCTYPE html>
     const message = document.getElementById("message");
     const lead = document.getElementById("lead");
     const replace = document.getElementById("replace");
+    const currentLabel = document.getElementById("current-label");
+    const currentKey = document.getElementById("current");
+    const resetNote = document.getElementById("reset-note");
     let editing = false;
     replace.addEventListener("click", () => {
       editing = true;
       form.hidden = false;
       replace.hidden = true;
+      currentLabel.hidden = false;
+      currentKey.hidden = false;
+      resetNote.hidden = false;
     });
     async function refresh() {
       const status = await fetch("/api/status").then((r) => r.json());
@@ -592,7 +835,8 @@ PAGE = """<!DOCTYPE html>
       }
       lead.textContent = status.name + " is connected to " + status.server_url + ". The name and key must still match the server.";
       message.className = status.last_error ? "error" : "ok";
-      message.textContent = status.last_error || (status.last_health_at ? "Last report " + status.last_health_at : "Waiting for the first report");
+      const mode = status.airwave_mode ? " Airwave capture is " + status.airwave_mode + "." : "";
+      message.textContent = status.last_error || (status.last_health_at ? "Last report " + status.last_health_at + "." + mode : "Waiting for the first report." + mode);
     }
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -639,6 +883,7 @@ class Handler(BaseHTTPRequestHandler):
                 "server_url": config.get("server_url") or "",
                 "last_health_at": _last_health_at,
                 "last_error": _last_error,
+                "airwave_mode": airwave_mode(),
             }
             self._send(200, json.dumps(payload).encode("utf-8"), "application/json")
             return
@@ -657,6 +902,16 @@ class Handler(BaseHTTPRequestHandler):
         name = str(incoming.get("name") or "").strip()
         server_url = str(incoming.get("server_url") or "").strip().rstrip("/")
         device_key = str(incoming.get("device_key") or "").strip()
+        current_key = str(incoming.get("current_key") or "")
+        with _lock:
+            config = load_config()
+        if not setup_allowed(bool(config.get("token")), self.client_address[0], current_key, str(config.get("token") or "")):
+            self._send(
+                403,
+                json.dumps({"detail": "This remote agent is already enrolled. Enter the current device key, or run sudo hnw-reset on the Pi."}).encode("utf-8"),
+                "application/json",
+            )
+            return
         if not name or not server_url or not device_key:
             self._send(400, json.dumps({"detail": "Name, server, and device key are required"}).encode("utf-8"), "application/json")
             return
@@ -687,6 +942,7 @@ class Handler(BaseHTTPRequestHandler):
             "server_url": server_url,
             "token": device_key,
             "health_interval_seconds": int(accepted.get("health_interval_seconds") or 60),
+            "scan_interval_seconds": int(accepted.get("scan_interval_seconds") or 300),
             "config_version": int(accepted.get("config_version") or 1),
         }
         with _lock:

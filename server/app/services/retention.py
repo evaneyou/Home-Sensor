@@ -8,6 +8,7 @@ Anything older than 2 years is deleted.
 from __future__ import annotations
 
 import calendar
+import json
 import logging
 import uuid
 from collections import defaultdict
@@ -18,7 +19,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
-from app.models import ResultStatus, TestResult, WifiObservation
+from app.models import ResultStatus, RfAlert, RfChannelStat, RfClient, TestResult, WifiObservation
 
 log = logging.getLogger(__name__)
 
@@ -58,18 +59,34 @@ def apply_retention(db: Session, now: datetime) -> dict[str, int]:
     deleted_wifi = db.execute(
         delete(WifiObservation).where(WifiObservation.scanned_at < delete_before)
     ).rowcount
+    deleted_channels = db.execute(
+        delete(RfChannelStat).where(RfChannelStat.measured_at < delete_before)
+    ).rowcount
+    deleted_clients = db.execute(delete(RfClient).where(RfClient.observed_at < delete_before)).rowcount
+    deleted_alerts = db.execute(delete(RfAlert).where(RfAlert.observed_at < delete_before)).rowcount
 
     daily_results = _rollup_results(db, delete_before, daily_before, "day")
     hourly_results = _rollup_results(db, daily_before, hourly_before, "hour")
     daily_wifi = _rollup_wifi(db, delete_before, daily_before, "day")
     hourly_wifi = _rollup_wifi(db, daily_before, hourly_before, "hour")
+    daily_channels = _rollup_channels(db, delete_before, daily_before, "day")
+    hourly_channels = _rollup_channels(db, daily_before, hourly_before, "hour")
+    daily_clients = _rollup_clients(db, delete_before, daily_before, "day")
+    hourly_clients = _rollup_clients(db, daily_before, hourly_before, "hour")
     summary = {
         "deleted_results": deleted_results or 0,
         "deleted_wifi": deleted_wifi or 0,
+        "deleted_channels": deleted_channels or 0,
+        "deleted_clients": deleted_clients or 0,
+        "deleted_alerts": deleted_alerts or 0,
         "daily_results": daily_results,
         "hourly_results": hourly_results,
         "daily_wifi": daily_wifi,
         "hourly_wifi": hourly_wifi,
+        "daily_channels": daily_channels,
+        "hourly_channels": hourly_channels,
+        "daily_clients": daily_clients,
+        "hourly_clients": hourly_clients,
     }
     log.info("measurement retention %s", summary)
     return summary
@@ -131,13 +148,94 @@ def _rollup_wifi(db: Session, start: datetime, end: datetime, resolution: str) -
             channel=latest.channel,
             channel_width=latest.channel_width,
             rssi_dbm=_mean(m.rssi_dbm for m in members),
-            noise_dbm=_mean(m.noise_dbm for m in members),
+            noise_dbm=_mean_or_none(m.noise_dbm for m in members),
             security=latest.security,
             phy=latest.phy,
             max_link_rate_mbps=round(_mean(m.max_link_rate_mbps for m in members)),
+            client_count=round(_mean(m.client_count for m in members)),
         )
         db.execute(delete(WifiObservation).where(WifiObservation.id.in_([m.id for m in members])))
         db.add(averaged)
+    return rolled
+
+
+def _rollup_channels(db: Session, start: datetime, end: datetime, resolution: str) -> int:
+    rows = db.scalars(
+        select(RfChannelStat).where(RfChannelStat.measured_at >= start, RfChannelStat.measured_at < end)
+    ).all()
+    groups: dict[tuple, list[RfChannelStat]] = defaultdict(list)
+    for row in rows:
+        groups[(row.monitor_id, row.band, row.channel, _bucket(row.measured_at, resolution))].append(row)
+    rolled = 0
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        rolled += 1
+        latest = max(members, key=lambda row: row.measured_at)
+        db.execute(delete(RfChannelStat).where(RfChannelStat.id.in_([m.id for m in members])))
+        db.add(
+            RfChannelStat(
+                monitor_id=latest.monitor_id,
+                measured_at=_bucket(latest.measured_at, resolution),
+                band=latest.band,
+                channel=latest.channel,
+                noise_dbm=_mean_or_none(m.noise_dbm for m in members),
+                busy_pct=_mean_or_none(m.busy_pct for m in members),
+                airtime_pct=_mean_or_none(m.airtime_pct for m in members),
+                packets=round(_mean(m.packets for m in members)) if any(m.packets is not None for m in members) else None,
+            )
+        )
+    return rolled
+
+
+def _rollup_clients(db: Session, start: datetime, end: datetime, resolution: str) -> int:
+    rows = db.scalars(select(RfClient).where(RfClient.observed_at >= start, RfClient.observed_at < end)).all()
+    groups: dict[tuple, list[RfClient]] = defaultdict(list)
+    for row in rows:
+        groups[(row.monitor_id, row.mac, _bucket(row.observed_at, resolution))].append(row)
+    rolled = 0
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        rolled += 1
+        latest = max(members, key=lambda row: row.observed_at)
+        bucket = _bucket(latest.observed_at, resolution)
+        db.execute(delete(RfClient).where(RfClient.id.in_([m.id for m in members])))
+        probed: list[str] = []
+        for member in members:
+            try:
+                parsed = json.loads(member.probed_ssids or "[]")
+            except json.JSONDecodeError:
+                parsed = []
+            for name in parsed if isinstance(parsed, list) else []:
+                if isinstance(name, str) and name and name not in probed:
+                    probed.append(name)
+        opened = [member.first_seen for member in members if member.first_seen is not None]
+        lows = [member.signal_min for member in members if member.signal_min is not None]
+        highs = [member.signal_max for member in members if member.signal_max is not None]
+        db.add(
+            RfClient(
+                monitor_id=latest.monitor_id,
+                observed_at=bucket,
+                dedupe_key=latest.mac,
+                mac=latest.mac,
+                vendor=next((member.vendor for member in sorted(members, key=lambda row: row.observed_at, reverse=True) if member.vendor), ""),
+                bssid=latest.bssid,
+                signal=_mean_or_none(m.signal for m in members if m.signal),
+                signal_min=min(lows) if lows else None,
+                signal_max=max(highs) if highs else None,
+                last_seen=max(m.last_seen for m in members),
+                first_seen=min(opened) if opened else None,
+                randomized=any(m.randomized for m in members),
+                band=latest.band,
+                channel=latest.channel,
+                packets=latest.packets,
+                data_bytes=latest.data_bytes,
+                retries=latest.retries,
+                disconnects=latest.disconnects,
+                probed_ssids=json.dumps(probed[:12]),
+            )
+        )
     return rolled
 
 
@@ -236,6 +334,13 @@ def _mean(values) -> float:
     nums = [v for v in values if isinstance(v, (int, float))]
     if not nums:
         return 0.0
+    return sum(nums) / len(nums)
+
+
+def _mean_or_none(values) -> float | None:
+    nums = [v for v in values if isinstance(v, (int, float))]
+    if not nums:
+        return None
     return sum(nums) / len(nums)
 
 

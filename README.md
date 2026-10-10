@@ -116,7 +116,7 @@ docker-compose.yml      db + server + dashboard
 
 - Phase 1: enrollment / config ETag, issue engine hardening
 - Phase 2: Linux remote agent on the Pi
-- Phase 3: wireless / RF pages
+- Phase 3: Airwaves. A second radio adapter scans when one is present. The link adapter scans only when it is the only radio, at most every 15 minutes, and never during a test.
 - Phase 4: same Compose stack on a small VPS
 
 See [SPEC.md](./SPEC.md) for the full phase map.

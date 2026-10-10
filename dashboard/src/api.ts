@@ -1,4 +1,4 @@
-import type { InternetServiceSetting, RfAp, RfChannelSnapshot, RfHistoryPoint, RfOverview, WebServiceSetting, WebStability } from "./types";
+import type { InternetServiceSetting, RfAp, RfChannelSnapshot, RfClient, RfHistoryPoint, RfOverview, WebServiceSetting, WebStability } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8847";
 
@@ -100,6 +100,8 @@ export const api = {
     request<RfHistoryPoint[]>(
       `/api/v1/rf/aps/${encodeURIComponent(bssid)}/history?agent_id=${agentId}&range=${range}`,
     ),
+  rfClients: (agentId: string, range: string) =>
+    request<RfClient[]>(`/api/v1/rf/clients?agent_id=${agentId}&range=${range}`),
   rfChannels: (agentId: string, band: string) =>
     request<RfChannelSnapshot>(
       `/api/v1/rf/channel-snapshot?agent_id=${agentId}&band=${encodeURIComponent(band)}`,

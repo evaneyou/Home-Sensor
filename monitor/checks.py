@@ -41,6 +41,9 @@ _DNS_TTL = 60.0
 _HOST = re.compile(r"^[A-Za-z0-9.-]{1,253}$")
 _SSL = ssl.create_default_context()
 _cache_lock = threading.Lock()
+# Scans on the link adapter and the test batch take this in turn.
+link_lock = threading.Lock()
+LINK_SCAN_FLOOR = 900
 _iface_cache: dict[str, tuple[float, str | None]] = {}
 _addr_cache: dict[str, tuple[float, str | None]] = {}
 _dns_cache: dict[tuple[str, int], tuple[float, str | None]] = {}
@@ -168,27 +171,93 @@ def _builtin_wifi(entry: Path) -> bool:
         return True
 
 
-def _wireless_interface() -> str | None:
-    """Wi-Fi NIC. The built-in radio wins when a USB adapter is also associated."""
-    root = Path("/sys/class/net")
+def link_is_busy() -> bool:
+    if link_lock.acquire(blocking=False):
+        link_lock.release()
+        return False
+    return True
+
+
+def scan_may_run(*, role: str, last_link_scan: float, now: float, link_busy: bool, forced: bool) -> bool:
+    """A second adapter can scan on its own interval. The link adapter waits out tests and 15 minutes."""
+    if role != "link":
+        return True
+    if link_busy:
+        return False
+    if forced:
+        return True
+    return now - last_link_scan >= LINK_SCAN_FLOOR
+
+
+def _wireless_entries(root: Path) -> list[Path]:
+    if not root.is_dir():
+        return []
+    found = []
+    for entry in sorted(root.iterdir()):
+        name = entry.name
+        if name == "lo" or name.startswith(("wg", "tun", "docker", "veth", "br-", "_")):
+            continue
+        if (entry / "wireless").is_dir():
+            found.append(entry)
+    return found
+
+
+def _device_path(entry: Path) -> str:
+    try:
+        return (entry / "device").resolve().as_posix().lower()
+    except OSError:
+        return ""
+
+
+def _is_usb(entry: Path) -> bool:
+    return "/usb" in _device_path(entry)
+
+
+def _is_mediatek(entry: Path) -> bool:
+    chunks = []
+    for name in ("modalias", "uevent"):
+        try:
+            chunks.append((entry / "device" / name).read_text(encoding="utf-8", errors="replace").lower())
+        except OSError:
+            continue
+    try:
+        chunks.append((entry / "device" / "driver").resolve().name.lower())
+    except OSError:
+        pass
+    text = "\n".join(chunks)
+    return "0e8d" in text or "mt76" in text or "mediatek" in text
+
+
+def _carrier_up(entry: Path) -> bool:
+    try:
+        return (entry / "carrier").read_text(encoding="utf-8").strip() == "1"
+    except OSError:
+        return False
+
+
+def _link_from_entries(entries: list[Path], ipv4_of) -> str | None:
     ranked: list[tuple[int, str]] = []
-    if root.is_dir():
-        for entry in sorted(root.iterdir()):
-            name = entry.name
-            if name == "lo" or name.startswith(("wg", "tun", "docker", "veth", "br-")):
-                continue
-            if not (entry / "wireless").is_dir():
-                continue
-            try:
-                if (entry / "carrier").read_text(encoding="utf-8").strip() != "1":
-                    continue
-            except OSError:
-                continue
-            if _read_interface_ipv4(name):
-                ranked.append((0 if _builtin_wifi(entry) else 1, name))
-        if ranked:
-            ranked.sort()
-            return ranked[0][1]
+    for entry in entries:
+        if not _carrier_up(entry):
+            continue
+        if not ipv4_of(entry.name):
+            continue
+        ranked.append((0 if _builtin_wifi(entry) else 1, entry.name))
+    if not ranked:
+        return None
+    ranked.sort()
+    return ranked[0][1]
+
+
+def _radio_from_entries(entries: list[Path], link: str | None) -> str | None:
+    others = [entry for entry in entries if entry.name != link]
+    if not others:
+        return None
+    others.sort(key=lambda entry: ((0 if _is_usb(entry) and _is_mediatek(entry) else 1 if _is_usb(entry) else 2), entry.name))
+    return others[0].name
+
+
+def _iw_first_interface() -> str | None:
     if shutil.which("iw") is None:
         return None
     try:
@@ -200,6 +269,42 @@ def _wireless_interface() -> str | None:
         if len(parts) >= 2 and parts[0] == "Interface":
             return parts[1]
     return None
+
+
+def parse_link_ssid(text: str) -> str:
+    """SSID from `iw dev <iface> link`. Empty when the adapter is not joined."""
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("SSID:"):
+            return stripped.split(":", 1)[1].strip()[:64]
+    return ""
+
+
+def parse_link_bssid(text: str) -> str:
+    """BSSID from `iw dev <iface> link`. Empty when the adapter is not joined."""
+    for line in text.splitlines():
+        parts = line.strip().split()
+        if len(parts) >= 3 and parts[0].lower() == "connected" and parts[1].lower() == "to":
+            mac = parts[2].lower()
+            if len(mac.split(":")) == 6:
+                return mac
+    return ""
+
+
+def wifi_roles(root: Path | None = None, ipv4_of=None) -> dict[str, str | None]:
+    """link carries traffic. radio is the other wireless NIC, with a USB MediaTek preferred."""
+    sys_root = root or Path("/sys/class/net")
+    reader = ipv4_of or _read_interface_ipv4
+    entries = _wireless_entries(sys_root)
+    link = _link_from_entries(entries, reader)
+    if link is None and root is None:
+        link = _iw_first_interface()
+    return {"link": link, "radio": _radio_from_entries(entries, link)}
+
+
+def _wireless_interface() -> str | None:
+    """Wi-Fi NIC. The built-in radio wins when a USB adapter is also associated."""
+    return wifi_roles()["link"]
 
 
 def _wired_interface() -> str | None:

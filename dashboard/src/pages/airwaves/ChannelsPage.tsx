@@ -24,7 +24,7 @@ export default function AirwavesChannels() {
   }
   if (snapshotQ.isLoading) return <Empty title="Channel graph" body="Loading the latest scan…" />;
   if (snapshotQ.isError) return <Empty title="Channel graph" body="Could not load the channel graph." />;
-  if (!snapshotQ.data || snapshotQ.data.series.length === 0) {
+  if (!snapshotQ.data || (snapshotQ.data.series.length === 0 && snapshotQ.data.channels.length === 0)) {
     return <Empty title={`${band} GHz`} body={`No ${band} GHz networks on the latest scan.`} />;
   }
   return <ChannelView snapshot={snapshotQ.data} ctx={ctx} />;
@@ -41,7 +41,7 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
   const onBusiest = busiest == null ? 0 : snapshot.series.filter((series) => series.channel === busiest).length;
   const axis = axisFor(
     snapshot.band,
-    shown.map((series) => series.channel),
+    [...shown.map((series) => series.channel), ...snapshot.channels.map((row) => row.channel)],
     recommended,
   );
   const xOf = (channel: number) => {
@@ -78,7 +78,7 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
         <div className="npv-stats">
           <Stat label="Networks nearby" value={String(advice?.ap_count ?? snapshot.series.length)} note={`on ${snapshot.band} GHz`} />
           <Stat label="Busiest channel" value={busiest == null ? "—" : `Ch ${busiest}`} note={busiest == null ? "No neighbors" : `${onBusiest} networks`} />
-          <Stat label="Strongest signal" value={dbmText(strongest.rssi_dbm)} note={strongest.ssid} />
+          <Stat label="Strongest signal" value={strongest ? dbmText(strongest.rssi_dbm) : "—"} note={strongest ? strongest.ssid : "No networks"} />
         </div>
       </section>
 
@@ -91,7 +91,7 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
           </p>
         </div>
         <div className="air-plot">
-          <svg viewBox="0 0 900 364" role="img" aria-label={`Signal strength by channel for the ${shown.length} strongest ${snapshot.band} GHz networks. A recommended zone is shaded around channel ${recommended}.`}>
+          <svg viewBox="0 0 900 390" role="img" aria-label={`Signal strength by channel for the ${shown.length} strongest ${snapshot.band} GHz networks. A recommended zone is shaded around channel ${recommended}.`}>
             <rect x={shadeLeft} y={20} width={Math.max(shadeRight - shadeLeft, 8)} height={290} fill="rgba(94,234,212,0.12)" />
             {[20, 92.5, 165, 237.5].map((y) => (
               <line key={y} x1={PLOT_LEFT} y1={y} x2={PLOT_RIGHT} y2={y} stroke="rgba(255,255,255,0.08)" />
@@ -109,12 +109,22 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
             <text x={(shadeLeft + shadeRight) / 2} y={49} fill="#5eead4" fontSize={14} fontWeight={800} textAnchor="middle">
               Best pick · Ch {recommended}
             </text>
-            {axis.labels.map((channel) => (
-              <text key={channel} x={xOf(channel)} y={336} fill="#c5cee3" fontSize={14} fontWeight={800} textAnchor="middle">
-                {channel}
-              </text>
-            ))}
-            <text x={471} y={358} fill="#9aa6c0" fontSize={12} fontWeight={800} textAnchor="middle">
+            {axis.labels.map((channel) => {
+              const load = channelLoad(snapshot, channel);
+              return (
+                <g key={channel}>
+                  <text x={xOf(channel)} y={336} fill="#c5cee3" fontSize={14} fontWeight={800} textAnchor="middle">
+                    {channel}
+                  </text>
+                  {load ? (
+                    <text x={xOf(channel)} y={354} fill="#9aa6c0" fontSize={11} fontWeight={700} textAnchor="middle">
+                      {load.short}
+                    </text>
+                  ) : null}
+                </g>
+              );
+            })}
+            <text x={471} y={376} fill="#9aa6c0" fontSize={12} fontWeight={800} textAnchor="middle">
               Wi-Fi channel
             </text>
             <clipPath id="air-plotclip">
@@ -165,6 +175,7 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
                 </div>
                 <div className="air-net-meta">
                   Channel {hill.channel} · {hill.channel_width} MHz
+                  {busyText(snapshot, hill.channel)}
                   {hill.trusted ? " · Trusted" : ""}
                 </div>
               </div>
@@ -206,6 +217,25 @@ function Empty({ title, body }: { title: string; body: string }) {
       <p>{body}</p>
     </section>
   );
+}
+
+function channelLoad(snapshot: RfChannelSnapshot, channel: number): { text: string; short: string } | null {
+  const row = snapshot.channels.find((item) => item.channel === channel);
+  if (!row) return null;
+  if (row.airtime_pct != null) {
+    const pct = Math.round(row.airtime_pct);
+    return { text: `${pct}% airtime`, short: `${pct}% airtime` };
+  }
+  if (row.busy_pct != null) {
+    const pct = Math.round(row.busy_pct);
+    return { text: `${pct}% busy`, short: `${pct}% busy` };
+  }
+  return null;
+}
+
+function busyText(snapshot: RfChannelSnapshot, channel: number): string {
+  const load = channelLoad(snapshot, channel);
+  return load ? ` · ${load.text}` : "";
 }
 
 function dbmText(rssi: number): string {

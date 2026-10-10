@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 from uuid import UUID
@@ -11,13 +12,40 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.routes import _resolve_monitor_identity
+from app.link_trust import note_new_ap
 from app.auth import get_current_user, require_admin
 from app.db import get_db
-from app.models import ApInventory, Monitor, User, WifiObservation
-from app.rf_view import bucket_seconds, bucket_start, hill_points, parse_iw_scan, range_start, recommend_band
+from app.models import (
+    ApInventory,
+    Issue,
+    IssueSeverity,
+    IssueStatus,
+    Monitor,
+    MonitorHealth,
+    RfAlert,
+    RfChannelStat,
+    RfClient,
+    User,
+    WifiObservation,
+)
+from app.rf_view import (
+    bucket_seconds,
+    bucket_start,
+    hill_points,
+    noise_by_frequency,
+    parse_iw_scan,
+    parse_iw_survey,
+    range_start,
+    recommend_band,
+)
 from app.schemas import (
+    RfAlertOut,
     RfApOut,
+    RfCaptureIn,
+    RfChannelBusy,
     RfChannelSnapshotOut,
+    RfClientOut,
+    RfClientPoint,
     RfHillSeries,
     RfHistoryPoint,
     RfOverviewOut,
@@ -25,6 +53,8 @@ from app.schemas import (
     RfSparkPoint,
     WifiScanIn,
 )
+
+_CRITICAL_ALERTS = {"DEAUTHFLOOD", "APSPOOF", "EVILTWIN", "BSSIDSPOOF", "BSSTIMESTAMP"}
 
 router = APIRouter(prefix="/api/v1")
 
@@ -38,7 +68,26 @@ def _monitor_or_404(db: Session, agent_id: UUID) -> Monitor:
     return monitor
 
 
-def _remember(db: Session, monitor_id: UUID, bssid: str, seen: datetime) -> ApInventory:
+def _probed_text(names: list[str]) -> str:
+    clean: list[str] = []
+    for name in names:
+        text = name.strip()[:64]
+        if text and text not in clean:
+            clean.append(text)
+    return json.dumps(clean[:12])
+
+
+def _probed_list(raw: str) -> list[str]:
+    try:
+        parsed = json.loads(raw or "[]")
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(item) for item in parsed if str(item).strip()]
+
+
+def _remember(db: Session, monitor_id: UUID, bssid: str, seen: datetime) -> tuple[ApInventory, bool]:
     key = bssid.lower()
     row = db.scalar(
         select(ApInventory).where(ApInventory.monitor_id == monitor_id, func.lower(ApInventory.bssid) == key)
@@ -53,12 +102,12 @@ def _remember(db: Session, monitor_id: UUID, bssid: str, seen: datetime) -> ApIn
             last_seen=seen,
         )
         db.add(row)
-        return row
+        return row, True
     if seen < row.first_seen:
         row.first_seen = seen
     if seen > row.last_seen:
         row.last_seen = seen
-    return row
+    return row, False
 
 
 @router.post("/monitors/wifi-scans")
@@ -72,7 +121,8 @@ def post_wifi_scans(
     scanned_at = body.scanned_at
     if scanned_at.tzinfo is None:
         scanned_at = scanned_at.replace(tzinfo=timezone.utc)
-    aps = parse_iw_scan(body.raw)
+    survey = parse_iw_survey(body.survey)
+    aps = parse_iw_scan(body.raw, noise_by_frequency(survey))
     stored = 0
     for ap in aps:
         bssid = ap["bssid"]
@@ -95,14 +145,215 @@ def post_wifi_scans(
                     channel=int(ap["channel"]),
                     channel_width=int(ap["channel_width"]),
                     rssi_dbm=float(ap["rssi_dbm"]),
-                    noise_dbm=float(ap["noise_dbm"]),
+                    noise_dbm=ap["noise_dbm"],
                     security=ap["security"][:32],
                     phy=ap["phy"][:8],
                     max_link_rate_mbps=int(ap["max_link_rate_mbps"]),
                 )
             )
             stored += 1
-        _remember(db, monitor.id, bssid, scanned_at)
+        record, created = _remember(db, monitor.id, bssid, scanned_at)
+        note_new_ap(db, monitor, record, ap["ssid"], created, scanned_at)
+    for row in survey:
+        band_name = str(row["band"])[:8]
+        channel = int(row["channel"])
+        exists = db.scalar(
+            select(RfChannelStat.id).where(
+                RfChannelStat.monitor_id == monitor.id,
+                RfChannelStat.measured_at == scanned_at,
+                RfChannelStat.band == band_name,
+                RfChannelStat.channel == channel,
+            )
+        )
+        if exists is None:
+            db.add(
+                RfChannelStat(
+                    monitor_id=monitor.id,
+                    measured_at=scanned_at,
+                    band=band_name,
+                    channel=channel,
+                    noise_dbm=row["noise_dbm"],
+                    busy_pct=row["busy_pct"],
+                )
+            )
+    monitor.scan_requested_at = None
+    db.commit()
+    return {"stored": stored}
+
+
+def _trusted_set(db: Session, monitor_id: UUID) -> set[str]:
+    rows = db.scalars(
+        select(ApInventory.bssid).where(ApInventory.monitor_id == monitor_id, ApInventory.trusted.is_(True))
+    ).all()
+    return {row.lower() for row in rows}
+
+
+def _open_airwave_issue(db: Session, monitor: Monitor, alert_type: str, bssid: str, text: str, when: datetime) -> None:
+    if not bssid or bssid.lower() not in _trusted_set(db, monitor.id):
+        return
+    title = f"Airwave {alert_type} on {bssid.lower()}"[:255]
+    existing = db.scalar(
+        select(Issue.id).where(
+            Issue.monitor_id == monitor.id,
+            Issue.status == IssueStatus.open,
+            Issue.root_cause_stage == "airwave",
+            Issue.title == title,
+        )
+    )
+    if existing is not None:
+        return
+    db.add(
+        Issue(
+            group_id=monitor.group_id,
+            monitor_id=monitor.id,
+            title=title,
+            summary=(text or title)[:4000],
+            severity=IssueSeverity.critical if alert_type.upper() in _CRITICAL_ALERTS else IssueSeverity.warning,
+            status=IssueStatus.open,
+            root_cause_stage="airwave",
+            opened_at=when,
+        )
+    )
+
+
+@router.post("/monitors/rf-capture")
+def post_rf_capture(
+    body: RfCaptureIn,
+    db: Annotated[Session, Depends(get_db)],
+    authorization: Annotated[Optional[str], Header()] = None,
+    x_monitor_name: Annotated[Optional[str], Header()] = None,
+) -> dict[str, int]:
+    monitor = _resolve_monitor_identity(db, authorization, x_monitor_name)
+    captured = body.captured_at if body.captured_at.tzinfo else body.captured_at.replace(tzinfo=timezone.utc)
+    stored = 0
+    for ap in body.aps:
+        if ap.band not in {"2.4", "5"}:
+            continue
+        bssid = ap.bssid.lower()
+        row = db.scalar(
+            select(WifiObservation).where(
+                WifiObservation.monitor_id == monitor.id,
+                WifiObservation.bssid == bssid,
+                WifiObservation.scanned_at == captured,
+            )
+        )
+        if row is None:
+            db.add(
+                WifiObservation(
+                    monitor_id=monitor.id,
+                    scanned_at=captured,
+                    ssid=ap.ssid[:64],
+                    bssid=bssid,
+                    vendor="Unknown",
+                    band=ap.band[:8],
+                    channel=ap.channel,
+                    channel_width=20,
+                    rssi_dbm=ap.signal,
+                    noise_dbm=None,
+                    security="Unknown",
+                    phy="a" if ap.band == "5" else "g",
+                    max_link_rate_mbps=0,
+                    client_count=max(ap.client_count, 0),
+                )
+            )
+            stored += 1
+        else:
+            row.client_count = max(ap.client_count, 0)
+        record, created = _remember(db, monitor.id, bssid, captured)
+        note_new_ap(db, monitor, record, ap.ssid, created, captured)
+    db.flush()
+    trusted = _trusted_set(db, monitor.id)
+    for client in body.clients:
+        bssid = client.bssid.lower()
+        if bssid not in trusted:
+            continue
+        mac = client.mac.lower()
+        seen = datetime.fromtimestamp(client.last_seen, timezone.utc) if client.last_seen else captured
+        opened = datetime.fromtimestamp(client.first_seen, timezone.utc) if client.first_seen else None
+        exists = db.scalar(
+            select(RfClient.id).where(
+                RfClient.monitor_id == monitor.id,
+                RfClient.observed_at == captured,
+                RfClient.dedupe_key == mac,
+            )
+        )
+        if exists is None:
+            db.add(
+                RfClient(
+                    monitor_id=monitor.id,
+                    observed_at=captured,
+                    dedupe_key=mac,
+                    mac=mac,
+                    vendor=(client.vendor or "")[:64],
+                    bssid=bssid,
+                    signal=client.signal if client.signal else None,
+                    signal_min=client.signal_min,
+                    signal_max=client.signal_max,
+                    last_seen=seen,
+                    first_seen=opened,
+                    randomized=client.randomized,
+                    band=(client.band or "")[:8],
+                    channel=client.channel,
+                    packets=client.packets,
+                    data_bytes=client.data_bytes,
+                    retries=client.retries,
+                    disconnects=client.disconnects,
+                    probed_ssids=_probed_text(client.probed_ssids),
+                )
+            )
+            stored += 1
+    for channel in body.channels:
+        if channel.band not in {"2.4", "5"}:
+            continue
+        stat = db.scalar(
+            select(RfChannelStat).where(
+                RfChannelStat.monitor_id == monitor.id,
+                RfChannelStat.measured_at == captured,
+                RfChannelStat.band == channel.band,
+                RfChannelStat.channel == channel.channel,
+            )
+        )
+        if stat is None:
+            db.add(
+                RfChannelStat(
+                    monitor_id=monitor.id,
+                    measured_at=captured,
+                    band=channel.band,
+                    channel=channel.channel,
+                    airtime_pct=channel.airtime_pct,
+                    busy_pct=channel.busy_pct,
+                    packets=channel.packets,
+                )
+            )
+            stored += 1
+        else:
+            stat.airtime_pct = channel.airtime_pct
+            stat.busy_pct = channel.busy_pct
+            stat.packets = channel.packets
+    for alert in body.alerts:
+        bssid = alert.bssid.lower()
+        key = (alert.hash or f"{alert.type}:{bssid}:{alert.ts}")[:128]
+        when = datetime.fromtimestamp(alert.ts, timezone.utc) if alert.ts else captured
+        exists = db.scalar(
+            select(RfAlert.id).where(
+                RfAlert.monitor_id == monitor.id,
+                RfAlert.observed_at == captured,
+                RfAlert.dedupe_key == key,
+            )
+        )
+        if exists is None:
+            db.add(
+                RfAlert(
+                    monitor_id=monitor.id,
+                    observed_at=captured,
+                    dedupe_key=key,
+                    alert_type=alert.type[:64],
+                    bssid=bssid[:17],
+                    text=alert.text[:4000],
+                )
+            )
+            _open_airwave_issue(db, monitor, alert.type, bssid, alert.text, when)
+            stored += 1
     monitor.scan_requested_at = None
     db.commit()
     return {"stored": stored}
@@ -203,6 +454,8 @@ def rf_overview(
         bands=advice,
         headline=crowded["reason"],
         sparkline=sparkline,
+        airwave_mode=_airwave_mode(db, monitor.id),
+        alerts=_recent_alerts(db, monitor.id, start),
     )
 
 
@@ -274,6 +527,40 @@ def rf_ap_history(
     return points
 
 
+def _busy_channels(db: Session, monitor_id: UUID, band: str, latest: datetime | None) -> list[RfChannelBusy]:
+    if latest is None:
+        return []
+    moment = db.scalar(
+        select(func.max(RfChannelStat.measured_at)).where(
+            RfChannelStat.monitor_id == monitor_id,
+            RfChannelStat.band == band,
+            RfChannelStat.measured_at <= latest,
+        )
+    )
+    if moment is None:
+        return []
+    rows = db.scalars(
+        select(RfChannelStat)
+        .where(
+            RfChannelStat.monitor_id == monitor_id,
+            RfChannelStat.band == band,
+            RfChannelStat.measured_at == moment,
+        )
+        .order_by(RfChannelStat.channel)
+    ).all()
+    return [
+        RfChannelBusy(
+            channel=row.channel,
+            noise_dbm=row.noise_dbm,
+            busy_pct=row.busy_pct,
+            airtime_pct=row.airtime_pct,
+            packets=row.packets,
+        )
+        for row in rows
+        if row.busy_pct is not None or row.noise_dbm is not None
+    ]
+
+
 @router.get("/rf/channel-snapshot", response_model=RfChannelSnapshotOut)
 def rf_channel_snapshot(
     db: Annotated[Session, Depends(get_db)],
@@ -307,7 +594,124 @@ def rf_channel_snapshot(
         recommended_channel=advice["recommended_channel"],
         reason=advice["reason"],
         series=series,
+        channels=_busy_channels(db, monitor.id, band, _latest),
     )
+
+
+def _airwave_mode(db: Session, monitor_id: UUID) -> str:
+    row = db.scalar(
+        select(MonitorHealth)
+        .where(MonitorHealth.monitor_id == monitor_id)
+        .order_by(MonitorHealth.reported_at.desc())
+        .limit(1)
+    )
+    if row is None or row.airwave_mode not in {"kismet", "scan", "off"}:
+        return "off"
+    return row.airwave_mode
+
+
+def _recent_alerts(db: Session, monitor_id: UUID, start: datetime, limit: int = 8) -> list[RfAlertOut]:
+    rows = db.scalars(
+        select(RfAlert)
+        .where(RfAlert.monitor_id == monitor_id, RfAlert.observed_at >= start)
+        .order_by(RfAlert.observed_at.desc())
+        .limit(limit)
+    ).all()
+    return [
+        RfAlertOut(alert_type=row.alert_type, bssid=row.bssid, text=row.text, observed_at=row.observed_at)
+        for row in rows
+    ]
+
+
+@router.get("/rf/alerts", response_model=list[RfAlertOut])
+def rf_alerts(
+    db: Annotated[Session, Depends(get_db)],
+    _user: Annotated[User, Depends(get_current_user)],
+    agent_id: UUID = Query(...),
+    range_key: str = Query("24h", alias="range", pattern=_RANGES),
+) -> list[RfAlertOut]:
+    _monitor_or_404(db, agent_id)
+    return _recent_alerts(db, agent_id, range_start(range_key), limit=50)
+
+
+@router.get("/rf/clients", response_model=list[RfClientOut])
+def rf_clients(
+    db: Annotated[Session, Depends(get_db)],
+    _user: Annotated[User, Depends(get_current_user)],
+    agent_id: UUID = Query(...),
+    range_key: str = Query("24h", alias="range", pattern=_RANGES),
+) -> list[RfClientOut]:
+    _monitor_or_404(db, agent_id)
+    trusted = _trusted_set(db, agent_id)
+    rows = db.scalars(
+        select(RfClient)
+        .where(RfClient.monitor_id == agent_id, RfClient.observed_at >= range_start(range_key))
+        .order_by(RfClient.observed_at)
+    ).all()
+    bssids = {row.bssid.lower() for row in rows}
+    networks: dict[str, str] = {}
+    if bssids:
+        named = db.execute(
+            select(WifiObservation.bssid, WifiObservation.ssid)
+            .where(
+                WifiObservation.monitor_id == agent_id,
+                WifiObservation.bssid.in_(bssids),
+                WifiObservation.ssid != "",
+            )
+            .distinct(WifiObservation.bssid)
+            .order_by(WifiObservation.bssid, WifiObservation.scanned_at.desc())
+        ).all()
+        networks = {bssid.lower(): ssid for bssid, ssid in named}
+    grouped: dict[str, list[RfClient]] = {}
+    for row in rows:
+        if row.bssid.lower() not in trusted:
+            continue
+        grouped.setdefault(row.mac, []).append(row)
+    found = []
+    for mac, samples in grouped.items():
+        points = []
+        previous = ""
+        for sample in samples:
+            if not sample.signal:
+                continue
+            roam = bool(previous) and sample.bssid != previous
+            points.append(RfClientPoint(t=sample.observed_at, rssi_dbm=sample.signal, bssid=sample.bssid, roam=roam))
+            previous = sample.bssid
+        last = samples[-1]
+        vendor = next((sample.vendor for sample in reversed(samples) if sample.vendor), "")
+        heard = [sample.signal for sample in samples if sample.signal]
+        lows = [sample.signal_min for sample in samples if sample.signal_min is not None]
+        highs = [sample.signal_max for sample in samples if sample.signal_max is not None]
+        opened = [sample.first_seen for sample in samples if sample.first_seen is not None]
+        probed: list[str] = []
+        for sample in samples:
+            for name in _probed_list(sample.probed_ssids):
+                if name not in probed:
+                    probed.append(name)
+        found.append(
+            RfClientOut(
+                mac=mac,
+                bssid=last.bssid,
+                ssid=networks.get(last.bssid.lower(), ""),
+                vendor=vendor,
+                randomized=last.randomized,
+                signal=heard[-1] if heard else None,
+                signal_min=min(lows) if lows else None,
+                signal_max=max(highs) if highs else None,
+                last_seen=last.last_seen,
+                first_seen=min(opened) if opened else None,
+                band=next((sample.band for sample in reversed(samples) if sample.band), ""),
+                channel=next((sample.channel for sample in reversed(samples) if sample.channel), None),
+                packets=next((sample.packets for sample in reversed(samples) if sample.packets), None),
+                data_bytes=next((sample.data_bytes for sample in reversed(samples) if sample.data_bytes), None),
+                retries=next((sample.retries for sample in reversed(samples) if sample.retries), None),
+                disconnects=next((sample.disconnects for sample in reversed(samples) if sample.disconnects), None),
+                probed_ssids=probed,
+                points=points,
+            )
+        )
+    found.sort(key=lambda item: item.signal if item.signal is not None else -999, reverse=True)
+    return found
 
 
 @router.post("/rf/scan-now", response_model=RfScanRequestOut)
@@ -334,8 +738,9 @@ def _set_trust(db: Session, agent_id: UUID, bssid: str, trusted: bool) -> RfApOu
     row = next((item for item in rows if item.bssid.lower() == key), None)
     if row is None or latest is None:
         raise HTTPException(status_code=404, detail="Access point not found")
-    record = _remember(db, monitor.id, key, latest)
+    record, _created = _remember(db, monitor.id, key, latest)
     record.trusted = trusted
+    record.trust_source = "manual"
     db.commit()
     db.refresh(record)
     return _ap_out(row, record, latest)

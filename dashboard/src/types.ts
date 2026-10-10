@@ -80,6 +80,8 @@ export type RfOverview = {
   bands: RfBandAdvice[];
   headline: string;
   sparkline: { t: string; ap_count: number; count_24: number; count_5: number }[];
+  airwave_mode: string;
+  alerts: { alert_type: string; bssid: string; text: string; observed_at: string }[];
 };
 
 export type RfAp = {
@@ -101,10 +103,38 @@ export type RfAp = {
 
 export type RfHistoryPoint = { t: string; rssi_dbm: number; channel: number };
 
+export type RfClient = {
+  mac: string;
+  bssid: string;
+  ssid: string;
+  vendor: string;
+  randomized: boolean;
+  signal: number | null;
+  signal_min: number | null;
+  signal_max: number | null;
+  last_seen: string;
+  first_seen: string | null;
+  band: string;
+  channel: number | null;
+  packets: number | null;
+  data_bytes: number | null;
+  retries: number | null;
+  disconnects: number | null;
+  probed_ssids: string[];
+  points: { t: string; rssi_dbm: number; bssid: string; roam: boolean }[];
+};
+
 export type RfChannelSnapshot = {
   band: string;
   recommended_channel: number;
   reason: string;
+  channels: {
+    channel: number;
+    noise_dbm: number | null;
+    busy_pct: number | null;
+    airtime_pct: number | null;
+    packets: number | null;
+  }[];
   series: {
     bssid: string;
     ssid: string;

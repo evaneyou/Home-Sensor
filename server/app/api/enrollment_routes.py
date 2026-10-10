@@ -432,6 +432,7 @@ def approve(
             config_version=1,
             applied_config_version=0,
             health_interval_seconds=60,
+            scan_interval_seconds=300,
             wg_address=address,
             wg_wireless_address=wireless_address,
         )
