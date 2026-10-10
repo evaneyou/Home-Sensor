@@ -20,7 +20,7 @@ export default function MonitorStatusDialog({
   return (
     <div className="monitor-dialog-backdrop" onClick={onClose}>
       <div
-        className="monitor-dialog"
+        className="monitor-dialog monitor-status-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="monitor-status-title"

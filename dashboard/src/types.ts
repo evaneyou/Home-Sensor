@@ -15,6 +15,7 @@ export type HealthCell = {
   status: "ok" | "degraded" | "fail" | "unknown";
   last_test_at: string | null;
   failing_tests: number;
+  quorum?: { bad: number; total: number } | null;
 };
 
 export type IssueSummary = {
@@ -60,6 +61,61 @@ export type WifiObservation = {
   security: string;
   phy: string;
   max_link_rate_mbps: number;
+};
+
+export type RfBandAdvice = {
+  band: string;
+  ap_count: number;
+  busiest_channel: number | null;
+  recommended_channel: number;
+  reason: string;
+};
+
+export type RfOverview = {
+  agent_id: string;
+  agent_name: string;
+  location_label: string | null;
+  last_scan_at: string | null;
+  scan_requested: boolean;
+  bands: RfBandAdvice[];
+  headline: string;
+  sparkline: { t: string; ap_count: number; count_24: number; count_5: number }[];
+};
+
+export type RfAp = {
+  bssid: string;
+  ssid: string;
+  hidden: boolean;
+  band: string;
+  channel: number;
+  channel_width: number;
+  rssi_dbm: number;
+  security: string;
+  vendor: string;
+  phy: string;
+  first_seen: string;
+  last_seen: string;
+  trusted: boolean;
+  label: string;
+};
+
+export type RfHistoryPoint = { t: string; rssi_dbm: number; channel: number };
+
+export type RfChannelSnapshot = {
+  band: string;
+  recommended_channel: number;
+  reason: string;
+  series: {
+    bssid: string;
+    ssid: string;
+    hidden: boolean;
+    trusted: boolean;
+    channel: number;
+    channel_width: number;
+    rssi_dbm: number;
+    security: string;
+    points: { channel: number; rssi: number }[];
+  }[];
 };
 
 export type Result = {
@@ -246,8 +302,26 @@ export type MonitorDetail = {
     network_name: string;
     latest_status: string;
     latest_at: string | null;
+    latest_reason: string | null;
+    latest_rtt_ms: number | null;
+    latest_loss_pct: number | null;
     enabled: boolean;
   }[];
+};
+
+export type WebStability = {
+  poll_interval_seconds: number;
+  window_size: number;
+  degraded_count: number;
+  fail_count: number;
+  recover_count: number;
+  pct_floor: number;
+  abs_floor_http_ms: number;
+  abs_floor_icmp_ms: number;
+  abs_floor_jitter_ms: number;
+  quorum_degraded_pct: number;
+  quorum_fail_pct: number;
+  preset: string;
 };
 
 export type WebServiceSetting = {
@@ -273,6 +347,12 @@ export type InternetServiceSetting = {
   iperf_enabled: boolean;
   iperf_interval_seconds: number;
   iperf_variance_pct: number;
+  librespeed_enabled: boolean;
+  librespeed_interval_seconds: number;
+  librespeed_variance_pct: number;
+  webrtc_enabled: boolean;
+  webrtc_interval_seconds: number;
+  webrtc_variance_pct: number;
 };
 
 export type TestDetail = {

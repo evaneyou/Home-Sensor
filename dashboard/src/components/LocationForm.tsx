@@ -7,6 +7,7 @@ import { regionsFor } from "../regions";
 import type { DeviceReport } from "../types";
 import CityMap from "./CityMap";
 import ConfirmDialog from "./ConfirmDialog";
+import SelectMenu from "./SelectMenu";
 
 const COUNTRIES = ["United States", "Canada"] as const;
 
@@ -183,25 +184,25 @@ export default function LocationForm({ monitorId }: { monitorId: string }) {
         </div>
         <div className="field field-region">
           <label htmlFor="agent-region">State/Province</label>
-          <select id="agent-region" value={region} onChange={(event) => setRegion(event.target.value)}>
+          <SelectMenu id="agent-region" value={region} onChange={(event) => setRegion(event.target.value)}>
             <option value="">Select</option>
             {regionsFor(country).map((item) => (
               <option key={item} value={item}>
                 {item}
               </option>
             ))}
-          </select>
+          </SelectMenu>
         </div>
         <div className="field">
           <label htmlFor="agent-country">Country</label>
-          <select id="agent-country" value={country} onChange={(event) => chooseCountry(event.target.value)}>
+          <SelectMenu id="agent-country" value={country} onChange={(event) => chooseCountry(event.target.value)}>
             <option value="">Select</option>
             {COUNTRIES.map((item) => (
               <option key={item} value={item}>
                 {item}
               </option>
             ))}
-          </select>
+          </SelectMenu>
         </div>
         <div className="form-actions">
           <button

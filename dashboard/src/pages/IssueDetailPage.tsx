@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import StatusMark from "../components/StatusMark";
+import { checkLabel } from "../labels";
 import type { Issue } from "../types";
 
 export default function IssueDetailPage() {
@@ -43,7 +44,7 @@ export default function IssueDetailPage() {
           ) : null}
           {issue.test_id ? (
             <>
-              Test: <Link to={`/tests/${issue.test_id}`}>{issue.test_slug}</Link>
+              Test: <Link to={`/tests/${issue.test_id}`}>{checkLabel({ slug: issue.test_slug, name: issue.test_slug })}</Link>
             </>
           ) : null}
         </div>

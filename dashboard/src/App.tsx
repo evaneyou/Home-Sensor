@@ -11,21 +11,22 @@ import OverviewPage from "./pages/OverviewPage";
 import MonitorLogPage from "./pages/MonitorLogPage";
 import MonitorPage from "./pages/MonitorPage";
 import SettingsLayout from "./pages/SettingsLayout";
+import PathPage from "./pages/PathPage";
+import AirwavesLayout from "./pages/airwaves/shared";
+import AirwavesOverview from "./pages/airwaves/OverviewPage";
+import AirwavesNetworks from "./pages/airwaves/NetworksPage";
+import AirwavesChannels from "./pages/airwaves/ChannelsPage";
 import InternetServicePage from "./pages/InternetServicePage";
 import WebServicesPage from "./pages/WebServicesPage";
 import TestPage from "./pages/TestPage";
 import type { User } from "./types";
 
-function useTheme() {
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    const saved = localStorage.getItem("hns-theme");
-    return saved === "light" ? "light" : "dark";
-  });
+function useDarkTheme() {
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("hns-theme", theme);
-  }, [theme]);
-  return { theme, toggle: () => setTheme((t) => (t === "dark" ? "light" : "dark")) };
+    document.documentElement.setAttribute("data-theme", "dark");
+    document.documentElement.style.colorScheme = "dark";
+    localStorage.removeItem("hns-theme");
+  }, []);
 }
 
 function Login({ onSuccess }: { onSuccess: () => void }) {
@@ -83,11 +84,13 @@ function LegacyMonitorRedirect({ log = false }: { log?: boolean }) {
 function Shell({ onLogout }: { onLogout: () => void }) {
   const loc = useLocation();
   const navigate = useNavigate();
-  const { theme, toggle } = useTheme();
+  const [params] = useSearchParams();
+  useDarkTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const links = [
     { to: "/", label: "Overview" },
+    { to: "/airwaves", label: "Airwaves" },
     { to: "/issues", label: "Issues" },
     { to: "/settings/onboarding", label: "Settings" },
   ];
@@ -113,6 +116,13 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   }, [menuOpen]);
 
   const showBack = loc.pathname !== "/";
+  const monitorId = loc.pathname.match(/^\/monitors\/([^/]+)$/)?.[1] ?? null;
+  const pathLink = params.get("link") === "wireless" ? "wireless" : params.get("link") === "wired" ? "wired" : null;
+  const pathQuery = new URLSearchParams();
+  if (monitorId) pathQuery.set("agent", monitorId);
+  if (pathLink) pathQuery.set("link", pathLink);
+  else if (monitorId) pathQuery.set("link", "wired");
+  const pathTo = pathQuery.toString() ? `/path?${pathQuery.toString()}` : "/path";
 
   function goBack() {
     const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
@@ -195,9 +205,9 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                   </Link>
                 );
               })}
-              <button className="menu-item" type="button" role="menuitem" onClick={toggle}>
-                {theme === "dark" ? "Light" : "Dark"}
-              </button>
+              <Link to={pathTo} role="menuitem" className={loc.pathname === "/path" ? "active" : ""}>
+                Path View
+              </Link>
               <button className="menu-item" type="button" role="menuitem" onClick={onLogout}>
                 Log out
               </button>
@@ -209,6 +219,12 @@ function Shell({ onLogout }: { onLogout: () => void }) {
       <main className="main">
         <Routes>
           <Route path="/" element={<OverviewPage />} />
+          <Route path="/path" element={<PathPage />} />
+          <Route path="/airwaves" element={<AirwavesLayout />}>
+            <Route index element={<AirwavesOverview />} />
+            <Route path="networks" element={<AirwavesNetworks />} />
+            <Route path="channels" element={<AirwavesChannels />} />
+          </Route>
           <Route path="/monitors/:id" element={<MonitorPage />} />
           <Route path="/monitors/:id/log" element={<MonitorLogPage />} />
           <Route path="/sensors/:id/log" element={<LegacyMonitorRedirect log />} />

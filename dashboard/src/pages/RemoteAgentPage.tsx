@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../api";
 import ConfirmDialog from "../components/ConfirmDialog";
+import SelectMenu from "../components/SelectMenu";
 import LocationForm from "../components/LocationForm";
 import StatusMark from "../components/StatusMark";
 import type { DeviceReport, MonitorAdmin, User } from "../types";
@@ -166,7 +167,7 @@ export default function RemoteAgentPage() {
             <strong>{tunnelText}</strong>
           </div>
           <div>
-            <span>Wireless tunnel</span>
+            <span>Wi-Fi tunnel</span>
             <strong>
               {monitor.wireless_tunnel_state
                 ? `${TUNNEL_STATE[monitor.wireless_tunnel_state]}${monitor.wireless_tunnel_address ? ` · ${monitor.wireless_tunnel_address}` : ""}`
@@ -214,7 +215,7 @@ export default function RemoteAgentPage() {
             </div>
             <div className="field">
               <label htmlFor="agent-interval">Report every</label>
-              <select
+              <SelectMenu
                 id="agent-interval"
                 value={intervalSeconds}
                 onChange={(event) => setIntervalSeconds(Number(event.target.value))}
@@ -224,7 +225,7 @@ export default function RemoteAgentPage() {
                     {item.label}
                   </option>
                 ))}
-              </select>
+              </SelectMenu>
             </div>
             <div className="form-actions">
               <button className={`btn btn-primary${setupDirty ? " is-dirty" : ""}`} type="submit" disabled={busy}>

@@ -15,14 +15,15 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "../api";
+import { CHART_COLORS } from "../chartTheme";
 import { chartTicks, chartWindow, formatChartTick, zoomedDomain } from "../chartTime";
 import { useChartZoom } from "../useChartZoom";
-import { networkLabel } from "../labels";
+import { checkLabel, networkLabel } from "../labels";
 import type { MetricsResponse, TestDetail } from "../types";
 
 const RANGES = ["1h", "6h", "24h", "7d", "30d"] as const;
 
-const STAGE_COLORS = ["#4c9df3", "#3fa266", "#f1b467", "#aaa0fa", "#e34671", "#88c0d0"];
+const STAGE_COLORS = CHART_COLORS;
 
 export default function TestPage() {
   const { id = "" } = useParams();
@@ -84,14 +85,14 @@ export default function TestPage() {
 
   return (
     <div>
-      <h1 className="page-title">{test.name}</h1>
+      <h1 className="page-title">{checkLabel(test)}</h1>
       <p className="page-sub">
         <Link to={`/monitors/${test.monitor_id}`}>{test.monitor_name}</Link>
         {" · "}
         {networkLabel({ slug: test.network_slug, name: test.network_name })}
         {" · "}
         <span className="mono">
-          {test.kind} → {test.target}
+          {checkLabel({ slug: test.kind, name: test.kind })} → {test.target}
         </span>
       </p>
 
@@ -280,7 +281,7 @@ function ZoomBars({
           <YAxis tick={{ fontSize: 11 }} unit="%" />
           <Tooltip labelFormatter={(value) => formatChartTick(value, domain[1] - domain[0])} />
           {zoom.selection}
-          <Bar dataKey="loss_pct" fill="var(--degraded)" />
+          <Bar dataKey="loss_pct" fill="var(--degraded)" radius={[12, 12, 4, 4]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

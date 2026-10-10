@@ -58,7 +58,7 @@ function HealthChart({
             formatter={(value) => [`${value} ${unit}`, title]}
           />
           {zoom.selection}
-          <Line type="monotone" dataKey={dataKey} stroke={color} dot={false} strokeWidth={1.75} />
+          <Line type="monotone" dataKey={dataKey} stroke={color} dot={false} strokeWidth={2} />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -152,7 +152,7 @@ export default function DevicePanel({ monitorId }: { monitorId: string }) {
             <HealthChart title="CPU" data={report.points} dataKey="cpu_percent" color="var(--accent)" unit="%" />
             <HealthChart title="Temperature" data={report.points} dataKey="temp_c" color="var(--degraded)" unit="°C" />
             <HealthChart title="Memory" data={report.points} dataKey="mem_used_mb" color="var(--ok)" unit="MB" axisWidth={48} />
-            <HealthChart title="Disk" data={report.points} dataKey="disk_used_mb" color="#aaa0fa" unit="MB" axisWidth={52} />
+            <HealthChart title="Disk" data={report.points} dataKey="disk_used_mb" color="var(--role-ixp)" unit="MB" axisWidth={52} />
           </div>
         ) : null}
       </section>

@@ -17,7 +17,9 @@ from app.models import (
     TestKind,
     TestResult,
     WebServiceSetting,
+    WebStabilitySetting,
 )
+from app.services.stability import StabilityConfig, latency_limit
 from app.wireguard_tunnel import TUNNEL_SERVER_IP, WIRELESS_SERVER_IP
 
 # Path checks and iperf3 use the tunnel address.
@@ -55,6 +57,8 @@ RETIRED_WEB_SLUGS = ("http-slack", "icmp-slack", "mtr-slack")
 INTERNET_SLUGS = frozenset(
     {
         "iperf3",
+        "librespeed",
+        "webrtc",
         *(slug for slug, _, _, _, _ in PATH_TESTS),
         *(f"http-{key}" for key, _, _, _ in WEB_SERVICES),
         *(f"icmp-{key}" for key, _, _, _ in WEB_SERVICES),
@@ -90,6 +94,8 @@ def _ensure_test(
             )
         )
         return
+    if current.name != name:
+        current.name = name
     if current.target != target:
         current.target = target
     if current.interval_seconds != interval:
@@ -110,6 +116,8 @@ def _network(db: Session, monitor: Monitor, slug: str, name: str, kind: NetworkK
         network = Network(group_id=monitor.group_id, slug=slug, name=name, kind=kind)
         db.add(network)
         db.flush()
+    elif network.name != name:
+        network.name = name
     return network
 
 
@@ -117,7 +125,7 @@ def ensure_internet_tests(db: Session, monitor: Monitor) -> None:
     _sync_link_tests(db, monitor, _network(db, monitor, "wan", "Internet", NetworkKind.wired), TUNNEL_SERVER_IP)
     _sync_link_tests(db, monitor, _network(db, monitor, "wired", "Wired", NetworkKind.wired), TUNNEL_SERVER_IP)
     _sync_link_tests(
-        db, monitor, _network(db, monitor, "wifi", "Wireless", NetworkKind.wifi), WIRELESS_SERVER_IP
+        db, monitor, _network(db, monitor, "wifi", "Wi-Fi", NetworkKind.wifi), WIRELESS_SERVER_IP
     )
 
 
@@ -140,6 +148,30 @@ def _sync_link_tests(db: Session, monitor: Monitor, network: Network, server_ip:
         server_ip,
         max(path.iperf_interval_seconds, 300),
         path.iperf_enabled,
+    )
+    _ensure_test(
+        monitor,
+        network,
+        existing_rows,
+        rows,
+        "librespeed",
+        "File Transfer",
+        TestKind.librespeed,
+        server_ip,
+        max(path.librespeed_interval_seconds, 300),
+        path.librespeed_enabled,
+    )
+    _ensure_test(
+        monitor,
+        network,
+        existing_rows,
+        rows,
+        "webrtc",
+        "Video call",
+        TestKind.webrtc,
+        server_ip,
+        max(path.webrtc_interval_seconds, 300),
+        path.webrtc_enabled,
     )
     for slug, name, kind, _target, _interval in PATH_TESTS:
         target = server_http if kind == TestKind.http else server_ip
@@ -197,7 +229,14 @@ def scheduled_tests(db: Session, monitor: Monitor) -> list[dict]:
     for test in rows:
         if test.slug not in INTERNET_SLUGS:
             continue
-        if test.kind not in (TestKind.http, TestKind.iperf3, TestKind.ping, TestKind.mtr):
+        if test.kind not in (
+            TestKind.http,
+            TestKind.iperf3,
+            TestKind.librespeed,
+            TestKind.webrtc,
+            TestKind.ping,
+            TestKind.mtr,
+        ):
             continue
         link = {"wired": "wired", "wifi": "wireless"}.get(test.network.slug, "wan")
         item = {
@@ -231,6 +270,12 @@ def matrix_column(network_slug: str, test_slug: str) -> str | None:
     return None
 
 
+def is_web_check(slug: str) -> bool:
+    """HTTP or ICMP for a named web service. Path and throughput checks are not included."""
+    kind, _, key = slug.partition("-")
+    return kind in {"http", "icmp"} and bool(key) and key != "path"
+
+
 def service_variance(settings: dict[str, WebServiceSetting], slug: str) -> tuple[int, int | None] | None:
     """Primary variance and, for ICMP, the jitter variance when that check is on."""
     kind, _, key = slug.partition("-")
@@ -252,6 +297,8 @@ def path_variance(setting: InternetServiceSetting, slug: str) -> tuple[int, int 
         return setting.mtr_variance_pct, None
     if slug == "iperf3":
         return setting.iperf_variance_pct, None
+    if slug == "librespeed":
+        return setting.librespeed_variance_pct, None
     return None
 
 
@@ -294,6 +341,43 @@ def classify_iperf(db: Session, test: Test, metrics: dict, variance_pct: int) ->
     )
 
 
+WEBRTC_LOSS_DEGRADED_PCT = 5.0
+WEBRTC_JITTER_DEGRADED_MS = 30.0
+
+
+def classify_webrtc(metrics: dict, loss_limit: float = WEBRTC_LOSS_DEGRADED_PCT) -> tuple[ResultStatus, str]:
+    """Red when either direction sends no video. Amber when loss or jitter is high."""
+    frames_in = _number(metrics.get("frames_in"))
+    frames_out = _number(metrics.get("frames_out"))
+    if frames_in is None or frames_out is None or frames_in <= 0 or frames_out <= 0:
+        return ResultStatus.fail, "The video call did not connect."
+    loss = _number(metrics.get("loss_pct"))
+    jitter = _number(metrics.get("jitter_ms"))
+    rtt = _number(metrics.get("rtt_ms"))
+    notes: list[str] = []
+    if loss is not None and loss > loss_limit:
+        notes.append(f"packet loss {_pct(loss)}")
+    if jitter is not None and jitter > WEBRTC_JITTER_DEGRADED_MS:
+        notes.append(f"jitter {_ms(jitter)}")
+    summary = _webrtc_summary(rtt, jitter, loss)
+    if notes:
+        return ResultStatus.degraded, f"Video arrived in both directions with {' and '.join(notes)}."
+    return ResultStatus.ok, summary
+
+
+def _webrtc_summary(rtt: float | None, jitter: float | None, loss: float | None) -> str:
+    bits: list[str] = []
+    if rtt is not None:
+        bits.append(f"round-trip {_ms(rtt)}")
+    if jitter is not None:
+        bits.append(f"jitter {_ms(jitter)}")
+    if loss is not None:
+        bits.append(f"loss {_pct(loss)}")
+    if not bits:
+        return "Video arrived in both directions."
+    return _sentence(", ".join(bits)) + "."
+
+
 def classify_web_service(
     db: Session,
     test: Test,
@@ -301,21 +385,31 @@ def classify_web_service(
     message: str | None,
     variance_pct: int,
     jitter_variance_pct: int | None = None,
+    abs_floor_ms: float = 0,
+    jitter_floor_ms: float = 0,
 ) -> tuple[ResultStatus, str]:
-    """Green inside the recent normal, amber past the variance, red with no response."""
+    """Green inside the recent normal, amber past the tolerance, red with no response."""
     responded, value, imperfect = _response_sample(test.kind, metrics, message)
     label = _check_label(test.kind)
-    if not responded:
-        if test.kind == TestKind.http:
+    if test.kind == TestKind.http:
+        code = _http_code(message)
+        if not responded or code is None:
             return ResultStatus.fail, "No HTTP response."
+        if code >= 500:
+            return ResultStatus.fail, f"HTTP {code}. The service answered with an error."
+        if code >= 400:
+            return ResultStatus.degraded, f"HTTP {code}. The service answered with an error."
+    elif not responded:
         if test.kind == TestKind.mtr:
             return ResultStatus.fail, "The trace got no response."
         return ResultStatus.fail, "No ICMP response."
-    if imperfect:
-        if test.kind == TestKind.http:
-            code = _http_code(message)
-            shown = f"HTTP {code}" if code is not None else "HTTP"
-            return ResultStatus.degraded, f"{shown}. The service answered with an error."
+    elif test.kind == TestKind.ping:
+        loss = _number(metrics.get("loss_pct")) or 0
+        if loss >= 100:
+            return ResultStatus.fail, "No ICMP response."
+        if loss > 40:
+            return ResultStatus.degraded, f"{label} answered in {_ms(value)} with {_pct(loss)} packet loss."
+    elif imperfect:
         loss = _number(metrics.get("loss_pct")) or 0
         return ResultStatus.degraded, f"{label} answered in {_ms(value)} with {_pct(loss)} packet loss."
     metric = "total_ms" if test.kind == TestKind.http else "rtt_ms"
@@ -323,32 +417,50 @@ def classify_web_service(
     if baseline is None and test.kind == TestKind.http:
         baseline = _baseline_value(db, test, "rtt_ms")
     notes: list[str] = []
-    if baseline is not None and value is not None and value > baseline * (1 + variance_pct / 100):
-        notes.append(
-            f"{label} {_ms(value)} is more than {variance_pct}% slower than the recent normal of {_ms(baseline)}"
-        )
+    loss_note = ""
+    if test.kind == TestKind.ping:
+        loss = _number(metrics.get("loss_pct")) or 0
+        if 0 < loss <= 40:
+            loss_note = f"{_pct(loss)} packet loss on this sample"
+    if baseline is not None and value is not None:
+        limit = latency_limit(baseline, variance_pct, abs_floor_ms)
+        if value > limit:
+            notes.append(
+                f"{label} {_ms(value)} is slower than {_ms(limit)} "
+                f"(recent normal {_ms(baseline)}, tolerance {variance_pct}%)"
+            )
     if test.kind == TestKind.ping and jitter_variance_pct is not None:
-        jitter_note = _jitter_note(db, test, metrics, jitter_variance_pct)
+        jitter_note = _jitter_note(db, test, metrics, jitter_variance_pct, jitter_floor_ms)
         if jitter_note:
             notes.append(jitter_note)
     if notes:
         return ResultStatus.degraded, ". ".join(notes) + "."
     if baseline is None or value is None:
-        return ResultStatus.ok, f"{label} answered. Not enough recent results to compare yet."
+        sentence = f"{label} answered. Not enough recent results to compare yet."
+        if loss_note:
+            sentence = f"{sentence[:-1]}. {loss_note}."
+        return ResultStatus.ok, sentence
     sentence = f"{label} {_ms(value)}, within {variance_pct}% of the recent normal of {_ms(baseline)}"
     if test.kind == TestKind.ping:
         jitter = _number(metrics.get("jitter_ms"))
         if jitter is not None:
             sentence += f". Jitter {_ms(jitter)}"
+    if loss_note:
+        sentence += f". {loss_note}"
     return ResultStatus.ok, sentence + "."
 
 
-def _jitter_note(db: Session, test: Test, metrics: dict, variance_pct: int) -> str | None:
+def _jitter_note(
+    db: Session, test: Test, metrics: dict, variance_pct: int, abs_floor_ms: float = 0
+) -> str | None:
     jitter = _number(metrics.get("jitter_ms"))
     baseline = _baseline_value(db, test, "jitter_ms")
-    if jitter is None or baseline is None or jitter <= baseline * (1 + variance_pct / 100):
+    if jitter is None or baseline is None:
         return None
-    return f"Jitter {_ms(jitter)} is more than {variance_pct}% above the recent normal of {_ms(baseline)}"
+    limit = latency_limit(baseline, variance_pct, abs_floor_ms)
+    if jitter <= limit:
+        return None
+    return f"Jitter {_ms(jitter)} is slower than {_ms(limit)} (recent normal {_ms(baseline)})"
 
 
 _PROBE_KEY = re.compile(r"[a-z0-9-]{1,40}")
@@ -400,6 +512,10 @@ def explain_result(
             return "The trace got no response."
         if kind == "iperf3":
             return "Neither download nor upload answered."
+        if kind == "librespeed":
+            return "Neither download nor upload answered."
+        if kind == "webrtc":
+            return "The video call did not connect."
         if kind == "ping":
             return "No ICMP response."
         return "No response."
@@ -424,7 +540,7 @@ def _degraded_fallback(kind: str, metrics: dict, stages: list, message: str | No
         if ttfb is not None and ttfb > 0:
             sentence += f". Time to first byte was {_ms(ttfb)}"
         return sentence + "."
-    if kind == "iperf3":
+    if kind in {"iperf3", "librespeed"}:
         down = _number(metrics.get("down_mbps"))
         up = _number(metrics.get("up_mbps"))
         if down is not None and down > 0 and (up is None or up <= 0):
@@ -438,6 +554,8 @@ def _degraded_fallback(kind: str, metrics: dict, stages: list, message: str | No
             parts.append(f"upload {_mbps(up)}")
         measured = " and ".join(parts) if parts else "throughput"
         return f"{_sentence(measured)} was below the recent normal."
+    if kind == "webrtc":
+        return classify_webrtc(metrics)[1]
     loss = _number(metrics.get("loss_pct"))
     rtt = _number(metrics.get("rtt_ms"))
     label = "Trace" if kind == "mtr" else "ICMP"
@@ -462,7 +580,7 @@ def _ok_fallback(kind: str, metrics: dict, message: str | None) -> str:
         if total is None:
             return f"{head} answered within the recent normal."
         return f"{head} answered in {_ms(total)}, within the recent normal."
-    if kind == "iperf3":
+    if kind in {"iperf3", "librespeed"}:
         down = _number(metrics.get("down_mbps"))
         up = _number(metrics.get("up_mbps"))
         if down is None and up is None:
@@ -473,6 +591,8 @@ def _ok_fallback(kind: str, metrics: dict, message: str | None) -> str:
         if up is not None:
             parts.append(f"upload {_mbps(up)}")
         return f"{_sentence(' and '.join(parts))}, within the recent normal."
+    if kind == "webrtc":
+        return classify_webrtc(metrics)[1]
     rtt = _number(metrics.get("rtt_ms"))
     label = "Trace" if kind == "mtr" else "ICMP" if kind == "ping" else "Check"
     if rtt is None:
@@ -643,6 +763,12 @@ def load_internet_service(db: Session) -> InternetServiceSetting:
         iperf_variance_pct=25,
         iperf_enabled=True,
         iperf_interval_seconds=IPERF_INTERVAL_SECONDS,
+        librespeed_variance_pct=25,
+        librespeed_enabled=True,
+        librespeed_interval_seconds=IPERF_INTERVAL_SECONDS,
+        webrtc_variance_pct=5,
+        webrtc_enabled=True,
+        webrtc_interval_seconds=IPERF_INTERVAL_SECONDS,
     )
     db.add(row)
     db.flush()
@@ -662,6 +788,69 @@ def save_internet_service(db: Session, update: dict) -> InternetServiceSetting:
     row.variance_pct = row.http_variance_pct
     row.iperf_enabled = bool(update["iperf_enabled"])
     row.iperf_interval_seconds = max(int(update["iperf_interval_seconds"]), 300)
+    row.librespeed_variance_pct = int(update["librespeed_variance_pct"])
+    row.librespeed_enabled = bool(update["librespeed_enabled"])
+    row.librespeed_interval_seconds = max(int(update["librespeed_interval_seconds"]), 300)
+    row.webrtc_variance_pct = int(update["webrtc_variance_pct"])
+    row.webrtc_enabled = bool(update["webrtc_enabled"])
+    row.webrtc_interval_seconds = max(int(update["webrtc_interval_seconds"]), 300)
+    db.flush()
+    for monitor in db.scalars(select(Monitor)):
+        ensure_internet_tests(db, monitor)
+    return row
+
+
+def stability_config(row: WebStabilitySetting) -> StabilityConfig:
+    return StabilityConfig(
+        poll_interval_seconds=row.poll_interval_seconds,
+        window_size=row.window_size,
+        degraded_count=row.degraded_count,
+        fail_count=row.fail_count,
+        recover_count=row.recover_count,
+        pct_floor=row.pct_floor,
+        abs_floor_http_ms=row.abs_floor_http_ms,
+        abs_floor_icmp_ms=row.abs_floor_icmp_ms,
+        abs_floor_jitter_ms=row.abs_floor_jitter_ms,
+        quorum_degraded_pct=row.quorum_degraded_pct,
+        quorum_fail_pct=row.quorum_fail_pct,
+    )
+
+
+def load_web_stability(db: Session) -> WebStabilitySetting:
+    row = db.get(WebStabilitySetting, 1)
+    if row is not None:
+        return row
+    row = WebStabilitySetting(id=1)
+    db.add(row)
+    db.flush()
+    return row
+
+
+def save_web_stability(db: Session, update: dict) -> WebStabilitySetting:
+    window = int(update["window_size"])
+    degraded = int(update["degraded_count"])
+    fail = int(update["fail_count"])
+    recover = int(update["recover_count"])
+    if min(degraded, fail, recover) < 1 or max(degraded, fail, recover) > window:
+        raise ValueError("Sample counts have to fit inside the sample window")
+    row = load_web_stability(db)
+    row.poll_interval_seconds = max(int(update["poll_interval_seconds"]), 60)
+    row.window_size = window
+    row.degraded_count = degraded
+    row.fail_count = fail
+    row.recover_count = recover
+    row.pct_floor = int(update["pct_floor"])
+    row.abs_floor_http_ms = int(update["abs_floor_http_ms"])
+    row.abs_floor_icmp_ms = int(update["abs_floor_icmp_ms"])
+    row.abs_floor_jitter_ms = int(update["abs_floor_jitter_ms"])
+    row.quorum_degraded_pct = int(update["quorum_degraded_pct"])
+    row.quorum_fail_pct = int(update["quorum_fail_pct"])
+    for service in load_web_services(db):
+        service.interval_seconds = row.poll_interval_seconds
+        service.http_variance_pct = row.pct_floor
+        service.icmp_variance_pct = row.pct_floor
+        service.jitter_variance_pct = row.pct_floor
+        service.variance_pct = row.pct_floor
     db.flush()
     for monitor in db.scalars(select(Monitor)):
         ensure_internet_tests(db, monitor)

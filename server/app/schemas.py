@@ -201,10 +201,12 @@ class DeviceConfigOut(BaseModel):
     config_version: int
     tests: list[ScheduledTestOut] = Field(default_factory=list)
     restart: bool = False
+    scan: bool = False
 
 
 class ProbeCommandOut(BaseModel):
     restart: bool
+    scan: bool = False
 
 
 class UserOut(BaseModel):
@@ -255,6 +257,7 @@ class HealthCell(BaseModel):
     column: str = ""
     last_test_at: Optional[datetime] = None
     failing_tests: int = 0
+    quorum: Optional[dict[str, int]] = None
 
 
 class IssueSummary(BaseModel):
@@ -355,6 +358,90 @@ class WifiObservationOut(BaseModel):
     max_link_rate_mbps: int
 
 
+class WifiScanIn(BaseModel):
+    scanned_at: datetime
+    raw: str = ""
+
+
+class RfBandAdvice(BaseModel):
+    band: str
+    ap_count: int
+    busiest_channel: Optional[int] = None
+    recommended_channel: int
+    reason: str
+
+
+class RfSparkPoint(BaseModel):
+    t: datetime
+    ap_count: int
+    count_24: int = 0
+    count_5: int = 0
+
+
+class RfOverviewOut(BaseModel):
+    agent_id: UUID
+    agent_name: str
+    location_label: Optional[str] = None
+    last_scan_at: Optional[datetime] = None
+    scan_requested: bool
+    bands: list[RfBandAdvice]
+    headline: str
+    sparkline: list[RfSparkPoint]
+
+
+class RfApOut(BaseModel):
+    bssid: str
+    ssid: str
+    hidden: bool
+    band: str
+    channel: int
+    channel_width: int
+    rssi_dbm: float
+    security: str
+    vendor: str
+    phy: str
+    first_seen: datetime
+    last_seen: datetime
+    trusted: bool
+    label: str
+
+
+class RfHistoryPoint(BaseModel):
+    t: datetime
+    rssi_dbm: float
+    channel: int
+
+
+class RfHillPoint(BaseModel):
+    channel: int
+    rssi: float
+
+
+class RfHillSeries(BaseModel):
+    bssid: str
+    ssid: str
+    hidden: bool
+    trusted: bool
+    channel: int
+    channel_width: int
+    rssi_dbm: float
+    security: str
+    points: list[RfHillPoint]
+
+
+class RfChannelSnapshotOut(BaseModel):
+    band: str
+    recommended_channel: int
+    reason: str
+    series: list[RfHillSeries]
+
+
+class RfScanRequestOut(BaseModel):
+    agent_id: UUID
+    agent_name: str
+    scan_requested_at: datetime
+
+
 class WebServiceSettingOut(BaseModel):
     key: str
     label: str
@@ -382,6 +469,35 @@ class WebServiceSettingsIn(BaseModel):
     services: list[WebServiceSettingIn]
 
 
+class WebStabilityOut(BaseModel):
+    poll_interval_seconds: int
+    window_size: int
+    degraded_count: int
+    fail_count: int
+    recover_count: int
+    pct_floor: int
+    abs_floor_http_ms: int
+    abs_floor_icmp_ms: int
+    abs_floor_jitter_ms: int
+    quorum_degraded_pct: int
+    quorum_fail_pct: int
+    preset: str
+
+
+class WebStabilityIn(BaseModel):
+    poll_interval_seconds: int = Field(ge=60, le=86400)
+    window_size: int = Field(ge=3, le=30)
+    degraded_count: int = Field(ge=1, le=30)
+    fail_count: int = Field(ge=1, le=30)
+    recover_count: int = Field(ge=1, le=30)
+    pct_floor: int = Field(ge=0, le=500)
+    abs_floor_http_ms: int = Field(ge=0, le=5000)
+    abs_floor_icmp_ms: int = Field(ge=0, le=5000)
+    abs_floor_jitter_ms: int = Field(ge=0, le=5000)
+    quorum_degraded_pct: int = Field(ge=1, le=100)
+    quorum_fail_pct: int = Field(ge=1, le=100)
+
+
 class InternetServiceSettingOut(BaseModel):
     interval_seconds: int
     http_enabled: bool
@@ -393,6 +509,12 @@ class InternetServiceSettingOut(BaseModel):
     iperf_enabled: bool
     iperf_interval_seconds: int
     iperf_variance_pct: int
+    librespeed_enabled: bool
+    librespeed_interval_seconds: int
+    librespeed_variance_pct: int
+    webrtc_enabled: bool
+    webrtc_interval_seconds: int
+    webrtc_variance_pct: int
 
 
 class InternetServiceSettingIn(BaseModel):
@@ -406,6 +528,12 @@ class InternetServiceSettingIn(BaseModel):
     iperf_enabled: bool
     iperf_interval_seconds: int = Field(ge=300, le=86400)
     iperf_variance_pct: int = Field(ge=0, le=500)
+    librespeed_enabled: bool
+    librespeed_interval_seconds: int = Field(ge=300, le=86400)
+    librespeed_variance_pct: int = Field(ge=0, le=500)
+    webrtc_enabled: bool
+    webrtc_interval_seconds: int = Field(ge=300, le=86400)
+    webrtc_variance_pct: int = Field(ge=0, le=500)
 
 
 class IssueOut(BaseModel):

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import StatusMark from "../components/StatusMark";
 import DevicePanel from "../components/DevicePanel";
@@ -30,9 +30,28 @@ export default function MonitorPage() {
       .sort((a, b) => networkOrder(a) - networkOrder(b));
   }, [monitorQ.data]);
 
+  if (searchParams.get("view") === "path") {
+    const next = new URLSearchParams();
+    next.set("agent", id);
+    next.set("link", searchParams.get("link") === "wireless" ? "wireless" : "wired");
+    return <Navigate to={`/path?${next.toString()}`} replace />;
+  }
+
   const requested = searchParams.get("network");
+  const link = searchParams.get("link");
+  const openLink = (link === "wired" || link === "wireless") && Boolean(searchParams.get("detail"));
+  const wanId = networks.find((network) => network.slug === "wan")?.id ?? null;
+  const testsSoFar = monitorQ.data?.tests ?? [];
+  const wiredId = testsSoFar.find((test) => test.network_slug === "wired")?.network_id ?? null;
+  const wirelessId = testsSoFar.find((test) => test.network_slug === "wifi")?.network_id ?? null;
+  const onWired = link === "wired";
+  const onWireless = link === "wireless";
   const activeTab =
-    requested && networks.some((n) => n.id === requested) ? requested : (networks[0]?.id ?? null);
+    openLink && wanId
+      ? wanId
+      : requested && networks.some((n) => n.id === requested)
+        ? requested
+        : (networks[0]?.id ?? null);
 
   if (monitorQ.isLoading) return <div className="state-box">Loading monitor…</div>;
   if (monitorQ.isError || !monitorQ.data) {
@@ -74,25 +93,57 @@ export default function MonitorPage() {
       {activeNetwork?.slug === "wan" || statusOpen ? null : <DevicePanel monitorId={monitor.id} />}
 
       <div className="tabs">
-        {networks.map((n) => (
-          <button
-            key={n.id}
-            type="button"
-            className={`tab ${activeTab === n.id ? "active" : ""}`}
-            onClick={() => setSearchParams({ network: n.id })}
-          >
-            {networkLabel(n)}
-          </button>
-        ))}
+        {networks.flatMap((n) => {
+          const buttons = [
+            <button
+              key={n.id}
+              type="button"
+              className={`tab ${!onWired && !onWireless && activeTab === n.id ? "active" : ""}`}
+              onClick={() => setSearchParams({ network: n.id })}
+            >
+              {networkLabel(n)}
+            </button>,
+          ];
+          if (n.slug === "wan" && wiredId) {
+            buttons.push(
+              <button
+                key="wired"
+                type="button"
+                className={`tab ${onWired ? "active" : ""}`}
+                onClick={() => setSearchParams({ network: wiredId, detail: "isp", link: "wired" })}
+              >
+                Wired
+              </button>,
+            );
+          }
+          if (n.slug === "wan" && wirelessId) {
+            buttons.push(
+              <button
+                key="wireless"
+                type="button"
+                className={`tab ${onWireless ? "active" : ""}`}
+                onClick={() =>
+                  setSearchParams({ network: wirelessId, detail: "isp", link: "wireless" })
+                }
+              >
+                Wi-Fi
+              </button>,
+            );
+          }
+          return buttons;
+        })}
       </div>
 
       {activeNetwork?.slug === "wifi-main" ? <WifiScans monitorId={monitor.id} /> : null}
       {activeNetwork?.slug === "wan" ? (
-        <InternetPath tests={tests} publicIp={monitor.public_ip} isp={monitor.isp} />
+        <InternetPath tests={tests} isp={monitor.isp} />
       ) : null}
 
       <div className="panel">
-        <Link className="btn log-link" to={logHref(monitor.id, activeNetwork?.slug, searchParams.get("detail"))}>
+        <Link
+          className="btn log-link"
+          to={logHref(monitor.id, activeNetwork?.slug, searchParams.get("detail"), searchParams.get("check"))}
+        >
           Log of recent results
         </Link>
       </div>
@@ -100,8 +151,13 @@ export default function MonitorPage() {
   );
 }
 
-function logHref(monitorId: string, networkSlug: string | undefined, detail: string | null): string {
-  const probe = networkSlug === "wan" ? logProbeForDetail(detail) : null;
+function logHref(
+  monitorId: string,
+  networkSlug: string | undefined,
+  detail: string | null,
+  check: string | null,
+): string {
+  const probe = networkSlug === "wan" ? logProbeForDetail(detail, check) : null;
   if (!probe) return `/monitors/${monitorId}/log`;
   return `/monitors/${monitorId}/log?probe=${encodeURIComponent(probe)}`;
 }

@@ -8,6 +8,7 @@ import shutil
 import socket
 import ssl
 import subprocess
+import tempfile
 import threading
 import time
 import uuid
@@ -23,6 +24,12 @@ IPERF_HOST = "10.7.0.1"
 # left the server holding unfinished sessions.
 IPERF_CONNECT_TIMEOUT_MS = 3000
 IPERF_IO_TIMEOUT_MS = 5000
+LIBRESPEED_PORT = 8080
+LIBRESPEED_SECONDS = 8
+WEBRTC_PORT = 8090
+WEBRTC_SECONDS = 10
+WEBRTC_LOSS_DEGRADED_PCT = 5.0
+WEBRTC_JITTER_DEGRADED_MS = 30.0
 HTTP_SLOW_MS = 3000
 DOWNLOAD_LIMIT = 65536
 # Ping's default gap is one second, so five probes take about four seconds of waiting.
@@ -642,6 +649,10 @@ def run_check(test: dict) -> dict | None:
     kind = test.get("kind")
     if kind == "iperf3":
         return check_iperf(test)
+    if kind == "librespeed":
+        return check_librespeed(test)
+    if kind == "webrtc":
+        return check_webrtc(test)
     if kind == "http":
         return check_http(test)
     if kind == "ping":
@@ -649,3 +660,199 @@ def run_check(test: dict) -> dict | None:
     if kind == "mtr":
         return check_mtr(test)
     return None
+
+
+def check_librespeed(test: dict) -> dict:
+    started_at = _now()
+    started = time.perf_counter()
+    host = _host_only(str(test.get("target") or IPERF_HOST))
+    if _tool("librespeed-cli") is None:
+        return _result(test, started_at, "fail", [_stage("transfer", started, "fail")], _speed_metrics(None, None, None, None, 0), "librespeed-cli is not installed")
+    if not _valid_host(host):
+        return _result(test, started_at, "fail", [_stage("transfer", started, "fail")], _speed_metrics(None, None, None, None, 0), "File Transfer target is not a host")
+    servers = [
+        {
+            "id": 1,
+            "name": "Home Sensor",
+            "server": f"http://{host}:{LIBRESPEED_PORT}/",
+            "dlURL": "garbage.php",
+            "ulURL": "empty.php",
+            "pingURL": "empty.php",
+            "getIpURL": "getIP.php",
+        }
+    ]
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
+        json.dump(servers, handle)
+        listing = handle.name
+    try:
+        proc = subprocess.run(
+            [
+                "librespeed-cli",
+                "--json",
+                "--ipv4",
+                "--no-icmp",
+                "--duration",
+                str(LIBRESPEED_SECONDS),
+                "--timeout",
+                "20",
+                "--local-json",
+                listing,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=LIBRESPEED_SECONDS * 2 + 25,
+        )
+    except subprocess.TimeoutExpired:
+        return _result(test, started_at, "fail", [_stage("transfer", started, "fail")], _speed_metrics(None, None, None, None, 0), "File Transfer timed out")
+    finally:
+        Path(listing).unlink(missing_ok=True)
+    report = parse_librespeed_report(proc.stdout)
+    total = round((time.perf_counter() - started) * 1000, 1)
+    if proc.returncode != 0 or report is None:
+        detail = (proc.stderr or proc.stdout or "File Transfer failed").strip().splitlines()
+        return _result(test, started_at, "fail", [_stage("transfer", started, "fail")], _speed_metrics(None, None, None, None, total), detail[-1][:240] if detail else "File Transfer failed")
+    down, up, ping, jitter = report
+    status = "ok" if down and up else "fail"
+    return _result(
+        test,
+        started_at,
+        status,
+        [_stage("transfer", started, status)],
+        _speed_metrics(down, up, ping, jitter, total),
+        f"{host}:{LIBRESPEED_PORT}",
+    )
+
+
+def parse_librespeed_report(payload: str) -> tuple[float, float, float, float] | None:
+    try:
+        body = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    row = body[0] if isinstance(body, list) and body else body
+    if not isinstance(row, dict):
+        return None
+    down = _mbps_value(row.get("download"))
+    up = _mbps_value(row.get("upload"))
+    ping = _float_value(row.get("ping"))
+    jitter = _float_value(row.get("jitter"))
+    if down is None and up is None:
+        return None
+    return down or 0.0, up or 0.0, ping or 0.0, jitter or 0.0
+
+
+def _speed_metrics(down: float | None, up: float | None, ping: float | None, jitter: float | None, total: float) -> dict:
+    return {
+        "down_mbps": None if down is None else round(down, 2),
+        "up_mbps": None if up is None else round(up, 2),
+        "rtt_ms": None if ping is None else round(ping, 2),
+        "jitter_ms": None if jitter is None else round(jitter, 2),
+        "loss_pct": 0.0,
+        "total_ms": total,
+    }
+
+
+def _mbps_value(value: object) -> float | None:
+    number = _float_value(value)
+    if number is None or number < 0:
+        return None
+    return number
+
+
+def _float_value(value: object) -> float | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def check_webrtc(test: dict) -> dict:
+    started_at = _now()
+    started = time.perf_counter()
+    host = _host_only(str(test.get("target") or IPERF_HOST))
+    empty = {"rtt_ms": None, "jitter_ms": None, "loss_pct": None, "frames_in": 0, "frames_out": 0, "total_ms": 0.0}
+    if _tool("webrtc-call") is None:
+        return _result(test, started_at, "fail", [_stage("call", started, "fail")], empty, "webrtc-call is not installed")
+    if not _valid_host(host):
+        return _result(test, started_at, "fail", [_stage("call", started, "fail")], empty, "Video call target is not a host")
+    source = _route_source(host)
+    if source is None:
+        return _result(test, started_at, "fail", [_stage("call", started, "fail")], empty, f"No route to {host}")
+    try:
+        proc = subprocess.run(
+            [
+                "webrtc-call",
+                "call",
+                "--host",
+                host,
+                "--source",
+                source,
+                "--port",
+                str(WEBRTC_PORT),
+                "--seconds",
+                str(WEBRTC_SECONDS),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=WEBRTC_SECONDS + 35,
+        )
+    except subprocess.TimeoutExpired:
+        return _result(test, started_at, "fail", [_stage("call", started, "fail")], empty, "Video call timed out")
+    sample = parse_webrtc_report(proc.stdout)
+    total = round((time.perf_counter() - started) * 1000, 1)
+    if sample is None:
+        detail = (proc.stderr or proc.stdout or "Video call failed").strip().splitlines()
+        return _result(test, started_at, "fail", [_stage("call", started, "fail")], empty, (detail[-1] if detail else "Video call failed")[:240])
+    sample["total_ms"] = total
+    status = _webrtc_status(sample)
+    return _result(test, started_at, status, [_stage("call", started, status)], sample, f"{host}:{WEBRTC_PORT}")
+
+
+def parse_webrtc_report(stdout: str) -> dict | None:
+    text = stdout.strip()
+    if not text:
+        return None
+    try:
+        body = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(body, dict):
+        return None
+    return {
+        "rtt_ms": _float_value(body.get("rtt_ms")),
+        "jitter_ms": _float_value(body.get("jitter_ms")),
+        "loss_pct": _float_value(body.get("loss_pct")),
+        "frames_in": _count_value(body.get("frames_in")),
+        "frames_out": _count_value(body.get("frames_out")),
+        "total_ms": _float_value(body.get("total_ms")) or 0.0,
+    }
+
+
+def _count_value(value: object) -> int:
+    number = _float_value(value)
+    if number is None or number < 0:
+        return 0
+    return int(number)
+
+
+def _route_source(host: str) -> str | None:
+    try:
+        proc = subprocess.run(["ip", "-4", "route", "get", host], capture_output=True, text=True, timeout=3)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    match = re.search(r"\bsrc\s+(\d+\.\d+\.\d+\.\d+)", proc.stdout)
+    return match.group(1) if match else None
+
+
+def _webrtc_status(sample: dict) -> str:
+    frames_in = sample.get("frames_in") or 0
+    frames_out = sample.get("frames_out") or 0
+    if frames_in <= 0 or frames_out <= 0:
+        return "fail"
+    loss = sample.get("loss_pct")
+    jitter = sample.get("jitter_ms")
+    if (isinstance(loss, (int, float)) and loss > WEBRTC_LOSS_DEGRADED_PCT) or (
+        isinstance(jitter, (int, float)) and jitter > WEBRTC_JITTER_DEGRADED_MS
+    ):
+        return "degraded"
+    return "ok"

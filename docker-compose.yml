@@ -59,8 +59,17 @@ services:
              uvicorn app.main:app --host 0.0.0.0 --port 8848
              --ssl-keyfile /var/lib/hns-tls/key.pem --ssl-certfile /var/lib/hns-tls/cert.pem"
 
+  librespeed:
+    image: ghcr.io/librespeed/speedtest:latest
+    environment:
+      MODE: backend
+      DISABLE_IPINFO: "true"
+    restart: unless-stopped
+
   wireguard:
-    build: ./wireguard
+    build:
+      context: .
+      dockerfile: wireguard/Dockerfile
     cap_add:
       - NET_ADMIN
     devices:
@@ -71,8 +80,10 @@ services:
       - wgstate:/etc/wireguard
     environment:
       SERVER_PROXY: server:8847
+      LIBRESPEED_PROXY: librespeed:8080
     depends_on:
       - server
+      - librespeed
     restart: unless-stopped
 
   dashboard:

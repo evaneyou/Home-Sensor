@@ -11,12 +11,13 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "../api";
+import { CHART_COLORS } from "../chartTheme";
 import { formatChartHour } from "../chartTime";
 import { useChartZoom } from "../useChartZoom";
 import type { WifiObservation } from "../types";
 
 const RANGES = ["24h", "7d"] as const;
-const COLORS = ["#3fa266", "#4c9df3", "#f1b467", "#e34671", "#aaa0fa", "#88c0d0"];
+const COLORS = CHART_COLORS;
 
 function seriesKey(row: WifiObservation): string {
   return `${row.ssid} ${row.band} GHz`;
