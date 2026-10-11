@@ -366,6 +366,7 @@ class MonitorHealth(Base):
     isp: Mapped[Optional[str]] = mapped_column(String(128))
     config_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     airwave_mode: Mapped[Optional[str]] = mapped_column(String(16))
+    last_error: Mapped[Optional[str]] = mapped_column(String(600))
 
     monitor: Mapped[Monitor] = relationship(back_populates="health_samples")
 

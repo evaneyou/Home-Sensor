@@ -155,6 +155,7 @@ class DeviceHealthIn(BaseModel):
     airwave_mode: Optional[str] = None
     link_ssid: Optional[str] = Field(default=None, max_length=64)
     link_bssid: Optional[str] = Field(default=None, max_length=17)
+    last_error: Optional[str] = Field(default=None, max_length=600)
 
     @field_validator("public_ip")
     @classmethod

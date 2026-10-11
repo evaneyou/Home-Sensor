@@ -199,6 +199,15 @@ def test_health_assigns_iperf_and_web_services(client: TestClient, db):
     assert device.status_code == 200, device.text
     assert device.json()["public_ip"] == "1.1.1.1"
     assert device.json()["isp"] == "Example Fiber"
+    assert device.json()["latest"]["last_error"] is None
+    reported = client.post(
+        "/api/v1/monitors/health",
+        headers=headers,
+        json={**_health_body(), "last_error": "Kismet HTTP 400: invalid field"},
+    )
+    assert reported.status_code == 200, reported.text
+    shown = client.get(f"/api/v1/monitors/{monitor.id}/device")
+    assert shown.json()["latest"]["last_error"] == "Kismet HTTP 400: invalid field"
     client.post("/api/v1/monitors/health", headers=headers, json={**_health_body(), "public_ip": "10.7.0.2"})
     kept = client.get(f"/api/v1/monitors/{monitor.id}/device")
     assert kept.json()["public_ip"] == "1.1.1.1"
