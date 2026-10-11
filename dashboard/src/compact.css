@@ -1,0 +1,308 @@
+/* Density for pages that opt into .ui-compact. Home stays on overview.css. */
+
+.app-shell.ui-compact .npv {
+  gap: 12px;
+}
+
+.app-shell.ui-compact .npv-titlebar {
+  gap: 12px;
+}
+
+.app-shell.ui-compact .npv-titlebar h1 {
+  font-size: 22px;
+}
+
+.app-shell.ui-compact .npv-sub,
+.app-shell.ui-compact .npv-hint {
+  font-size: 14px;
+}
+
+.app-shell.ui-compact .npv-card {
+  border-radius: 12px;
+  padding: 14px;
+  gap: 12px;
+}
+
+.app-shell.ui-compact .npv-card h2,
+.app-shell.ui-compact .npv-fold-title {
+  font-size: 16px;
+}
+
+.app-shell.ui-compact .npv-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.app-shell.ui-compact .npv-stat {
+  flex: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  gap: 2px;
+}
+
+.app-shell.ui-compact .npv-stat .k {
+  font-size: 12px;
+}
+
+.app-shell.ui-compact .npv-stat .s {
+  font-size: 11px;
+}
+
+.app-shell.ui-compact .npv-stat .v {
+  font-size: 22px;
+}
+
+.app-shell.ui-compact .npv-agent {
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.app-shell.ui-compact .npv-agent > span:not(.npv-dot) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-shell.ui-compact .npv-agent .select-menu {
+  display: block;
+  width: 100%;
+}
+
+.app-shell.ui-compact .npv-agent .select-menu-trigger {
+  border: 0;
+  background: transparent;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  width: 100%;
+  max-width: none;
+}
+
+.app-shell.ui-compact .npv-actions {
+  align-items: stretch;
+}
+
+@media (min-width: 769px) {
+  .app-shell.ui-compact .npv-agent {
+    min-width: 220px;
+  }
+}
+
+.app-shell.ui-compact .npv-agent-name,
+.app-shell.ui-compact .npv-select,
+.app-shell.ui-compact button.npv-select {
+  font-size: 14px;
+}
+
+.app-shell.ui-compact .npv-run {
+  border-radius: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 14px;
+}
+
+.app-shell.ui-compact .npv-group,
+.app-shell.ui-compact .npv-chip,
+.app-shell.ui-compact .npv-insight {
+  border-radius: 8px;
+}
+
+.app-shell.ui-compact .npv-asn,
+.app-shell.ui-compact .npv-delta {
+  border-radius: 4px;
+}
+
+.app-shell.ui-compact .npv-row {
+  gap: 12px;
+}
+
+.app-shell.ui-compact .npv-insight {
+  font-size: 13px;
+  padding: 10px 12px;
+}
+
+.app-shell.ui-compact .npv-detail .ttl,
+.app-shell.ui-compact .npv-detail-head .ttl {
+  font-size: 16px;
+}
+
+.app-shell.ui-compact .npv-bar,
+.app-shell.ui-compact .npv-stub {
+  border-radius: 4px 4px 2px 2px;
+}
+
+.app-shell.ui-compact .npv-vpath {
+  display: none;
+}
+
+.npv-vpath {
+  flex-direction: column;
+}
+
+.npv-vblock {
+  display: flex;
+  flex-direction: column;
+}
+
+.npv-vdiv {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0;
+}
+
+.npv-vdiv::before,
+.npv-vdiv::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.npv-vdiv span {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.npv-vdiv.big span {
+  color: #0e1320;
+  background: #ffc24d;
+  border-color: #ffc24d;
+}
+
+.npv-vrow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--c, var(--line)) 50%, transparent);
+  background: color-mix(in srgb, var(--c, var(--line)) 9%, transparent);
+}
+
+.npv-vrow.dashed {
+  border-style: dashed;
+}
+
+.npv-vmeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.npv-vmeta .npv-gname {
+  font-size: 14px;
+}
+
+.npv-vpills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.npv-vpill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.npv-vpill[aria-pressed="true"] {
+  border-color: var(--accent, var(--mint));
+  box-shadow: 0 0 0 1px var(--accent, var(--mint));
+}
+
+.npv-fold-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 52px;
+  margin: -4px 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.npv-fold-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.npv-fold-hint {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.npv-fold-chevron {
+  flex: none;
+  color: var(--muted);
+}
+
+.npv-fold.open .npv-fold-chevron {
+  transform: rotate(180deg);
+}
+
+.npv-fold-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .app-shell.ui-compact .npv-strip-scroll {
+    display: none;
+  }
+
+  .app-shell.ui-compact .npv-vpath {
+    display: flex;
+  }
+
+  .app-shell.ui-compact .npv-chart {
+    height: 150px;
+  }
+
+  .app-shell.ui-compact .npv-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .app-shell.ui-compact .npv-stat:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .app-shell.ui-compact .npv-row {
+    flex-direction: column;
+  }
+
+  .app-shell.ui-compact .npv-actions,
+  .app-shell.ui-compact .npv-agent {
+    width: 100%;
+  }
+
+  .app-shell.ui-compact .npv-legend {
+    display: none;
+  }
+}

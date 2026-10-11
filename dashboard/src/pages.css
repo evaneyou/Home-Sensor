@@ -1,0 +1,96 @@
+/* Extra density for Airwaves, monitor detail, issues, and settings. */
+
+.app-shell.ui-compact .airwaves h1,
+.app-shell.ui-compact .air-overlay-page h2 {
+  font-size: 22px;
+}
+
+.app-shell.ui-compact .air-rec h2 {
+  font-size: 16px;
+}
+
+.app-shell.ui-compact .airwaves .npv-card,
+.app-shell.ui-compact .air-controls,
+.app-shell.ui-compact .air-filters,
+.app-shell.ui-compact .air-overlay-page {
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.app-shell.ui-compact .airwaves .npv-agent,
+.app-shell.ui-compact .main .airwaves .air-select,
+.app-shell.ui-compact .air-pills,
+.app-shell.ui-compact .air-pill,
+.app-shell.ui-compact .airwaves .select-menu-trigger,
+.app-shell.ui-compact .airwaves .select-menu-panel,
+.app-shell.ui-compact .airwaves .select-menu-option,
+.app-shell.ui-compact .air-mark,
+.app-shell.ui-compact .air-rec-icon,
+.app-shell.ui-compact .air-near-stat {
+  border-radius: 8px;
+}
+
+.app-shell.ui-compact .air-kicker,
+.app-shell.ui-compact .air-tag {
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.app-shell.ui-compact .air-near-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.app-shell.ui-compact .air-near-stat .v {
+  font-size: 22px;
+}
+
+.app-shell.ui-compact .air-mark {
+  width: 40px;
+  height: 40px;
+}
+
+.app-shell.ui-compact .air-rec-icon {
+  width: 40px;
+  height: 40px;
+}
+
+.app-shell.ui-compact .air-pill {
+  min-height: 44px;
+}
+
+.app-shell.ui-compact .panel:has(> .table),
+.app-shell.ui-compact .panel:has(> table),
+.app-shell.ui-compact .table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.app-shell.ui-compact .isp-stat {
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.app-shell.ui-compact .isp-stat strong,
+.app-shell.ui-compact .device-stats strong {
+  font-size: 22px;
+}
+
+.app-shell.ui-compact .settings-nav a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+@media (min-width: 760px) {
+  .app-shell.ui-compact .air-overlay-page {
+    border-radius: 12px;
+  }
+}
+
+@media (min-width: 900px) {
+  .app-shell.ui-compact .air-near-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
