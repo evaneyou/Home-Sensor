@@ -79,7 +79,7 @@ input {
 }
 
 .brand img {
-  height: 71px;
+  height: 57px;
   width: auto;
   display: block;
 }
@@ -1250,7 +1250,7 @@ button:hover,
     grid-template-columns: minmax(110px, 140px) repeat(var(--cols), minmax(0, 1fr));
   }
   .brand img {
-    height: 61px;
+    height: 49px;
   }
   .main {
     padding: 1rem;
@@ -3298,7 +3298,7 @@ button.npv-select {
     width: auto;
     height: auto;
     max-width: 100%;
-    max-height: 48px;
+    max-height: 38px;
   }
 
   .app-shell:not(.dash-shell) .main:has(.airwaves) {

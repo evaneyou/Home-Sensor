@@ -10,6 +10,20 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
 
 ## [Unreleased]
 
+### Fixed
+
+- Checks stayed "slow" forever after the path changed (for example the server moving from the
+  LAN to another network). The recent normal only used OK results, and a slower path never produced any. When
+  the latest 12 results have no loss and are close together, that level is now the new normal.
+- Home screen showed Wired, Wi-Fi and Internet as "Not connected" while pings and web checks passed.
+  The path trace (MTR) failed whenever the last hop dropped probe packets, and that alone turned the
+  tiles red. The agent now confirms a silent last hop with a ping, and the server no longer lets the
+  path trace set the tile status.
+- Pi agent iperf3 check: the download test was often cut off by the server ("Connection reset by
+  peer") right after the upload test, so it reported 0 Mbps. The agent now pauses between the two
+  directions and retries a direction that fails this way, and the result message shows iperf3's
+  real error instead of the last line of its JSON output.
+
 ### Added
 
 - Open-source project files: `LICENSE` (MIT), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,

@@ -749,25 +749,62 @@ def _number(value: object) -> float | None:
     return float(value)
 
 
-def _baseline_value(db: Session, test: Test, metric: str) -> float | None:
-    rows = db.scalars(
-        select(TestResult)
-        .where(TestResult.test_id == test.id, TestResult.status == ResultStatus.ok)
-        .order_by(desc(TestResult.started_at))
-        .limit(12)
-    ).all()
-    values: list[float] = []
-    for row in rows:
-        sample = _number((row.metrics or {}).get(metric))
-        if sample is not None and sample > 0:
-            values.append(sample)
-    if len(values) < 3:
-        return None
+BASELINE_SAMPLES = 12
+# Twelve loss-free results this close together are a steady new normal, not a blip.
+STEADY_SPREAD = 1.5
+
+
+def _median(values: list[float]) -> float:
     ordered = sorted(values)
     mid = len(ordered) // 2
     if len(ordered) % 2:
         return ordered[mid]
     return (ordered[mid - 1] + ordered[mid]) / 2
+
+
+def steady_level(values: list[float]) -> float | None:
+    """Median of a full, tight run of samples, or None when they are not steady."""
+    if len(values) < BASELINE_SAMPLES or min(values) <= 0:
+        return None
+    if max(values) > min(values) * STEADY_SPREAD:
+        return None
+    return _median(values)
+
+
+def _baseline_value(db: Session, test: Test, metric: str) -> float | None:
+    """Recent normal for a metric: the median of recent OK results.
+
+    If the path itself changed, every new result is slower than the old normal and
+    none count as OK, so the old normal would stay forever. When the latest results
+    are loss-free and steady, that steady level becomes the new normal.
+    """
+    rows = db.scalars(
+        select(TestResult)
+        .where(
+            TestResult.test_id == test.id,
+            TestResult.status.in_((ResultStatus.ok, ResultStatus.degraded)),
+        )
+        .order_by(desc(TestResult.started_at))
+        .limit(BASELINE_SAMPLES)
+    ).all()
+    ok_values: list[float] = []
+    steady_values: list[float] = []
+    for row in rows:
+        metrics = row.metrics or {}
+        sample = _number(metrics.get(metric))
+        if sample is None or sample <= 0:
+            continue
+        if row.status == ResultStatus.ok:
+            ok_values.append(sample)
+        loss = _number(metrics.get("loss_pct"))
+        if not loss:
+            steady_values.append(sample)
+    steady = steady_level(steady_values)
+    if steady is not None:
+        return steady
+    if len(ok_values) < 3:
+        return None
+    return _median(ok_values)
 
 
 def load_web_services(db: Session) -> list[WebServiceSetting]:
