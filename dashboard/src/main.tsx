@@ -6,6 +6,7 @@ import App from "./App";
 import "./index.css";
 import "./ui.css";
 import "./compact.css";
+import "./pages.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
