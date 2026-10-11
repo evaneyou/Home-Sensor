@@ -781,10 +781,14 @@ def summary(
         if result is None:
             continue
         status_val = result.status.value
-        if rank[status_val] > rank[cell.status]:
-            cell.status = status_val
         if cell.last_test_at is None or result.started_at > cell.last_test_at:
             cell.last_test_at = result.started_at
+        if test.slug == "mtr-path":
+            # The trace is detail for the Path View. Many hosts drop trace probes,
+            # so it must not turn the Wired, Wi-Fi or Internet tile red by itself.
+            continue
+        if rank[status_val] > rank[cell.status]:
+            cell.status = status_val
         if status_val in ("fail", "degraded"):
             cell.failing_tests += 1
 
