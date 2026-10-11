@@ -12,6 +12,10 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
 
 ### Fixed
 
+- Home screen showed Wired, Wi-Fi and Internet as "Not connected" while pings and web checks passed.
+  The path trace (MTR) failed whenever the last hop dropped probe packets, and that alone turned the
+  tiles red. The agent now confirms a silent last hop with a ping, and the server no longer lets the
+  path trace set the tile status.
 - Pi agent iperf3 check: the download test was often cut off by the server ("Connection reset by
   peer") right after the upload test, so it reported 0 Mbps. The agent now pauses between the two
   directions and retries a direction that fails this way, and the result message shows iperf3's

@@ -753,14 +753,26 @@ def check_mtr(test: dict) -> dict:
         status = "degraded"
     else:
         status = "ok"
+    message = host
+    if status == "fail" and len(hops) > 1 and _mtr_answered_before_last(hops):
+        # Many services drop trace probes at the last hop. If an ordinary ping still
+        # gets through, the destination is up and the trace is not a failure.
+        if check_ping(test)["status"] != "fail":
+            status = "ok"
+            message = f"{host}: last hop does not answer trace probes, ping is fine"
     return _result(
         test,
         started_at,
         status,
         [{"name": "trace", "duration_ms": total, "status": status}],
         _trace_metrics(hops, total),
-        host,
+        message,
     )
+
+
+def _mtr_answered_before_last(hops: list[dict]) -> bool:
+    """True when at least one hop before the last one replied to the trace."""
+    return any(hop["loss_pct"] < 100 and hop["avg_ms"] > 0 for hop in hops[:-1])
 
 
 def _host_only(target: str) -> str:
