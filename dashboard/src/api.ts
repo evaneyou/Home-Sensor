@@ -1,15 +1,17 @@
-import type { InternetServiceSetting, RfAp, RfChannelSnapshot, RfClient, RfHistoryPoint, RfOverview, WebServiceSetting, WebStability } from "./types";
+import type { EnrollmentRegistration, InternetServiceSetting, RfAp, RfChannelSnapshot, RfClient, RfHistoryPoint, RfOverview, WebServiceSetting, WebStability } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8847";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+type JsonInit = Omit<RequestInit, "headers"> & { headers?: Record<string, string> };
+
+async function request<T>(path: string, init?: JsonInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
+    ...init,
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
-    ...init,
   });
   if (!res.ok) {
     const text = await res.text();
@@ -17,6 +19,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+function csrfHeaders(token: string): Record<string, string> {
+  return { "X-CSRF-Token": token };
 }
 
 export const api = {
@@ -39,10 +45,37 @@ export const api = {
     request(`/api/v1/issues${status ? `?status=${status}` : ""}`),
   issue: (id: string) => request(`/api/v1/issues/${id}`),
   monitors: () => request("/api/v1/monitors"),
-  createMonitor: (name: string) =>
-    request("/api/v1/monitors", { method: "POST", body: JSON.stringify({ name }) }),
-  deleteMonitor: (id: string) => request(`/api/v1/monitors/${id}`, { method: "DELETE" }),
-  regenerateMonitorKey: (id: string) => request(`/api/v1/monitors/${id}/key`, { method: "POST" }),
+  enrollments: () => request<EnrollmentRegistration[]>("/api/v1/enrollment"),
+  registerEnrollment: (
+    body: { installer_code: string; device_name: string; location?: string | null },
+    csrf: string,
+  ) =>
+    request<EnrollmentRegistration>("/api/v1/enrollment/codes", {
+      method: "POST",
+      headers: csrfHeaders(csrf),
+      body: JSON.stringify(body),
+    }),
+  approveEnrollment: (id: string, replaceMonitorId: string | null, csrf: string) =>
+    request(`/api/v1/enrollment/codes/${id}/approve`, {
+      method: "POST",
+      headers: csrfHeaders(csrf),
+      body: JSON.stringify(replaceMonitorId ? { replace_monitor_id: replaceMonitorId } : {}),
+    }),
+  startOverEnrollment: (id: string, csrf: string) =>
+    request<EnrollmentRegistration>(`/api/v1/enrollment/codes/${id}/start-over`, {
+      method: "POST",
+      headers: csrfHeaders(csrf),
+    }),
+  removeEnrollment: (id: string, csrf: string) =>
+    request<void>(`/api/v1/enrollment/codes/${id}`, {
+      method: "DELETE",
+      headers: csrfHeaders(csrf),
+    }),
+  deleteMonitor: (id: string, csrf: string) =>
+    request<void>(`/api/v1/monitors/${id}`, {
+      method: "DELETE",
+      headers: csrfHeaders(csrf),
+    }),
   issueMonitorTunnel: (id: string) => request(`/api/v1/monitors/${id}/tunnel`, { method: "POST" }),
   restartMonitor: (id: string) => request(`/api/v1/monitors/${id}/restart`, { method: "POST" }),
   monitor: (id: string) => request(`/api/v1/monitors/${id}`),

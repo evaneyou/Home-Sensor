@@ -6,7 +6,7 @@ import { api } from "../api";
 import ConfirmDialog from "../components/ConfirmDialog";
 import SelectMenu from "../components/SelectMenu";
 import StatusMark from "../components/StatusMark";
-import type { MonitorAdmin, MonitorKey, TunnelIssue, User } from "../types";
+import type { EnrollmentRegistration, MonitorAdmin, TunnelIssue, User } from "../types";
 
 const INTERVALS = [
   { value: 30, label: "30s" },
@@ -16,9 +16,12 @@ const INTERVALS = [
 ];
 
 type Pending =
-  | { kind: "add"; name: string }
+  | { kind: "register"; code: string; name: string }
+  | { kind: "approve"; registration: EnrollmentRegistration }
+  | { kind: "replace"; registration: EnrollmentRegistration; monitor: MonitorAdmin }
+  | { kind: "start-over"; registration: EnrollmentRegistration }
+  | { kind: "remove-code"; registration: EnrollmentRegistration }
   | { kind: "delete"; monitor: MonitorAdmin }
-  | { kind: "key"; monitor: MonitorAdmin }
   | { kind: "tunnel"; monitor: MonitorAdmin }
   | { kind: "save" };
 
@@ -64,15 +67,22 @@ export default function MonitorOnboardingPage() {
     queryFn: () => api.monitors() as Promise<MonitorAdmin[]>,
     refetchInterval: 5000,
   });
+  const enrollmentQ = useQuery({
+    queryKey: ["enrollment"],
+    queryFn: () => api.enrollments(),
+    refetchInterval: 5000,
+  });
+  const [draftCode, setDraftCode] = useState("");
   const [draftName, setDraftName] = useState("");
+  const [draftLocation, setDraftLocation] = useState("");
+  const [replaceChoice, setReplaceChoice] = useState<Record<string, string>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [intervalSeconds, setIntervalSeconds] = useState(60);
   const [syncedKey, setSyncedKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
-  const [issued, setIssued] = useState<MonitorKey | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [issued, setIssued] = useState<TunnelIssue | null>(null);
   const [copiedTunnel, setCopiedTunnel] = useState(false);
   const [copiedWireless, setCopiedWireless] = useState(false);
 
@@ -89,26 +99,102 @@ export default function MonitorOnboardingPage() {
     setIntervalSeconds(selected.health_interval_seconds);
   }, [selected, serverKey, syncedKey]);
 
-  const add = useMutation({
-    mutationFn: (deviceName: string) => api.createMonitor(deviceName) as Promise<MonitorKey>,
-    onSuccess: async (created) => {
+  const registrations = enrollmentQ.data ?? [];
+
+  function csrfOrError(): string | null {
+    const token = me.data?.csrf_token;
+    if (!token) {
+      setError("The session is missing a CSRF token. Reload the page.");
+      return null;
+    }
+    return token;
+  }
+
+  const registerCode = useMutation({
+    mutationFn: (body: { installer_code: string; device_name: string; location: string }) => {
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+      return api.registerEnrollment(
+        {
+          installer_code: body.installer_code,
+          device_name: body.device_name,
+          location: body.location.trim() || null,
+        },
+        csrf,
+      );
+    },
+    onSuccess: async () => {
       setError(null);
+      setDraftCode("");
       setDraftName("");
+      setDraftLocation("");
       setPending(null);
-      setIssued(created);
-      setCopied(false);
-      setSelectedId(created.id);
-      setSyncedKey("");
+      await qc.invalidateQueries({ queryKey: ["enrollment"] });
+    },
+    onError: (e: Error) => {
+      setPending(null);
+      setError(errorText(e, "Could not register the installer code"));
+    },
+  });
+
+  const approve = useMutation({
+    mutationFn: (body: { id: string; replaceMonitorId: string | null }) => {
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+      return api.approveEnrollment(body.id, body.replaceMonitorId, csrf);
+    },
+    onSuccess: async () => {
+      setError(null);
+      setPending(null);
+      await qc.invalidateQueries({ queryKey: ["enrollment"] });
       await qc.invalidateQueries({ queryKey: ["monitors"] });
     },
     onError: (e: Error) => {
       setPending(null);
-      setError(errorText(e, "Could not add the device"));
+      setError(errorText(e, "Could not approve the remote agent"));
+    },
+  });
+
+  const startOver = useMutation({
+    mutationFn: (id: string) => {
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+      return api.startOverEnrollment(id, csrf);
+    },
+    onSuccess: async () => {
+      setError(null);
+      setPending(null);
+      await qc.invalidateQueries({ queryKey: ["enrollment"] });
+    },
+    onError: (e: Error) => {
+      setPending(null);
+      setError(errorText(e, "Could not start over"));
+    },
+  });
+
+  const removeCode = useMutation({
+    mutationFn: (id: string) => {
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+      return api.removeEnrollment(id, csrf);
+    },
+    onSuccess: async () => {
+      setError(null);
+      setPending(null);
+      await qc.invalidateQueries({ queryKey: ["enrollment"] });
+    },
+    onError: (e: Error) => {
+      setPending(null);
+      setError(errorText(e, "Could not remove the registration"));
     },
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => api.deleteMonitor(id),
+    mutationFn: (id: string) => {
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+      return api.deleteMonitor(id, csrf);
+    },
     onSuccess: async () => {
       setError(null);
       setPending(null);
@@ -123,34 +209,12 @@ export default function MonitorOnboardingPage() {
     },
   });
 
-  const rotate = useMutation({
-    mutationFn: (id: string) => api.regenerateMonitorKey(id) as Promise<MonitorKey>,
-    onSuccess: (created) => {
-      setError(null);
-      setPending(null);
-      setIssued(created);
-      setCopied(false);
-    },
-    onError: (e: Error) => {
-      setPending(null);
-      setError(errorText(e, "Could not generate a key"));
-    },
-  });
-
   const tunnel = useMutation({
     mutationFn: (id: string) => api.issueMonitorTunnel(id) as Promise<TunnelIssue>,
     onSuccess: (created) => {
       setError(null);
       setPending(null);
-      setIssued({
-        id: created.id,
-        name: created.name,
-        key: "",
-        tunnel_address: created.address,
-        tunnel_config: created.config,
-        wireless_tunnel_address: created.wireless_address,
-        wireless_tunnel_config: created.wireless_config,
-      });
+      setIssued(created);
       setCopiedTunnel(false);
       setCopiedWireless(false);
       void qc.invalidateQueries({ queryKey: ["monitors"] });
@@ -184,17 +248,26 @@ export default function MonitorOnboardingPage() {
     },
   });
 
-  const busy = add.isPending || remove.isPending || rotate.isPending || tunnel.isPending || save.isPending;
+  const busy =
+    registerCode.isPending ||
+    approve.isPending ||
+    startOver.isPending ||
+    removeCode.isPending ||
+    remove.isPending ||
+    tunnel.isPending ||
+    save.isPending;
 
-  function requestAdd(event: FormEvent) {
+  function requestRegister(event: FormEvent) {
     event.preventDefault();
     const deviceName = draftName.trim();
-    if (!deviceName) {
-      setError("Enter a device name.");
+    const code = draftCode.trim();
+    if (!code || !deviceName) {
+      setError("Enter the installer code and a device name.");
       return;
     }
+    if (!csrfOrError()) return;
     setError(null);
-    setPending({ kind: "add", name: deviceName });
+    setPending({ kind: "register", code, name: deviceName });
   }
 
   function requestSave(event: FormEvent) {
@@ -209,20 +282,28 @@ export default function MonitorOnboardingPage() {
 
   function confirm() {
     if (!pending) return;
-    if (pending.kind === "add") add.mutate(pending.name);
+    if (pending.kind === "register") {
+      registerCode.mutate({
+        installer_code: pending.code,
+        device_name: pending.name,
+        location: draftLocation,
+      });
+    } else if (pending.kind === "approve") approve.mutate({ id: pending.registration.id, replaceMonitorId: null });
+    else if (pending.kind === "replace") {
+      approve.mutate({ id: pending.registration.id, replaceMonitorId: pending.monitor.id });
+    } else if (pending.kind === "start-over") startOver.mutate(pending.registration.id);
+    else if (pending.kind === "remove-code") removeCode.mutate(pending.registration.id);
     else if (pending.kind === "delete") remove.mutate(pending.monitor.id);
-    else if (pending.kind === "key") rotate.mutate(pending.monitor.id);
     else if (pending.kind === "tunnel") tunnel.mutate(pending.monitor.id);
     else save.mutate();
   }
 
-  async function copyKey() {
-    if (!issued) return;
+  async function copyText(value: string, mark: (copied: boolean) => void) {
     try {
-      await navigator.clipboard.writeText(issued.key);
-      setCopied(true);
+      await navigator.clipboard.writeText(value);
+      mark(true);
     } catch {
-      setCopied(false);
+      mark(false);
     }
   }
 
@@ -240,28 +321,34 @@ export default function MonitorOnboardingPage() {
     <div>
       <h2 className="page-title">Remote Agent Onboarding</h2>
       <p className="page-sub">
-        Create each Raspberry Pi here first. The device name is case-sensitive, and the remote agent must use that same
-        name plus the server key.
+        Register the installer code shown on the Pi, then approve the remote agent after it checks in. The device name
+        is case-sensitive.
       </p>
 
       <section className="panel">
         <h3 className="wifi-heading" style={{ marginTop: 0 }}>
-          Add a device
+          Register an installer code
         </h3>
         <ol className="setup-steps">
-          <li>Add the device and copy the key. The key is shown only once.</li>
-          <li>
-            On the Pi, install both WireGuard configs (<span className="mono">wg0.conf</span> for wired and{" "}
-            <span className="mono">wg1.conf</span> for Wi-Fi), then open{" "}
-            <span className="mono">http://&lt;hostname&gt;.local/</span> and enter the same name, the server address{" "}
-            <span className="mono">http://10.7.0.1:8847</span>, and the key.
-          </li>
-          <li>Capitalization has to match. “Office” and “office” are different devices.</li>
+          <li>On the Pi, open the LAN setup page and copy the installer code.</li>
+          <li>Register that code here with the device name and an optional location. The code lasts 24 hours.</li>
+          <li>When the Pi checks in, approve it as a new remote agent, or replace an existing one.</li>
         </ol>
         {me.isLoading ? (
           <p className="muted">Loading session…</p>
         ) : admin ? (
-          <form className="device-form" onSubmit={requestAdd}>
+          <form className="device-form" onSubmit={requestRegister}>
+            <div className="field">
+              <label htmlFor="installer-code">Installer code</label>
+              <input
+                id="installer-code"
+                value={draftCode}
+                onChange={(event) => setDraftCode(event.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="K7QF-2MXD-9PLA"
+              />
+            </div>
             <div className="field">
               <label htmlFor="new-device-name">Device name</label>
               <input
@@ -272,82 +359,56 @@ export default function MonitorOnboardingPage() {
                 placeholder="Living Room"
               />
             </div>
+            <div className="field">
+              <label htmlFor="new-device-location">Location</label>
+              <input
+                id="new-device-location"
+                value={draftLocation}
+                onChange={(event) => setDraftLocation(event.target.value)}
+                autoComplete="off"
+                placeholder="Optional"
+              />
+            </div>
             <div className="form-actions">
               <button
-                className={`btn btn-primary${draftName.trim() ? " is-dirty" : ""}`}
+                className={`btn btn-primary${draftCode.trim() && draftName.trim() ? " is-dirty" : ""}`}
                 type="submit"
                 disabled={busy}
               >
-                Add device
+                Register
               </button>
             </div>
           </form>
         ) : (
-          <p className="muted">An admin can add devices, generate keys, and change settings.</p>
+          <p className="muted">An admin can register installer codes and change settings.</p>
         )}
-        {issued ? (
+        {issued?.config ? (
           <div className="issued-key">
-            {issued.key ? (
-              <p>
-                Key for <strong>{issued.name}</strong>. Paste this into the remote agent. It cannot be shown again.
-              </p>
-            ) : null}
-            {issued.key ? (
-              <div className="copy-row">
-                <input className="mono" readOnly value={issued.key} aria-label={`Device key for ${issued.name}`} />
-                <button className="btn" type="button" onClick={() => void copyKey()}>
-                  {copied ? "Copied" : "Copy"}
-                </button>
-              </div>
-            ) : null}
-            {issued.tunnel_config ? (
+            <p>
+              Wired tunnel for <strong>{issued.name}</strong>. Save it as <span className="mono">wg0.conf</span> next to
+              the installer. It cannot be shown again. Health reports use <span className="mono">http://10.7.0.1:8847</span>.
+            </p>
+            <div className="copy-row">
+              <textarea className="mono" readOnly value={issued.config} aria-label={`Wired WireGuard config for ${issued.name}`} />
+              <button className="btn" type="button" onClick={() => void copyText(issued.config, setCopiedTunnel)}>
+                {copiedTunnel ? "Copied" : "Copy"}
+              </button>
+            </div>
+            {issued.wireless_config ? (
               <>
                 <p>
-                  Wired tunnel for <strong>{issued.name}</strong>. Save it as <span className="mono">wg0.conf</span> next
-                  to the installer. It cannot be shown again. Health reports use{" "}
-                  <span className="mono">http://10.7.0.1:8847</span>.
-                </p>
-                <div className="copy-row">
-                  <textarea className="mono" readOnly value={issued.tunnel_config} aria-label={`Wired WireGuard config for ${issued.name}`} />
-                  <button
-                    className="btn"
-                    type="button"
-                    onClick={() => {
-                      void navigator.clipboard.writeText(issued.tunnel_config || "").then(
-                        () => setCopiedTunnel(true),
-                        () => setCopiedTunnel(false),
-                      );
-                    }}
-                  >
-                    {copiedTunnel ? "Copied" : "Copy"}
-                  </button>
-                </div>
-              </>
-            ) : null}
-            {issued.wireless_tunnel_config ? (
-              <>
-                <p>
-                  Wi-Fi tunnel for <strong>{issued.name}</strong>. Save it as <span className="mono">wg1.conf</span>{" "}
-                  next to the installer. It cannot be shown again. Wi-Fi path checks use{" "}
+                  Wi-Fi tunnel for <strong>{issued.name}</strong>. Save it as <span className="mono">wg1.conf</span> next
+                  to the installer. It cannot be shown again. Wi-Fi path checks use{" "}
                   <span className="mono">http://10.7.1.1:8847</span>.
                 </p>
                 <div className="copy-row">
                   <textarea
                     className="mono"
                     readOnly
-                    value={issued.wireless_tunnel_config}
+                    value={issued.wireless_config}
                     aria-label={`Wi-Fi WireGuard config for ${issued.name}`}
                   />
-                  <button
-                    className="btn"
-                    type="button"
-                    onClick={() => {
-                      void navigator.clipboard.writeText(issued.wireless_tunnel_config || "").then(
-                        () => setCopiedWireless(true),
-                        () => setCopiedWireless(false),
-                      );
-                    }}
-                  >
+                  <button className="btn" type="button" onClick={() => void copyText(issued.wireless_config, setCopiedWireless)}>
                     {copiedWireless ? "Copied" : "Copy"}
                   </button>
                 </div>
@@ -355,6 +416,122 @@ export default function MonitorOnboardingPage() {
             ) : null}
           </div>
         ) : null}
+      </section>
+
+      <section className="panel">
+        <h3 className="wifi-heading" style={{ marginTop: 0 }}>
+          Waiting for approval
+        </h3>
+        {enrollmentQ.isLoading ? (
+          <p className="muted">Loading registrations…</p>
+        ) : enrollmentQ.isError ? (
+          <p className="error">Could not load registrations.</p>
+        ) : registrations.length === 0 ? (
+          <p className="muted">No remote agents are waiting for approval.</p>
+        ) : (
+          <div className="monitor-picks">
+            {registrations.map((registration) => {
+              const count = registration.checkins.length;
+              const ready = count === 1 && !registration.conflict;
+              const chosen = replaceChoice[registration.id] ?? "";
+              const replacement = monitors.find((monitor) => monitor.id === chosen) ?? null;
+              return (
+                <div key={registration.id} className="monitor-card open">
+                  <div className="monitor-pick" style={{ cursor: "default" }}>
+                    <span className="monitor-pick-name">
+                      <strong>{registration.device_name}</strong>
+                    </span>
+                    <span className="muted">{registration.location || "No location"}</span>
+                    <span className="muted">Registered by {registration.registered_by}</span>
+                    <span className="muted">
+                      {count === 1 ? "1 device checked in" : `${count} devices checked in`}
+                    </span>
+                    <span className="muted">Expires {formatSeen(registration.expires_at)}</span>
+                  </div>
+                  <div className="monitor-card-body">
+                    {registration.conflict ? (
+                      <p className="error">More than one device used this code. Start over, then have one device check in again.</p>
+                    ) : null}
+                    {count === 0 ? <p className="muted">Waiting for the Pi to check in.</p> : null}
+                    {registration.checkins.map((checkin) => (
+                      <p key={checkin.id} className="muted">
+                        <span className="mono">{checkin.hostname}</span>
+                        {" · "}
+                        <span className="mono">{checkin.lan_ip}</span>
+                        {checkin.observed_ip ? ` · seen from ${checkin.observed_ip}` : ""}
+                      </p>
+                    ))}
+                    {admin ? (
+                      <div className="form-actions">
+                        <button
+                          className="btn btn-primary"
+                          type="button"
+                          disabled={busy || !ready}
+                          onClick={() => {
+                            setError(null);
+                            setPending({ kind: "approve", registration });
+                          }}
+                        >
+                          Approve
+                        </button>
+                        <SelectMenu
+                          id={`replace-${registration.id}`}
+                          aria-label={`Replace an existing remote agent with ${registration.device_name}`}
+                          value={chosen}
+                          disabled={busy || !ready || monitors.length === 0}
+                          onChange={(event) =>
+                            setReplaceChoice((current) => ({ ...current, [registration.id]: event.target.value }))
+                          }
+                        >
+                          <option value="">Replace…</option>
+                          {monitors.map((monitor) => (
+                            <option key={monitor.id} value={monitor.id}>
+                              {monitor.name}
+                            </option>
+                          ))}
+                        </SelectMenu>
+                        <button
+                          className="btn"
+                          type="button"
+                          disabled={busy || !ready || !replacement}
+                          onClick={() => {
+                            if (!replacement) return;
+                            setError(null);
+                            setPending({ kind: "replace", registration, monitor: replacement });
+                          }}
+                        >
+                          Replace
+                        </button>
+                        <button
+                          className="btn"
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            setError(null);
+                            setPending({ kind: "start-over", registration });
+                          }}
+                        >
+                          Start over
+                        </button>
+                        <button
+                          className="btn"
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            setError(null);
+                            setPending({ kind: "remove-code", registration });
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       <section className="panel">
@@ -431,17 +608,6 @@ export default function MonitorOnboardingPage() {
                               disabled={busy}
                               onClick={() => {
                                 setError(null);
-                                setPending({ kind: "key", monitor });
-                              }}
-                            >
-                              Generate key
-                            </button>
-                            <button
-                              className="btn"
-                              type="button"
-                              disabled={busy}
-                              onClick={() => {
-                                setError(null);
                                 setPending({ kind: "tunnel", monitor });
                               }}
                             >
@@ -505,11 +671,39 @@ function confirmText(
   nextName: string,
 ): { title: string; body: string; confirmLabel: string } | null {
   if (!pending) return null;
-  if (pending.kind === "add") {
+  if (pending.kind === "register") {
     return {
-      title: "Add device",
-      confirmLabel: "Add device",
-      body: `Create “${pending.name}” and generate a 256-bit key? The remote agent must use this name exactly, including capital letters.`,
+      title: "Register installer code",
+      confirmLabel: "Register",
+      body: `Register installer code ${pending.code} for “${pending.name}”? The name is case-sensitive.`,
+    };
+  }
+  if (pending.kind === "approve") {
+    return {
+      title: "Approve remote agent",
+      confirmLabel: "Approve",
+      body: `Add “${pending.registration.device_name}” as a new remote agent?`,
+    };
+  }
+  if (pending.kind === "replace") {
+    return {
+      title: "Replace remote agent",
+      confirmLabel: "Replace",
+      body: `Replace “${pending.monitor.name}” with “${pending.registration.device_name}”? The tunnel address stays. The previous device key stops working.`,
+    };
+  }
+  if (pending.kind === "start-over") {
+    return {
+      title: "Start over",
+      confirmLabel: "Start over",
+      body: `Clear the devices that checked in for “${pending.registration.device_name}”? The installer code stays registered.`,
+    };
+  }
+  if (pending.kind === "remove-code") {
+    return {
+      title: "Remove registration",
+      confirmLabel: "Remove",
+      body: `Remove the registration for “${pending.registration.device_name}”? It has not been approved.`,
     };
   }
   if (pending.kind === "delete") {
@@ -517,13 +711,6 @@ function confirmText(
       title: "Delete device",
       confirmLabel: "Delete device",
       body: `Delete “${pending.monitor.name}”? This removes the device, and it will no longer be able to connect.`,
-    };
-  }
-  if (pending.kind === "key") {
-    return {
-      title: "Generate key",
-      confirmLabel: "Generate key",
-      body: `Generate a new key for “${pending.monitor.name}”? The current key stops working. Paste the new key into the remote agent.`,
     };
   }
   if (pending.kind === "tunnel") {

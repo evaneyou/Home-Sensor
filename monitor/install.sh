@@ -44,7 +44,7 @@ if [ "$(id -u)" -ne 0 ]; then
   echo "Run as root: sudo hnw-reset" >&2
   exit 1
 fi
-rm -f /etc/monitor/config.json
+rm -f /etc/monitor/config.json /etc/monitor/identity.pem /etc/monitor/wg.key /etc/monitor/wg-wireless.key
 systemctl restart monitor.service
 echo "Enrollment cleared. Open this Pi's setup page to connect again."
 EOF
@@ -71,7 +71,7 @@ if [ -f wg1.conf ]; then
 fi
 host="$(hostname -s)"
 echo "Open http://${host}.local/ from a PC on this LAN."
-echo "Create the device in Remote Agent Onboarding first, then paste its name and key here."
+echo "Register the installer code shown on that page, then enter the server address and TLS key pins."
 
 install_kismet() {
   export DEBIAN_FRONTEND=noninteractive
