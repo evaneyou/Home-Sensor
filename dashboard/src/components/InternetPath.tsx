@@ -487,7 +487,7 @@ function InternetDetail({
   const slugs =
     detail === "isp"
       ? [...ISP_SLUGS, "librespeed", "webrtc"]
-      : probeKinds(detail).map((kind) => `${kind}-${detail}`);
+      : [...probeKinds(detail).map((kind) => `${kind}-${detail}`), `mtr-${detail}`];
   const watched = slugs.flatMap((slug) => {
     const test = bySlug.get(slug);
     return test ? [test] : [];
@@ -790,6 +790,41 @@ function InternetDetail({
             <PathChart title="ICMP packet loss" data={icmpChart} span={span} dataKey="loss" label="Loss" unit=" %" />
             <PathChart title="ICMP jitter" data={icmpChart} span={span} dataKey="jitter" label="Jitter" unit=" ms" />
           </div>
+          <div className="chart-pair">
+            <PathChart title="MTR destination latency" data={mtrChart} span={span} dataKey="latency" label="Destination" unit=" ms" />
+            <PathChart title="MTR worst hop loss" data={mtrChart} span={span} dataKey="loss" label="Worst hop" unit=" %" />
+          </div>
+          <h3 className="wifi-heading">Latest MTR hops</h3>
+          {latestHops.length === 0 ? (
+            <div className="muted">No hop sample in this range.</div>
+          ) : (
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Hop</th>
+                    <th>Host</th>
+                    <th>Loss</th>
+                    <th>Best</th>
+                    <th>Avg</th>
+                    <th>Worst</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {latestHops.map((hop) => (
+                    <tr key={hop.hop}>
+                      <td className="mono">{hop.hop}</td>
+                      <td className="mono">{hop.host}</td>
+                      <td className="mono">{fmt(hop.loss_pct)}%</td>
+                      <td className="mono">{fmt(hop.best_ms)} ms</td>
+                      <td className="mono">{fmt(hop.avg_ms)} ms</td>
+                      <td className="mono">{fmt(hop.worst_ms)} ms</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
     </div>

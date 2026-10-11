@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
+import socket
 
-from sqlalchemy import and_, desc, or_, select
+from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import (
@@ -20,9 +21,10 @@ from app.models import (
     WebStabilitySetting,
 )
 from app.services.stability import StabilityConfig, latency_limit
-from app.wireguard_tunnel import TUNNEL_SERVER_IP, WIRELESS_SERVER_IP
+from app.wireguard_tunnel import TUNNEL_SERVER_IP, WIRELESS_SERVER_IP, endpoint
 
-# Path checks and iperf3 use the tunnel address.
+# Latency checks use the tunnel address. Traceroute uses the public endpoint,
+# because the tunnel address is a single hop and hides the path.
 # Web services probe each service's own hostname.
 IPERF_HOST = TUNNEL_SERVER_IP
 IPERF_TARGET = TUNNEL_SERVER_IP
@@ -121,6 +123,55 @@ def _network(db: Session, monitor: Monitor, slug: str, name: str, kind: NetworkK
     return network
 
 
+def public_trace_host() -> str:
+    """Host a traceroute should follow. The tunnel address is one hop and hides the path."""
+    raw = endpoint().strip()
+    if raw.startswith("["):
+        end = raw.find("]")
+        host = raw[1:end] if end > 1 else ""
+    else:
+        host = raw.rsplit(":", 1)[0]
+    return host or TUNNEL_SERVER_IP
+
+
+def _ipv4_literal(host: str) -> str:
+    """Pin MTR to IPv4. The agent binds an IPv4 source, and an IPv6 target makes that bind fail."""
+    try:
+        infos = socket.getaddrinfo(host, None, socket.AF_INET, socket.SOCK_DGRAM)
+    except OSError:
+        return host
+    for info in infos:
+        address = info[4][0]
+        if address:
+            return address
+    return host
+
+
+def select_trace_test(db: Session, monitor_id, slug: str, network_slug: str) -> Test | None:
+    """Prefer this link when it has hops. A failed empty trace does not hide an older path."""
+    traced_at = func.max(TestResult.started_at).filter(
+        func.jsonb_typeof(TestResult.metrics["hops"]) == "array",
+        func.jsonb_array_length(TestResult.metrics["hops"]) > 0,
+    )
+    rows = db.execute(
+        select(Test, Network.slug, traced_at)
+        .join(Network, Test.network_id == Network.id)
+        .outerjoin(TestResult, TestResult.test_id == Test.id)
+        .where(Test.monitor_id == monitor_id, Test.slug == slug)
+        .group_by(Test.id, Network.slug)
+    ).all()
+    on_link = [row for row in rows if row[1] == network_slug and row[2] is not None]
+    if on_link:
+        return on_link[0][0]
+    reported = [row for row in rows if row[2] is not None]
+    if reported:
+        return max(reported, key=lambda row: row[2])[0]
+    empty = [row for row in rows if row[1] == network_slug]
+    if empty:
+        return empty[0][0]
+    return rows[0][0] if rows else None
+
+
 def ensure_internet_tests(db: Session, monitor: Monitor) -> None:
     _sync_link_tests(db, monitor, _network(db, monitor, "wan", "Internet", NetworkKind.wired), TUNNEL_SERVER_IP)
     _sync_link_tests(db, monitor, _network(db, monitor, "wired", "Wired", NetworkKind.wired), TUNNEL_SERVER_IP)
@@ -174,7 +225,12 @@ def _sync_link_tests(db: Session, monitor: Monitor, network: Network, server_ip:
         path.webrtc_enabled,
     )
     for slug, name, kind, _target, _interval in PATH_TESTS:
-        target = server_http if kind == TestKind.http else server_ip
+        if kind == TestKind.http:
+            target = server_http
+        elif kind == TestKind.mtr:
+            target = public_trace_host()
+        else:
+            target = server_ip
         if kind == TestKind.http:
             enabled = path.http_enabled
             interval = path_interval
@@ -211,7 +267,18 @@ def _sync_link_tests(db: Session, monitor: Monitor, network: Network, server_ip:
             interval,
             service.icmp_enabled,
         )
-        _disable_test(existing_rows, f"mtr-{service.key}")
+        _ensure_test(
+            monitor,
+            network,
+            existing_rows,
+            rows,
+            f"mtr-{service.key}",
+            f"{service.label} MTR",
+            TestKind.mtr,
+            _ipv4_literal(service.host),
+            max(interval, 120),
+            True,
+        )
     for slug in RETIRED_WEB_SLUGS:
         _disable_test(existing_rows, slug)
     if rows:
@@ -652,6 +719,16 @@ def _response_sample(
         return True, value, code >= 400
     value = _number(metrics.get("rtt_ms"))
     loss = _number(metrics.get("loss_pct"))
+    if kind == TestKind.mtr:
+        hops = metrics.get("hops")
+        if isinstance(hops, list) and hops and isinstance(hops[-1], dict):
+            last = hops[-1]
+            destination = _number(last.get("avg_ms"))
+            destination_loss = _number(last.get("loss_pct"))
+            if destination is not None and destination > 0:
+                value = destination
+            if destination_loss is not None:
+                loss = destination_loss
     if value is None or value <= 0 or loss is None or loss >= 100:
         return False, None, False
     return True, value, loss > 0

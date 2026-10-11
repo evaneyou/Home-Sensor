@@ -1,3 +1,11 @@
+from datetime import datetime, timezone
+from uuid import uuid4
+
+from sqlalchemy import select
+
+from app.internet_tests import _response_sample, select_trace_test
+from app.models import Monitor, Network, NetworkKind, ResultStatus, Test, TestKind, TestResult
+from app.path_enrich import enrich_hops
 from app.path_view import build_trace
 
 
@@ -84,6 +92,127 @@ def test_announced_path_mismatch_ignores_ixp():
     assert match["bgp"]["path_match"] is True
     mismatch = build_trace(hops, announced=[7922, 3356, 64496])
     assert mismatch["bgp"]["path_match"] is False
+
+
+def test_path_falls_back_to_the_network_that_has_a_trace(db):
+    monitor = db.scalars(select(Monitor).where(Monitor.slug == db.info["monitor_slug"])).one()
+    wan = db.scalars(select(Network).where(Network.group_id == monitor.group_id, Network.slug == "wan")).one()
+    wired = Network(group_id=monitor.group_id, slug="wired", name="Wired", kind=NetworkKind.wired)
+    db.add(wired)
+    db.flush()
+    now = datetime.now(timezone.utc)
+    older = Test(
+        monitor_id=monitor.id,
+        network_id=wan.id,
+        slug="mtr-youtube",
+        name="YouTube MTR",
+        kind=TestKind.mtr,
+        target="www.youtube.com",
+        interval_seconds=300,
+    )
+    empty = Test(
+        monitor_id=monitor.id,
+        network_id=wired.id,
+        slug="mtr-youtube",
+        name="YouTube MTR",
+        kind=TestKind.mtr,
+        target="www.youtube.com",
+        interval_seconds=300,
+    )
+    db.add_all([older, empty])
+    db.flush()
+    db.add_all(
+        [
+            TestResult(
+                external_id=f"yt-{uuid4().hex}",
+                test_id=older.id,
+                started_at=now,
+                finished_at=now,
+                status=ResultStatus.ok,
+                stages=[],
+                metrics={"hops": [{"hop": 1, "host": "192.0.2.1", "loss_pct": 0, "avg_ms": 1, "best_ms": 1, "worst_ms": 1}]},
+            ),
+            TestResult(
+                external_id=f"yt-empty-{uuid4().hex}",
+                test_id=empty.id,
+                started_at=now,
+                finished_at=now,
+                status=ResultStatus.fail,
+                stages=[],
+                metrics={"hops": []},
+            ),
+        ]
+    )
+    db.flush()
+    found = select_trace_test(db, monitor.id, "mtr-youtube", "wired")
+    assert found is not None
+    assert found.id == older.id
+
+
+def test_enrichment_adds_asn_and_announced_path():
+    seen: list[str] = []
+
+    def fetch(url: str) -> dict:
+        seen.append(url)
+        if "prefix-overview" in url and "8.8.8.8" in url:
+            return {"data": {"asns": [{"asn": 15169, "holder": "GOOGLE"}], "block": {"resource": "8.8.8.0/24"}}}
+        if "prefix-overview" in url and "1.1.1.1" in url:
+            return {"data": {"asns": [{"asn": 13335, "holder": "CLOUDFLARE"}], "block": {"resource": "1.1.1.0/24"}}}
+        if "bgp-state" in url:
+            return {
+                "data": {
+                    "bgp_state": [
+                        {"path": [174, 15169]},
+                        {"path": [174, 15169]},
+                        {"path": [13335, 15169]},
+                    ]
+                }
+            }
+        if "rpki-validation" in url:
+            return {"data": {"status": "valid"}}
+        if "as-overview" in url and "AS174" in url:
+            return {"data": {"holder": "COGENT"}}
+        return {"data": {}}
+
+    hops, announced, names, rpki = enrich_hops(
+        [
+            {"hop": 1, "host": "192.168.1.1", "loss_pct": 0, "avg_ms": 1, "best_ms": 1, "worst_ms": 1},
+            {"hop": 2, "host": "1.1.1.1", "loss_pct": 0, "avg_ms": 8, "best_ms": 8, "worst_ms": 8},
+            {"hop": 3, "host": "???", "loss_pct": 100, "avg_ms": 0, "best_ms": 0, "worst_ms": 0},
+            {"hop": 4, "host": "8.8.8.8", "loss_pct": 0, "avg_ms": 20, "best_ms": 20, "worst_ms": 20},
+        ],
+        fetch=fetch,
+        resolve_names=False,
+    )
+    assert not any("192.168.1.1" in url for url in seen)
+    assert hops[1]["asn"] == 13335
+    assert hops[3]["asn"] == 15169
+    assert hops[3]["prefix"] == "8.8.8.0/24"
+    assert announced == [174, 15169]
+    assert names[174] == "COGENT"
+    assert rpki == "valid"
+    trace = build_trace(hops, announced=announced, as_names=names, target_name="Google")
+    assert [group["asn"] for group in trace["groups"]] == [None, 13335, None, 15169]
+    assert trace["bgp"]["as_path_announced"][0]["name"] == "COGENT"
+    assert trace["bgp"]["as_path_announced"][1]["name"] == "GOOGLE"
+
+
+def test_mtr_uses_the_destination_hop_not_a_silent_router():
+    responded, value, imperfect = _response_sample(
+        TestKind.mtr,
+        {
+            "rtt_ms": 0,
+            "loss_pct": 100,
+            "hops": [
+                {"hop": 1, "loss_pct": 100, "avg_ms": 0},
+                {"hop": 2, "loss_pct": 0, "avg_ms": 21.5},
+            ],
+        },
+        None,
+    )
+    assert responded is True
+    assert value == 21.5
+    assert imperfect is False
 
 
 def test_large_step_marks_only_the_entering_hop():
