@@ -24,6 +24,13 @@ IPERF_HOST = "10.7.0.1"
 # left the server holding unfinished sessions.
 IPERF_CONNECT_TIMEOUT_MS = 3000
 IPERF_IO_TIMEOUT_MS = 5000
+# The server handles one test at a time and can reset the control connection of a
+# client that arrives right after the previous test. Pause between the two
+# directions and retry a direction that fails this way.
+IPERF_DIRECTION_GAP_S = 1.5
+IPERF_RETRY_ATTEMPTS = 3
+IPERF_RETRY_PAUSE_S = 2.0
+_IPERF_TRANSIENT = ("reset by peer", "busy", "control message", "refused", "broken pipe")
 LIBRESPEED_PORT = 8080
 LIBRESPEED_SECONDS = 8
 WEBRTC_PORT = 8090
@@ -134,9 +141,39 @@ def _iperf_once(host: str, port: int, reverse: bool, bind: str | None = None) ->
         return None, str(exc)
     mbps = parse_iperf_mbps(completed.stdout)
     if mbps is None:
-        detail = (completed.stderr or completed.stdout or "iperf3 failed").strip().splitlines()
-        return None, detail[-1][:200] if detail else "iperf3 failed"
+        return None, _iperf_error(completed)
     return mbps, ""
+
+
+def _iperf_error(completed: subprocess.CompletedProcess) -> str:
+    """The reason iperf3 gave. With -J the reason is in the JSON "error" field, not on the last line."""
+    try:
+        body = json.loads(completed.stdout)
+    except (TypeError, ValueError):
+        body = None
+    if isinstance(body, dict) and isinstance(body.get("error"), str) and body["error"].strip():
+        return body["error"].strip()[:200]
+    detail = (completed.stderr or completed.stdout or "iperf3 failed").strip().splitlines()
+    return detail[-1][:200] if detail else "iperf3 failed"
+
+
+def _iperf_transient(error: str) -> bool:
+    lowered = error.lower()
+    return any(marker in lowered for marker in _IPERF_TRANSIENT)
+
+
+def _iperf_direction(host: str, port: int, reverse: bool, bind: str | None) -> tuple[float | None, str]:
+    """One direction, tried again when the server drops the connection."""
+    error = ""
+    for attempt in range(IPERF_RETRY_ATTEMPTS):
+        if attempt:
+            time.sleep(IPERF_RETRY_PAUSE_S)
+        mbps, error = _iperf_once(host, port, reverse=reverse, bind=bind)
+        if mbps is not None:
+            return mbps, ""
+        if not _iperf_transient(error):
+            break
+    return None, error
 
 
 def _valid_host(host: str) -> bool:
@@ -395,8 +432,9 @@ def check_iperf(test: dict) -> dict:
     if _valid_host(host) and 1 <= port <= 65535:
         iface = _probe_interface(test)
         bind = _interface_ipv4(iface) if iface else None
-        upload, up_error = _iperf_once(host, port, reverse=False, bind=bind)
-        download, down_error = _iperf_once(host, port, reverse=True, bind=bind)
+        upload, up_error = _iperf_direction(host, port, False, bind)
+        time.sleep(IPERF_DIRECTION_GAP_S)
+        download, down_error = _iperf_direction(host, port, True, bind)
         if upload is not None or download is not None:
             total_ms = round((time.perf_counter() - started) * 1000, 1)
             status = "ok"
