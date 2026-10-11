@@ -3,13 +3,21 @@
 from __future__ import annotations
 
 import base64
+import binascii
+import hashlib
+import http.client
+import io
 import ipaddress
 import json
 import os
+import re
+import secrets
 import shutil
 import socket
+import ssl
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -32,18 +40,32 @@ from kismet_view import (
 )
 import rf_spool
 
-AGENT_VERSION = "0.3.10"
+AGENT_VERSION = "0.4.0"
 # Latency checks wait on the network, so a few of them run at once.
 # Bandwidth and the video call stay alone: running them together would slow each other down.
 PROBE_WORKERS = 6
 HEAVY_KINDS = {"iperf3", "librespeed", "webrtc"}
 CONFIG_PATH = Path(os.environ.get("MONITOR_CONFIG", "/etc/monitor/config.json"))
 PORT = int(os.environ.get("MONITOR_PORT", "80"))
+ENROLL_PORT = 8848
+SIGNATURE_CONTEXT = "hns-agent-v1"
+NONCE_PATH = "/api/v1/agents/nonce"
+CHECK_IN_PATH = "/api/v1/agents/check-in"
+POLL_PATH = "/api/v1/agents/poll"
+_CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+CODE_LENGTH = 12
+TUNNEL_SERVER_IP = "10.7.0.1"
+WIRELESS_SERVER_IP = "10.7.1.1"
+_TUNNELS = {
+    "wired": (TUNNEL_SERVER_IP, 51820, 100, "wg0"),
+    "wireless": (WIRELESS_SERVER_IP, 51821, 101, "wg1"),
+}
 
 _lock = threading.Lock()
 _scan_lock = threading.Lock()
 _stop = threading.Event()
 _health_started = False
+_enroll_started = False
 _tests_started = False
 _scan_started = False
 _kismet_started = False
@@ -93,6 +115,481 @@ def server_allowed(url: str) -> bool:
     except ValueError:
         return False
     return address.is_private or address.is_loopback
+
+
+def signed_message(path: str, nonce: str, fields: list[str]) -> bytes:
+    parts = [SIGNATURE_CONTEXT, path, nonce, *fields]
+    if any("\n" in part for part in parts):
+        raise ValueError("Signed fields cannot contain newlines")
+    return "\n".join(parts).encode()
+
+
+def new_installer_code() -> str:
+    raw = "".join(secrets.choice(_CROCKFORD) for _ in range(CODE_LENGTH))
+    return f"{raw[:4]}-{raw[4:8]}-{raw[8:]}"
+
+
+def identity_path() -> Path:
+    return CONFIG_PATH.with_name("identity.pem")
+
+
+def wireguard_secret_path(link: str) -> Path:
+    name = "wg.key" if link == "wired" else "wg-wireless.key"
+    return CONFIG_PATH.with_name(name)
+
+
+def wireguard_dir() -> Path:
+    return Path(os.environ.get("MONITOR_WIREGUARD_DIR", "/etc/wireguard"))
+
+
+def _write_secret(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(text)
+    os.chmod(temporary, 0o600)
+    temporary.replace(path)
+
+
+def _openssl(args: list[str], payload: bytes | None = None) -> bytes:
+    try:
+        result = subprocess.run(["openssl", *args], input=payload, capture_output=True, check=False)
+    except OSError as exc:
+        raise RuntimeError("openssl is required for enrollment") from exc
+    if result.returncode != 0:
+        raise RuntimeError("openssl is required for enrollment")
+    return result.stdout
+
+
+def _raw_public(pem_path: Path) -> str:
+    der = _openssl(["pkey", "-in", str(pem_path), "-pubout", "-outform", "DER"])
+    if len(der) < 32:
+        raise RuntimeError("openssl is required for enrollment")
+    return base64.b64encode(der[-32:]).decode("ascii")
+
+
+def _raw_private(pem_path: Path) -> str:
+    der = _openssl(["pkey", "-in", str(pem_path), "-outform", "DER"])
+    return base64.b64encode(_pkcs8_seed(der)).decode("ascii")
+
+
+def _pkcs8_seed(der: bytes) -> bytes:
+    content, _end = _tlv_end(der, 0)
+    _value, content = _tlv_end(der, content)
+    _value, content = _tlv_end(der, content)
+    secret_start, secret_end = _tlv_end(der, content)
+    secret = der[secret_start:secret_end]
+    if secret[:1] == b"\x04":
+        inner_start, inner_end = _tlv_end(secret, 0)
+        secret = secret[inner_start:inner_end]
+    if len(secret) != 32:
+        raise RuntimeError("openssl is required for enrollment")
+    return secret
+
+
+def ensure_identity() -> str:
+    path = identity_path()
+    if not path.is_file():
+        _write_secret(path, _openssl(["genpkey", "-algorithm", "ED25519"]).decode("ascii"))
+    return _raw_public(path)
+
+
+def ensure_wireguard_keys() -> tuple[str, str, str, str]:
+    """Wired private, wired public, wireless private, wireless public. Private keys stay on disk."""
+    pairs: list[tuple[str, str]] = []
+    for link in ("wired", "wireless"):
+        path = wireguard_secret_path(link)
+        if not path.is_file():
+            _write_secret(path, _openssl(["genpkey", "-algorithm", "X25519"]).decode("ascii"))
+        pairs.append((_raw_private(path), _raw_public(path)))
+    return pairs[0][0], pairs[0][1], pairs[1][0], pairs[1][1]
+
+
+def sign_identity(message: bytes) -> str:
+    fd, name = tempfile.mkstemp(prefix="hns-sign-")
+    try:
+        os.write(fd, message)
+        os.close(fd)
+        fd = -1
+        signature = _openssl(["pkeyutl", "-sign", "-inkey", str(identity_path()), "-rawin", "-in", name])
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        os.unlink(name)
+    return base64.b64encode(signature).decode("ascii")
+
+
+def ensure_installer_code(config: dict) -> dict:
+    if config.get("token"):
+        return config
+    if config.get("installer_code"):
+        return config
+    config["installer_code"] = new_installer_code()
+    save_config(config)
+    return config
+
+
+def enrollment_base(url: str) -> str:
+    parsed = urllib.parse.urlparse(url.strip())
+    host = parsed.hostname
+    if parsed.scheme != "https" or not host:
+        raise ValueError("Enrollment uses HTTPS")
+    if ":" in host:
+        host = f"[{host}]"
+    return f"https://{host}:{ENROLL_PORT}"
+
+
+def parse_pins(raw: str) -> list[str]:
+    pins: list[str] = []
+    for part in re.split(r"[\s,]+", raw.strip()):
+        if not part:
+            continue
+        if part.startswith("sha256/"):
+            part = part[len("sha256/") :]
+        try:
+            digest = base64.b64decode(part, validate=True)
+        except (ValueError, binascii.Error):
+            raise ValueError("TLS pins look like sha256/ and a SHA-256 value") from None
+        if len(digest) != 32:
+            raise ValueError("TLS pins are SHA-256")
+        pins.append(part)
+    if not pins:
+        raise ValueError("Enter the server TLS key pin")
+    return pins
+
+
+def _tlv_end(data: bytes, offset: int) -> tuple[int, int]:
+    if offset + 2 > len(data):
+        raise ValueError("Certificate is truncated")
+    length = data[offset + 1]
+    header = offset + 2
+    if length & 0x80:
+        count = length & 0x7F
+        if count == 0 or header + count > len(data):
+            raise ValueError("Certificate is truncated")
+        length = int.from_bytes(data[header : header + count], "big")
+        header += count
+    end = header + length
+    if end > len(data):
+        raise ValueError("Certificate is truncated")
+    return header, end
+
+
+def certificate_pin(cert_der: bytes) -> str:
+    """SHA-256 of the certificate subject public key, the same pin the server prints."""
+    value, _ = _tlv_end(cert_der, 0)
+    tbs, _ = _tlv_end(cert_der, value)
+    offset = tbs
+    if cert_der[offset] == 0xA0:
+        _, offset = _tlv_end(cert_der, offset)
+    for _ in range(5):
+        _, offset = _tlv_end(cert_der, offset)
+    _, spki_end = _tlv_end(cert_der, offset)
+    digest = hashlib.sha256(cert_der[offset:spki_end]).digest()
+    return base64.b64encode(digest).decode("ascii")
+
+
+def agent_hostname() -> str:
+    name = socket.gethostname().split(".")[0].strip().lower()
+    cleaned = re.sub(r"[^a-z0-9-]", "", name).strip("-")
+    return cleaned[:63] or "remote-agent"
+
+
+def check_in_payload(
+    identity_public: str,
+    wg_public: str,
+    wg_wireless_public: str,
+    installer_code: str,
+    hostname: str,
+    lan: str,
+    nonce: str,
+) -> dict:
+    fields = [wg_public, wg_wireless_public, installer_code, hostname, lan]
+    return {
+        "identity_public_key": identity_public,
+        "wg_public_key": wg_public,
+        "wg_wireless_public_key": wg_wireless_public,
+        "installer_code": installer_code,
+        "hostname": hostname,
+        "lan_ip": lan,
+        "nonce": nonce,
+        "signature": sign_identity(signed_message(CHECK_IN_PATH, nonce, [identity_public, *fields])),
+    }
+
+
+def poll_payload(identity_public: str, have_token: bool, nonce: str) -> dict:
+    flag = "1" if have_token else "0"
+    return {
+        "identity_public_key": identity_public,
+        "have_token": have_token,
+        "nonce": nonce,
+        "signature": sign_identity(signed_message(POLL_PATH, nonce, [identity_public, flag])),
+    }
+
+
+def post_pinned(url: str, payload: dict, pins: list[str], timeout: int = 10) -> dict:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ValueError("Enrollment uses HTTPS")
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    connection = http.client.HTTPSConnection(parsed.hostname, parsed.port or 443, timeout=timeout, context=context)
+    try:
+        connection.connect()
+        peer = connection.sock.getpeercert(binary_form=True) if connection.sock is not None else None
+        if not peer or certificate_pin(peer) not in set(pins):
+            raise ssl.SSLError("Server key is not pinned")
+        body = json.dumps(payload).encode("utf-8")
+        connection.request("POST", parsed.path or "/", body=body, headers={"Content-Type": "application/json"})
+        response = connection.getresponse()
+        data = response.read()
+        if response.status >= 400:
+            raise urllib.error.HTTPError(url, response.status, response.reason, response.headers, io.BytesIO(data))
+        if not data:
+            return {}
+        return json.loads(data.decode("utf-8"))
+    finally:
+        connection.close()
+
+
+def http_detail(exc: urllib.error.HTTPError, secret: str = "") -> str:
+    raw = ""
+    if exc.fp is not None:
+        raw = exc.fp.read().decode("utf-8", errors="replace")
+    detail = raw
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict) and isinstance(parsed.get("detail"), str):
+            detail = parsed["detail"]
+    except json.JSONDecodeError:
+        detail = raw
+    if not isinstance(detail, str) or not detail.strip():
+        return "Could not enroll"
+    if secret and secret in detail:
+        return "Could not enroll"
+    return detail.strip()[:300]
+
+
+def _pin_command(link: str, table: int, source_priority: int) -> str:
+    if link == "wired":
+        discover = (
+            "DEV=$(ip -o link show | awk -F': ' "
+            "'$2 ~ /^(eth|enp|end|eno|ens)/ { sub(/@.*/, \"\", $2); print $2; exit }')"
+        )
+    else:
+        discover = (
+            "DEV=$(for pass in builtin usb; do "
+            "for n in /sys/class/net/*; do "
+            "[ -d \"$n/wireless\" ] || continue; "
+            "b=$(basename \"$n\"); "
+            "case $b in lo|wg*|tun*|docker*|veth*|br-*) continue;; esac; "
+            "[ \"$(cat \"$n/carrier\" 2>/dev/null)\" = 1 ] || continue; "
+            "ip -4 -o addr show dev \"$b\" | grep -q . || continue; "
+            "case $(readlink -f \"$n/device\" 2>/dev/null) in */usb*) kind=usb;; *) kind=builtin;; esac; "
+            "[ \"$kind\" = \"$pass\" ] || continue; "
+            "printf %s \"$b\"; break 2; done; done)"
+        )
+    return (
+        f"{discover}; "
+        "GW=$(ip route show default dev \"$DEV\" 2>/dev/null | awk '{print $3; exit}'); "
+        "SRC=$(ip -4 -o addr show dev \"$DEV\" 2>/dev/null | awk '{print $4; exit}' | cut -d/ -f1); "
+        "if [ -n \"$DEV\" ]; then "
+        "LINK=$(ip -4 route show dev \"$DEV\" scope link | awk '{print $1; exit}'); "
+        f"if [ -n \"$LINK\" ]; then ip route replace \"$LINK\" dev \"$DEV\" table {table}; fi; "
+        f"if [ -n \"$GW\" ]; then ip route replace default via \"$GW\" dev \"$DEV\" table {table}; "
+        f"else ip route replace default dev \"$DEV\" table {table}; fi; "
+        f"if [ -n \"$SRC\" ]; then ip rule del from \"$SRC\" lookup {table} priority {table} 2>/dev/null || true; "
+        f"ip rule del from \"$SRC\" lookup {table} priority {source_priority} 2>/dev/null || true; "
+        f"ip rule add from \"$SRC\" lookup {table} priority {source_priority}; fi; fi"
+    )
+
+
+def tunnel_config_text(
+    *,
+    link: str,
+    private_key: str,
+    address: str,
+    server_public_key: str,
+    endpoint: str,
+    allowed_ips: str,
+    persistent_keepalive: int,
+    preshared_key: str,
+) -> str:
+    server_ip, fwmark, table, _iface = _TUNNELS["wireless" if link == "wireless" else "wired"]
+    rule_priority = table
+    source_priority = table + 1000
+    chosen = link if link == "wireless" else "wired"
+    lines = [
+        "[Interface]",
+        f"PrivateKey = {private_key}",
+        f"Address = {address}/32",
+        f"FwMark = {fwmark}",
+        "Table = off",
+        f"PostUp = ip route replace {server_ip}/32 dev %i",
+        f"PostUp = ip rule del fwmark {fwmark} lookup {table} priority {fwmark} 2>/dev/null || true",
+        f"PostUp = ip rule del fwmark {fwmark} lookup {table} priority {rule_priority} 2>/dev/null || true",
+        f"PostUp = ip rule add fwmark {fwmark} lookup {table} priority {rule_priority}",
+        f"PostUp = {_pin_command(chosen, table, source_priority)}",
+        f"PostDown = ip rule del fwmark {fwmark} lookup {table} priority {rule_priority} 2>/dev/null || true",
+        f"PostDown = ip route del {server_ip}/32 dev %i 2>/dev/null || true",
+        "",
+        "[Peer]",
+        f"PublicKey = {server_public_key}",
+        f"PresharedKey = {preshared_key}",
+        f"Endpoint = {endpoint}",
+        f"AllowedIPs = {allowed_ips}",
+        f"PersistentKeepalive = {persistent_keepalive}",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def apply_tunnels(wired_private: str, wireless_private: str, tunnels: list[dict]) -> bool:
+    wrote = False
+    directory = wireguard_dir()
+    for tunnel in tunnels:
+        link = "wireless" if tunnel.get("link") == "wireless" else "wired"
+        preshared = str(tunnel.get("preshared_key") or "")
+        private_key = wireless_private if link == "wireless" else wired_private
+        address = str(tunnel.get("address") or "")
+        server_public = str(tunnel.get("server_public_key") or "")
+        endpoint = str(tunnel.get("endpoint") or "")
+        allowed = str(tunnel.get("allowed_ips") or "")
+        if not preshared or not private_key or not address or not server_public or not endpoint or not allowed:
+            continue
+        _server_ip, _fwmark, _table, iface = _TUNNELS[link]
+        text = tunnel_config_text(
+            link=link,
+            private_key=private_key,
+            address=address,
+            server_public_key=server_public,
+            endpoint=endpoint,
+            allowed_ips=allowed,
+            persistent_keepalive=int(tunnel.get("persistent_keepalive") or 25),
+            preshared_key=preshared,
+        )
+        _write_secret(directory / f"{iface}.conf", text)
+        wrote = True
+        if directory == Path("/etc/wireguard"):
+            subprocess.run(["systemctl", "enable", f"wg-quick@{iface}"], check=False)
+            subprocess.run(["systemctl", "restart", f"wg-quick@{iface}"], check=False)
+    return wrote
+
+
+def _safe_error(detail: str, config: dict) -> str:
+    secret = str(config.get("installer_code") or "")
+    if secret and secret in detail:
+        return "Could not enroll"
+    return detail
+
+
+def enroll_once(config: dict) -> None:
+    global _last_error
+    base = enrollment_base(str(config.get("enrollment_url") or ""))
+    pins = [str(pin) for pin in config.get("tls_pins") or []]
+    if not pins:
+        raise ValueError("Enter the server TLS key pin")
+    identity_public = ensure_identity()
+    wired_private, wired_public, wireless_private, wireless_public = ensure_wireguard_keys()
+    installer_code = str(config.get("installer_code") or "")
+    if not installer_code:
+        raise ValueError("The installer code is missing")
+    hostname = agent_hostname()
+    lan = lan_ip(base)
+    if not lan:
+        _last_error = "Could not find a LAN address for the server"
+        return
+    try:
+        issued = post_pinned(f"{base}{NONCE_PATH}", {"identity_public_key": identity_public}, pins)
+        nonce = str(issued["nonce"])
+        check = post_pinned(
+            f"{base}{CHECK_IN_PATH}",
+            check_in_payload(identity_public, wired_public, wireless_public, installer_code, hostname, lan, nonce),
+            pins,
+        )
+    except urllib.error.HTTPError as exc:
+        _last_error = _safe_error(http_detail(exc, installer_code), config)
+        return
+    if check.get("conflict"):
+        _last_error = "More than one device used this code. Start over on the dashboard."
+    elif check.get("state") == "waiting_for_approval":
+        _last_error = ""
+    have_token = bool(config.get("token"))
+    try:
+        issued = post_pinned(f"{base}{NONCE_PATH}", {"identity_public_key": identity_public}, pins)
+        poll = post_pinned(
+            f"{base}{POLL_PATH}",
+            poll_payload(identity_public, have_token, str(issued["nonce"])),
+            pins,
+        )
+    except urllib.error.HTTPError as exc:
+        if exc.code != 404:
+            _last_error = _safe_error(http_detail(exc, installer_code), config)
+        return
+    if poll.get("state") != "approved":
+        return
+    remember_approval(config, poll, wired_private, wireless_private)
+
+
+def remember_approval(config: dict, poll: dict, wired_private: str, wireless_private: str) -> None:
+    tunnels = list(poll.get("tunnels") or [])
+    if not tunnels and isinstance(poll.get("tunnel"), dict):
+        tunnels = [poll["tunnel"]]
+    wrote = apply_tunnels(wired_private, wireless_private, tunnels)
+    token = poll.get("token") or config.get("token")
+    name = poll.get("name") or config.get("name")
+    updated = dict(config)
+    if token:
+        updated["token"] = token
+    if name:
+        updated["name"] = name
+    if wrote and any(item.get("link") != "wireless" for item in tunnels):
+        updated["server_url"] = f"http://{TUNNEL_SERVER_IP}:8847"
+    elif wrote:
+        updated["server_url"] = f"http://{WIRELESS_SERVER_IP}:8847"
+    if updated.get("token") and str(updated.get("server_url") or "").startswith("http://10.7."):
+        updated.pop("installer_code", None)
+        updated.setdefault("health_interval_seconds", 60)
+        updated.setdefault("scan_interval_seconds", 300)
+        updated.setdefault("config_version", 0)
+    with _lock:
+        save_config(updated)
+    if updated.get("token") and updated.get("name") and updated.get("server_url"):
+        ensure_health_loop()
+
+
+def enrollment_loop() -> None:
+    global _last_error
+    while not _stop.is_set():
+        with _lock:
+            config = load_config()
+        if config.get("token") and str(config.get("server_url") or "").startswith("http://10.7."):
+            return
+        if config.get("enrollment_url") and config.get("tls_pins") and config.get("installer_code"):
+            try:
+                enroll_once(dict(config))
+            except (OSError, urllib.error.URLError, TimeoutError, ValueError, ssl.SSLError, RuntimeError, KeyError) as exc:
+                message = str(exc)
+                secret = str(config.get("installer_code") or "")
+                if secret and secret in message:
+                    message = "Could not enroll"
+                _last_error = message
+        with _lock:
+            done = bool(load_config().get("token")) and str(load_config().get("server_url") or "").startswith("http://10.7.")
+        if done:
+            return
+        _stop.wait(15)
+
+
+def ensure_enrollment_loop() -> None:
+    global _enroll_started
+    with _lock:
+        start = not _enroll_started
+        _enroll_started = True
+    if start:
+        threading.Thread(target=enrollment_loop, name="enroll", daemon=True).start()
 
 
 def _read_cpu() -> tuple[int, int]:
@@ -813,24 +1310,26 @@ PAGE = """<!DOCTYPE html>
       background: #4c9df3; color: #0d0d0d; font: inherit; }
     .error { color: #e34671; }
     .ok { color: #3fa266; }
+    .code { font: 1.25rem/1.4 ui-monospace, monospace; letter-spacing: 0.04em; color: #e4e4e4; }
+    textarea { width: 100%; box-sizing: border-box; min-height: 4.5rem; padding: 0.55rem 0.7rem;
+      border-radius: 6px; border: 1px solid #2a2a2a; background: #181818; color: inherit; font: inherit; }
   </style>
 </head>
 <body>
   <main>
     <h1>Remote Agent setup</h1>
-    <p id="lead">Enter the device name and key from Remote Agent Onboarding. The name must match exactly, including capital letters.</p>
+    <p id="lead">Register this installer code in Remote Agent Onboarding, then enter the server and its TLS key pins.</p>
+    <p id="installer-code" class="code"></p>
     <form id="setup">
-      <label for="name">Device name</label>
-      <input id="name" name="name" required autocomplete="off" />
       <label for="server">Server</label>
-      <input id="server" name="server_url" placeholder="http://10.0.0.123:8847" required />
-      <label for="key">Device key</label>
-      <input id="key" name="device_key" required autocomplete="off" spellcheck="false" />
+      <input id="server" name="server_url" placeholder="https://home.example" required />
+      <label for="pins">TLS key pins</label>
+      <textarea id="pins" name="tls_pins" required spellcheck="false" placeholder="sha256/…"></textarea>
       <label id="current-label" for="current" hidden>Current device key</label>
       <input id="current" name="current_key" hidden autocomplete="off" spellcheck="false" />
       <button type="submit">Connect</button>
     </form>
-    <button id="replace" type="button" hidden>Update name and key</button>
+    <button id="replace" type="button" hidden>Update server</button>
     <p id="reset-note" hidden>To start over, run sudo hnw-reset on this Pi. That clears /etc/monitor/config.json.</p>
     <p id="message"></p>
   </main>
@@ -838,6 +1337,7 @@ PAGE = """<!DOCTYPE html>
     const form = document.getElementById("setup");
     const message = document.getElementById("message");
     const lead = document.getElementById("lead");
+    const installer = document.getElementById("installer-code");
     const replace = document.getElementById("replace");
     const currentLabel = document.getElementById("current-label");
     const currentKey = document.getElementById("current");
@@ -853,12 +1353,21 @@ PAGE = """<!DOCTYPE html>
     });
     async function refresh() {
       const status = await fetch("/api/status").then((r) => r.json());
-      if (!status.enrolled) return;
+      installer.hidden = !status.installer_code;
+      installer.textContent = status.installer_code || "";
+      if (!status.enrolled) {
+        if (status.state === "waiting") {
+          lead.textContent = "Waiting for approval. The installer code stays here until the server accepts this Pi.";
+        }
+        message.className = status.last_error ? "error" : "";
+        message.textContent = status.last_error || "";
+        return;
+      }
       if (!editing) {
         form.hidden = true;
         replace.hidden = false;
       }
-      lead.textContent = status.name + " is connected to " + status.server_url + ". The name and key must still match the server.";
+      lead.textContent = status.name + " is connected to " + status.server_url + ".";
       message.className = status.last_error ? "error" : "ok";
       const mode = status.airwave_mode ? " Airwave capture is " + status.airwave_mode + "." : "";
       message.textContent = status.last_error || (status.last_health_at ? "Last report " + status.last_health_at + "." + mode : "Waiting for the first report." + mode);
@@ -901,11 +1410,19 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path.startswith("/api/status"):
             with _lock:
-                config = load_config()
+                config = ensure_installer_code(load_config())
+            try:
+                ensure_identity()
+            except (OSError, RuntimeError):
+                pass
+            enrolled = bool(config.get("token")) and str(config.get("server_url") or "").startswith("http://10.7.")
+            waiting = bool(config.get("enrollment_url")) and not enrolled
             payload = {
-                "enrolled": bool(config.get("token")),
+                "enrolled": enrolled,
+                "state": "enrolled" if enrolled else "waiting" if waiting else "setup",
                 "name": config.get("name") or "",
-                "server_url": config.get("server_url") or "",
+                "server_url": config.get("server_url") or config.get("enrollment_url") or "",
+                "installer_code": "" if enrolled else config.get("installer_code") or "",
                 "last_health_at": _last_health_at,
                 "last_error": _last_error,
                 "airwave_mode": airwave_mode(),
@@ -924,12 +1441,10 @@ class Handler(BaseHTTPRequestHandler):
         except (UnicodeError, json.JSONDecodeError):
             self._send(400, json.dumps({"detail": "Invalid request"}).encode("utf-8"), "application/json")
             return
-        name = str(incoming.get("name") or "").strip()
         server_url = str(incoming.get("server_url") or "").strip().rstrip("/")
-        device_key = str(incoming.get("device_key") or "").strip()
         current_key = str(incoming.get("current_key") or "")
         with _lock:
-            config = load_config()
+            config = ensure_installer_code(load_config())
         if not setup_allowed(bool(config.get("token")), self.client_address[0], current_key, str(config.get("token") or "")):
             self._send(
                 403,
@@ -937,48 +1452,32 @@ class Handler(BaseHTTPRequestHandler):
                 "application/json",
             )
             return
-        if not name or not server_url or not device_key:
-            self._send(400, json.dumps({"detail": "Name, server, and device key are required"}).encode("utf-8"), "application/json")
-            return
-        if not server_allowed(server_url):
-            self._send(400, json.dumps({"detail": "Use HTTPS, or HTTP to a private LAN address"}).encode("utf-8"), "application/json")
-            return
-        preview = {"name": name, "server_url": server_url, "token": device_key, "config_version": 0}
         try:
-            accepted = post_json(
-                f"{server_url}/api/v1/monitors/health",
-                sample(preview),
-                device_key,
-                name,
-            )
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            try:
-                detail = json.loads(detail).get("detail", detail)
-            except json.JSONDecodeError:
-                pass
-            self._send(exc.code, json.dumps({"detail": detail}).encode("utf-8"), "application/json")
+            pins = parse_pins(str(incoming.get("tls_pins") or ""))
+            enrollment_base(server_url)
+        except ValueError as exc:
+            self._send(400, json.dumps({"detail": str(exc)}).encode("utf-8"), "application/json")
             return
-        except (OSError, urllib.error.URLError, ValueError):
-            self._send(502, json.dumps({"detail": "Could not reach the server"}).encode("utf-8"), "application/json")
+        try:
+            ensure_identity()
+            ensure_wireguard_keys()
+        except (OSError, RuntimeError):
+            self._send(500, json.dumps({"detail": "Could not prepare the identity key"}).encode("utf-8"), "application/json")
             return
-        config = {
-            "name": name,
-            "server_url": server_url,
-            "token": device_key,
-            "health_interval_seconds": int(accepted.get("health_interval_seconds") or 60),
-            "scan_interval_seconds": int(accepted.get("scan_interval_seconds") or 300),
-            "config_version": int(accepted.get("config_version") or 1),
-        }
+        config["enrollment_url"] = server_url
+        config["tls_pins"] = pins
         with _lock:
             save_config(config)
-        ensure_health_loop()
-        self._send(200, json.dumps({"ok": True, "name": config["name"]}).encode("utf-8"), "application/json")
+        ensure_enrollment_loop()
+        self._send(200, json.dumps({"ok": True}).encode("utf-8"), "application/json")
 
 
 def main() -> None:
-    if load_config().get("token"):
+    config = load_config()
+    if config.get("token"):
         ensure_health_loop()
+    if config.get("enrollment_url") and not (config.get("token") and str(config.get("server_url") or "").startswith("http://10.7.")):
+        ensure_enrollment_loop()
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     server.serve_forever()
 
