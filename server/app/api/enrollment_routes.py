@@ -397,6 +397,9 @@ def approve(
 ) -> MonitorAdminOut:
     now = _now()
     code = _open_code(db, code_id)
+    # Check-ins are inserted by identity key, not through this relationship. A shared
+    # session can still be holding the empty list from Start over, so read the table.
+    db.expire(code, ["checkins"])
     if code.expires_at <= now:
         raise HTTPException(status_code=409, detail="This registration expired. Register the code again.")
     fresh = [row for row in code.checkins if row.last_seen_at >= now - CHECKIN_TTL]

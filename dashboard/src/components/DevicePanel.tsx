@@ -147,6 +147,7 @@ export default function DevicePanel({ monitorId }: { monitorId: string }) {
         ) : (
           <p className="muted">This remote agent has not reported health yet.</p>
         )}
+        {latest?.last_error ? <p className="state-box">{latest.last_error}</p> : null}
         {report.points.length > 1 ? (
           <div className="device-charts">
             <HealthChart title="CPU" data={report.points} dataKey="cpu_percent" color="var(--accent)" unit="%" />

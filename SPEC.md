@@ -1,4 +1,4 @@
-# Home Network Sensor — SPEC v2
+# HomeNetWatch — SPEC v2
 
 Ops-style UXI-inspired monitoring for a home LAN: Raspberry Pi (or Linux PC) remote agents run staged connectivity tests and push results to a central FastAPI + Postgres server. A React dashboard reads those APIs only — the remote agent never talks to the browser.
 
@@ -78,7 +78,7 @@ Loading / empty states required. Dark/light theme when cheap. Viewer role hides 
 | **0 — Dashboard-first (this repo slice)** | Thin server + seed + core UI on Compose. No Pi required. |
 | **1 — Server hardening** | Full enrollment, config ETag, auth polish, issue engine |
 | **2 — Remote agent** | Pi package: LAN setup page, enroll, device health, HTTP, ICMP, and MTR against the server at 10.7.0.1, iperf3 against Hurricane Electric, plus web-service HTTP checks. Other staged tests and the offline spool come later |
-| **3 — Wireless / RF** | Airwaves. The link adapter carries traffic. A second radio adapter, preferably a USB MediaTek, runs the scans. With only one adapter, scans wait at least 15 minutes and never run during a test. A new access point of the joined SSID is trusted once, and only when it shares the first five MAC bytes with the BSSID the Pi is associated to. |
+| **3 — Wireless / RF** | Airwaves. The link adapter carries traffic. A second radio adapter, preferably a USB MediaTek, runs the scans. With only one adapter, scans wait at least 15 minutes and never run during a test. A new access point of the joined SSID is trusted when it shares the OUI (the first three MAC bytes) with the BSSID the remote agent is associated to, and is labeled a mesh node. A different OUI opens a possible evil-twin issue. Access points already seen are checked again the first time that association is known. Manual trust is left alone. |
 | **4 — Cloud** | Same Compose on a small VPS (Hetzner CX / DO droplet) + TLS |
 
 ## Out of scope for this slice

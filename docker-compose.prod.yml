@@ -1,0 +1,43 @@
+# Production overlay: HTTPS in front of the dashboard and API, nothing else public.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+#
+# Or set COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml in .env and use plain
+# `docker compose` commands. Needs Docker Compose 2.24 or newer (for `!reset`).
+# See docs/deploy.md.
+services:
+  db:
+    restart: unless-stopped
+    ports: !reset []
+
+  server:
+    restart: unless-stopped
+    ports: !reset []
+
+  dashboard:
+    restart: unless-stopped
+    ports: !reset []
+    build:
+      args:
+        VITE_API_BASE_URL: https://${DOMAIN:?Set DOMAIN in .env}
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - server
+      - dashboard
+
+volumes:
+  caddy_data:
+  caddy_config:

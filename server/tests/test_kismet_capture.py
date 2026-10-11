@@ -1,7 +1,10 @@
 """Kismet mapping, the airwave spool, and rf-capture ingest. No live Kismet."""
 
 import importlib.util
+import io
+import sys
 import time
+import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
@@ -116,7 +119,7 @@ def test_kismet_json_maps_aps_clients_channels_and_alerts():
         )
     )
     assert channels[0]["airtime_pct"] is None
-    assert channels[0]["packets"] == 40
+    assert channels[0]["packets"] == 41
     assert channels[0]["devices"] == 2
     quiet = ""
     link = "Survey data from wlan0\n\tfrequency:\t2437 MHz\n\tchannel active time:\t200 ms\n\tchannel busy time:\t50 ms\n"
@@ -144,6 +147,67 @@ def test_kismet_json_maps_aps_clients_channels_and_alerts():
     assert view.iw_scan_skipped("kismet", None) is False
     assert view.iw_scan_skipped("scan", "hnwradio0") is False
     assert view.iw_scan_skipped("off", None) is False
+
+
+def test_device_fields_are_a_string_or_a_pair():
+    view = _load("kismet_view_fields", "kismet_view.py")
+    assert view.DEVICE_FIELDS
+    for entry in view.DEVICE_FIELDS:
+        assert isinstance(entry, str) or (isinstance(entry, list) and len(entry) == 2)
+
+
+def test_rrd_minute_vec_sums_packets_wherever_the_bucket_sits():
+    view = _load("kismet_view_rrd", "kismet_view.py")
+    packets = [0] * 60
+    devices = [0] * 60
+    packets[7] = 15
+    devices[7] = 3
+    channels = view.map_channels(
+        view.channel_rows(
+            {
+                "kismet.channeltracker.frequency_map": {
+                    "2437000": {
+                        "kismet.channelrec.channel": "6",
+                        "kismet.channelrec.frequency": 2_437_000,
+                        "kismet.channelrec.packets_rrd": {"kismet.common.rrd.minute_vec": packets},
+                        "kismet.channelrec.device_rrd": {"kismet.common.rrd.minute_vec": devices},
+                    }
+                }
+            }
+        )
+    )
+    assert channels[0]["packets"] == 15
+    assert channels[0]["devices"] == 3
+    assert packets[-1] == 0
+
+
+def test_kismet_http_failure_is_kept_on_the_agent(tmp_path: Path):
+    here = Path(__file__).resolve()
+    path = next(item for item in (here.parents[2] / "monitor" / "agent.py", Path("/monitor/agent.py")) if item.is_file())
+    sys.path.insert(0, str(path.parent))
+    spec = importlib.util.spec_from_file_location("monitor_agent_kismet_error", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    creds = tmp_path / "kismet.json"
+    creds.write_text('{"url":"http://127.0.0.1:2501","username":"k","password":"p"}', encoding="utf-8")
+    module.KISMET_PATH = creds
+    module._last_error = ""
+
+    def reject(*_args, **_kwargs):
+        raise urllib.error.HTTPError(
+            "http://127.0.0.1:2501/devices.json",
+            400,
+            "Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":"invalid field"}'),
+        )
+
+    module.kismet_get = reject
+    module.kismet_once({"server_url": "http://127.0.0.1", "token": "t", "name": "Pi"})
+    assert module._last_error.startswith("Kismet HTTP 400:")
+    assert "invalid field" in module._last_error
+    assert module._airwave_mode == "off"
 
 
 def test_real_kismet_json_maps_an_ap_a_channel_and_an_alert():

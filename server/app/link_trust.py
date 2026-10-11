@@ -1,18 +1,20 @@
-"""Trust a new access point of the joined SSID only when it belongs to the radio the Pi is on."""
+"""Trust a same-SSID access point when it shares an OUI with the radio the remote agent is on."""
 
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import ApInventory, Issue, IssueSeverity, IssueStatus, Monitor
+from app.models import ApInventory, Issue, IssueSeverity, IssueStatus, Monitor, WifiObservation
+
+MESH_LABEL = "mesh node"
 
 
-def mac_prefix(mac: str) -> str:
+def mac_oui(mac: str) -> str:
     parts = (mac or "").lower().split(":")
-    if len(parts) < 5:
+    if len(parts) < 3 or any(len(part) != 2 for part in parts[:3]):
         return ""
-    return ":".join(parts[:5])
+    return ":".join(parts[:3])
 
 
 def matches_link(monitor: Monitor, ssid: str) -> bool:
@@ -21,6 +23,7 @@ def matches_link(monitor: Monitor, ssid: str) -> bool:
 
 
 def remember_association(
+    db: Session,
     monitor: Monitor,
     ssid: str | None,
     bssid: str | None,
@@ -28,25 +31,65 @@ def remember_association(
     ssid_set: bool,
     bssid_set: bool,
 ) -> None:
-    """Store the link the Pi reported. An omitted field is left alone."""
+    """Store the link the remote agent reported. The first time that link is known, finish pending auto-trust."""
+    previous_ssid = (monitor.link_ssid or "").strip()
+    previous_bssid = (monitor.link_bssid or "").strip()
     if ssid_set:
         cleaned = (ssid or "").strip()[:64]
         monitor.link_ssid = cleaned or None
     if bssid_set:
         cleaned = (bssid or "").strip().lower()[:17]
         monitor.link_bssid = cleaned or None
+    had_link = bool(previous_ssid and previous_bssid)
+    has_link = bool((monitor.link_ssid or "").strip() and (monitor.link_bssid or "").strip())
+    if has_link and not had_link:
+        _trust_pending(db, monitor)
 
 
 def note_new_ap(db: Session, monitor: Monitor, record: ApInventory, ssid: str, created: bool, seen: datetime) -> None:
     """Decide trust once, when the inventory row is created."""
-    if not created or record.trust_source == "manual" or not matches_link(monitor, ssid):
+    if not created:
+        return
+    _decide(db, monitor, record, ssid, seen)
+
+
+def _trust_pending(db: Session, monitor: Monitor) -> None:
+    rows = db.scalars(
+        select(ApInventory).where(
+            ApInventory.monitor_id == monitor.id,
+            ApInventory.trusted.is_(False),
+            ApInventory.trust_source == "auto",
+        )
+    ).all()
+    for record in rows:
+        _decide(db, monitor, record, _latest_ssid(db, monitor.id, record.bssid), record.last_seen)
+
+
+def _latest_ssid(db: Session, monitor_id, bssid: str) -> str:
+    ssid = db.scalar(
+        select(WifiObservation.ssid)
+        .where(
+            WifiObservation.monitor_id == monitor_id,
+            func.lower(WifiObservation.bssid) == bssid.lower(),
+        )
+        .order_by(WifiObservation.scanned_at.desc())
+        .limit(1)
+    )
+    return ssid or ""
+
+
+def _decide(db: Session, monitor: Monitor, record: ApInventory, ssid: str, seen: datetime) -> None:
+    if record.trust_source == "manual" or not matches_link(monitor, ssid):
         return
     associated = (monitor.link_bssid or "").lower()
     if not associated:
+        record.trusted = False
+        record.trust_source = "auto"
         return
-    if mac_prefix(record.bssid) and mac_prefix(record.bssid) == mac_prefix(associated):
+    if mac_oui(record.bssid) and mac_oui(record.bssid) == mac_oui(associated):
         record.trusted = True
         record.trust_source = "auto"
+        record.label = MESH_LABEL
         return
     record.trusted = False
     record.trust_source = "auto"

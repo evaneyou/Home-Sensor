@@ -2,6 +2,7 @@ export type User = {
   id: string;
   username: string;
   role: "admin" | "viewer";
+  csrf_token?: string | null;
 };
 
 export type HealthCell = {
@@ -237,6 +238,7 @@ export type DeviceSample = {
   disk_total_mb: number;
   temp_c: number | null;
   lan_ip: string | null;
+  last_error: string | null;
 };
 
 export type DeviceReport = {
@@ -289,6 +291,26 @@ export type MonitorAdmin = {
   config_version: number;
   applied_config_version: number;
   restart_requested_at: string | null;
+};
+
+export type EnrollmentCheckin = {
+  id: string;
+  hostname: string;
+  lan_ip: string;
+  observed_ip: string | null;
+  first_seen_at: string;
+  last_seen_at: string;
+};
+
+export type EnrollmentRegistration = {
+  id: string;
+  device_name: string;
+  location: string | null;
+  registered_by: string;
+  created_at: string | null;
+  expires_at: string;
+  conflict: boolean;
+  checkins: EnrollmentCheckin[];
 };
 
 export type MonitorKey = {
