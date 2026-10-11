@@ -10,6 +10,13 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
 
 ## [Unreleased]
 
+### Fixed
+
+- Pi agent iperf3 check: the download test was often cut off by the server ("Connection reset by
+  peer") right after the upload test, so it reported 0 Mbps. The agent now pauses between the two
+  directions and retries a direction that fails this way, and the result message shows iperf3's
+  real error instead of the last line of its JSON output.
+
 ### Added
 
 - Open-source project files: `LICENSE` (MIT), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
