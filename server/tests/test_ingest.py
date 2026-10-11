@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.enrollment import new_token
+from app.internet_tests import public_trace_host
 from app.main import app
 from app.models import Monitor, MonitorStatus
 from conftest import login
@@ -162,7 +163,7 @@ def test_health_assigns_iperf_and_web_services(client: TestClient, db):
     assert "librespeed" in slugs
     assert "webrtc" in slugs
     assert "icmp-youtube" in slugs
-    assert "mtr-youtube" not in slugs
+    assert "mtr-youtube" in slugs
     iperf = next(item for item in tests if item["slug"] == "iperf3")
     assert iperf["kind"] == "iperf3"
     assert iperf["target"] == "10.7.0.1"
@@ -184,7 +185,10 @@ def test_health_assigns_iperf_and_web_services(client: TestClient, db):
     assert icmp["target"] == "10.7.0.1"
     mtr = next(item for item in tests if item["slug"] == "mtr-path")
     assert mtr["kind"] == "mtr"
-    assert mtr["target"] == "10.7.0.1"
+    assert mtr["target"] == public_trace_host()
+    youtube_trace = next(item for item in tests if item["slug"] == "mtr-youtube")
+    assert youtube_trace["kind"] == "mtr"
+    assert youtube_trace["target"].count(".") == 3
     web = next(item for item in tests if item["slug"] == "http-youtube")
     assert web["target"] == "https://www.youtube.com/generate_204"
     stored = db.scalar(text("SELECT interval_seconds FROM web_service_settings WHERE key = 'youtube'"))

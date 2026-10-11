@@ -31,6 +31,7 @@ from app.internet_tests import (
     load_internet_service,
     load_web_services,
     load_web_stability,
+    select_trace_test,
     log_slug_filter,
     matrix_column,
     save_internet_service,
@@ -39,6 +40,7 @@ from app.internet_tests import (
     scheduled_tests,
     stability_config,
 )
+from app.path_enrich import enrich_hops
 from app.path_view import build_trace
 from app.services.stability import cell_quorum, preset_name, service_status
 from app.regions import REGIONS_BY_COUNTRY
@@ -1191,11 +1193,7 @@ def monitor_path(
         target_name = service.label
         target_ip = service.host
     network_slug = "wired" if link == "wired" else "wifi"
-    test = db.scalars(
-        select(Test)
-        .join(Network, Test.network_id == Network.id)
-        .where(Test.monitor_id == monitor_id, Test.slug == slug, Network.slug == network_slug)
-    ).first()
+    test = select_trace_test(db, monitor_id, slug, network_slug)
     rows = []
     if test is not None:
         target_ip = test.target.split("/")[0] or target_ip
@@ -1207,8 +1205,12 @@ def monitor_path(
                 .limit(24)
             ).all()
         )
-    latest = rows[0] if rows else None
-    raw_hops = (latest.metrics or {}).get("hops") if latest else []
+    def _hop_list(row: TestResult) -> list:
+        hops = (row.metrics or {}).get("hops")
+        return hops if isinstance(hops, list) else []
+
+    latest = next((row for row in rows if _hop_list(row)), None)
+    raw_hops = _hop_list(latest) if latest else []
     history: dict[str, list[float | None]] = {}
     for row in reversed(rows):
         for item in (row.metrics or {}).get("hops") or []:
@@ -1224,11 +1226,16 @@ def monitor_path(
                 isinstance(loss, (int, float)) and loss >= 100 and (not isinstance(avg, (int, float)) or avg <= 0)
             )
             history.setdefault(str(int(ttl)), []).append(None if silent or not isinstance(avg, (int, float)) else float(avg))
+    enriched, announced, as_names, rpki = enrich_hops(raw_hops if isinstance(raw_hops, list) else [])
     body = build_trace(
-        raw_hops if isinstance(raw_hops, list) else [],
+        enriched,
         isp_name=monitor.isp,
         target_name=target_name,
+        announced=announced,
+        as_names=as_names,
     )
+    if rpki:
+        body["bgp"]["rpki"] = rpki
     body["status"] = "complete" if body["hops"] else "empty"
     body["traced_at"] = latest.started_at.isoformat() if latest else None
     body["probes_per_hop"] = 5

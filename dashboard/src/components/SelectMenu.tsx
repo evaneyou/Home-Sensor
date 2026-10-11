@@ -158,7 +158,14 @@ export default function SelectMenu({
                   onMouseEnter={() => setActive(index)}
                   onClick={() => choose(item.value)}
                 >
-                  {item.label}
+                  <span className="select-menu-option-label">{item.label}</span>
+                  {item.value === String(value) ? (
+                    <svg className="select-menu-check" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                      <path d="M5 12.5 10 17.5 19 7.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ) : (
+                    <span className="select-menu-check" aria-hidden="true" />
+                  )}
                 </button>
               </li>
             );

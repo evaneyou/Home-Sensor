@@ -189,6 +189,7 @@ def build_trace(
     isp_name: str | None = None,
     target_name: str | None = None,
     announced: list[int] | None = None,
+    as_names: dict[int, str] | None = None,
 ) -> dict[str, Any]:
     hops = normalize_hops(raw_hops)
     last_ttl = hops[-1]["ttl"] if hops else None
@@ -276,7 +277,7 @@ def build_trace(
                 {
                     "type": "as",
                     "asn": asn,
-                    "name": names.get(asn) or f"AS{asn}",
+                    "name": names.get(asn) or (as_names or {}).get(asn) or f"AS{asn}",
                     "role": roles.get(asn) or "transit",
                     "label": f"AS{asn}",
                 }

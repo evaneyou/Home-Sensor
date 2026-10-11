@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../api";
 import SelectMenu from "./SelectMenu";
 import WaitButton from "./WaitButton";
@@ -86,6 +86,22 @@ function dash(value: string | null | undefined): string {
   return value ? value : "—";
 }
 
+function networkLabel(label: string): string {
+  return label === "AS ?" ? "Unknown network" : label;
+}
+
+function useNarrow(query = "(max-width: 768px)") {
+  const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const apply = () => setNarrow(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [query]);
+  return narrow;
+}
+
 function tracedWhen(iso: string): string {
   const when = new Date(iso);
   const clock = when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -124,6 +140,8 @@ export default function NetworkPathView({
 }) {
   const [running, setRunning] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
+  const [hopOpen, setHopOpen] = useState(true);
+  const [bgpOpen, setBgpOpen] = useState(false);
   const pathQ = useQuery({
     queryKey: ["monitor-path", monitorId, link, destination],
     queryFn: () => api.monitorPath(monitorId, link, destination) as Promise<PathTrace>,
@@ -227,12 +245,58 @@ export default function NetworkPathView({
           <PathStrip trace={trace} selected={hop?.ttl ?? null} onSelect={setSelected} />
           <div className="npv-row">
             <LatencyChart trace={trace} selected={hop?.ttl ?? null} onSelect={setSelected} />
-            <HopDetail trace={trace} hop={hop} />
+            <FoldCard
+              className="npv-detail"
+              title={hop ? `Hop ${hop.ttl}` : "Selected hop"}
+              hint={hop ? networkLabel(hop.silent ? "Unknown network" : hop.asn_label) : undefined}
+              open={hopOpen}
+              onToggle={() => setHopOpen((open) => !open)}
+            >
+              <HopDetail trace={trace} hop={hop} headless />
+            </FoldCard>
           </div>
-          <BgpView trace={trace} />
+          <FoldCard
+            title="BGP view"
+            hint="Announced path and RPKI"
+            open={bgpOpen}
+            onToggle={() => setBgpOpen((open) => !open)}
+          >
+            <BgpView trace={trace} headless />
+          </FoldCard>
         </>
       )}
     </div>
+  );
+}
+
+function FoldCard({
+  title,
+  hint,
+  open,
+  onToggle,
+  className = "",
+  children,
+}: {
+  title: string;
+  hint?: string;
+  open: boolean;
+  onToggle: () => void;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className={`npv-card npv-fold ${open ? "open" : ""} ${className}`.trim()}>
+      <button type="button" className="npv-fold-toggle" aria-expanded={open} onClick={onToggle}>
+        <span className="npv-fold-copy">
+          <span className="npv-fold-title">{title}</span>
+          {hint ? <span className="npv-fold-hint">{hint}</span> : null}
+        </span>
+        <svg className="npv-fold-chevron" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+        </svg>
+      </button>
+      {open ? <div className="npv-fold-body">{children}</div> : null}
+    </section>
   );
 }
 
@@ -306,6 +370,56 @@ function PathStrip({
           </span>
         </div>
       </div>
+      <div className="npv-vpath">
+        {trace.groups.map((group, index) => {
+          const delta = group.delta_in_ms;
+          const big = delta != null && delta >= 15;
+          const silent = group.role === "unknown";
+          return (
+            <div className="npv-vblock" key={`v-${group.role}-${group.hop_ttls[0]}`}>
+              {index > 0 ? (
+                <div className={`npv-vdiv ${big ? "big" : ""}`}>
+                  <span>{delta == null ? "?" : `${delta >= 0 ? "+" : ""}${fmt(delta)} ms`}</span>
+                </div>
+              ) : null}
+              <div className={`npv-vrow ${silent ? "dashed" : ""}`} style={{ ["--c" as string]: `var(--role-${group.role})` }}>
+                {silent ? (
+                  <div className="npv-vmeta">
+                    <div className="npv-gname">Hidden by router, no reply</div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="npv-vmeta">
+                      <span className="npv-asn">{networkLabel(group.asn_label)}</span>
+                      <div className="npv-gname">{group.name}</div>
+                      <div className="npv-grole">{group.role_label}</div>
+                    </div>
+                    <div className="npv-vpills">
+                      {group.hop_ttls.map((ttl) => {
+                        const item = hops.get(ttl);
+                        if (!item) return null;
+                        return (
+                          <button
+                            key={ttl}
+                            type="button"
+                            className={`npv-vpill ${warn.has(ttl) ? "warn" : ""}`}
+                            aria-pressed={selected === ttl}
+                            aria-label={`Hop ${ttl}, ${item.name}, ${item.silent ? "no reply" : `${fmt(item.avg_ms)} milliseconds`}`}
+                            onClick={() => onSelect(ttl)}
+                          >
+                            <b>#{ttl}</b>
+                            <span>{item.silent ? "no reply" : `${fmt(item.avg_ms)} ms`}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
       <div className="npv-strip-scroll">
         <div className="npv-strip">
           {trace.groups.map((group, index) => {
@@ -315,7 +429,7 @@ function PathStrip({
               <div className="npv-gwrap" key={`${group.role}-${group.hop_ttls[0]}`}>
                 <div className={`npv-group ${group.role === "unknown" ? "dashed" : ""}`} style={{ ["--c" as string]: `var(--role-${group.role})` }}>
                   <div className="npv-ghead">
-                    <span className="npv-asn">{group.asn_label}</span>
+                    <span className="npv-asn">{networkLabel(group.asn_label)}</span>
                     <div className="npv-gname">{group.name}</div>
                     <div className="npv-grole">{group.role_label}</div>
                   </div>
@@ -370,6 +484,7 @@ function LatencyChart({
   selected: number | null;
   onSelect: (ttl: number) => void;
 }) {
+  const narrow = useNarrow();
   const replying = trace.hops.filter((hop) => !hop.silent && hop.avg_ms != null);
   const maxAvg = Math.max(0, ...replying.map((hop) => hop.avg_ms ?? 0));
   const axisMax = Math.max(15, Math.ceil(maxAvg / 15) * 15);
@@ -392,7 +507,7 @@ function LatencyChart({
         <div className="npv-bars">
           {trace.hops.map((hop) => {
             const silent = hop.silent || hop.avg_ms == null;
-            const height = silent ? 0 : Math.max(6, Math.round(((hop.avg_ms ?? 0) / axisMax) * 190));
+            const height = silent ? 0 : Math.max(6, Math.round(((hop.avg_ms ?? 0) / axisMax) * (narrow ? 100 : 190)));
             return (
               <button
                 key={hop.ttl}
@@ -412,7 +527,7 @@ function LatencyChart({
       </div>
       <div className="npv-xlabels">
         {trace.hops.map((hop) => {
-          const short = hop.silent ? "?" : hop.asn ? String(hop.asn) : hop.role === "ixp" ? "IXP" : hop.role === "home" ? "LAN" : "AS ?";
+          const short = hop.silent ? "?" : hop.asn ? String(hop.asn) : hop.role === "ixp" ? "IXP" : hop.role === "home" ? "LAN" : "Unknown";
           return (
             <div className="npv-xl" key={hop.ttl} style={{ ["--c" as string]: `var(--role-${hop.role})` }}>
               <b>#{hop.ttl}</b>
@@ -435,8 +550,8 @@ function LatencyChart({
   );
 }
 
-function HopDetail({ trace, hop }: { trace: PathTrace; hop: PathHop | undefined }) {
-  if (!hop) return <aside className="npv-card npv-detail" />;
+function HopDetail({ trace, hop, headless = false }: { trace: PathTrace; hop: PathHop | undefined; headless?: boolean }) {
+  if (!hop) return <aside className={headless ? "npv-detail" : "npv-card npv-detail"} />;
   const registry = [hop.registry, hop.country].filter(Boolean).join(", ");
   const network = hop.silent
     ? "Unknown"
@@ -463,14 +578,16 @@ function HopDetail({ trace, hop }: { trace: PathTrace; hop: PathHop | undefined 
   const lo = history.length ? Math.min(...history) : 0;
   const hi = history.length ? Math.max(...history) : 0;
   return (
-    <aside className="npv-card npv-detail" style={{ ["--c" as string]: `var(--role-${hop.role})` }}>
+    <aside className={headless ? "npv-detail" : "npv-card npv-detail"} style={{ ["--c" as string]: `var(--role-${hop.role})` }}>
+      {headless ? null : (
       <div className="npv-detail-head">
         <div>
           <div className="cap">Selected hop</div>
           <div className="ttl">Hop {hop.ttl}</div>
         </div>
-        <span className="npv-asn">{hop.silent ? "Unknown" : hop.asn_label}</span>
+        <span className="npv-asn">{hop.silent ? "Unknown network" : networkLabel(hop.asn_label)}</span>
       </div>
+      )}
       {hop.inferred ? (
         <div className="npv-notice inferred">
           Network inferred. This address sits on an interconnect link, so the owner shown is a best guess.
@@ -548,7 +665,7 @@ function AsPath({ items }: { items: AsChip[] }) {
   );
 }
 
-function BgpView({ trace }: { trace: PathTrace }) {
+function BgpView({ trace, headless = false }: { trace: PathTrace; headless?: boolean }) {
   const bgp = trace.bgp;
   const rpki = bgp.rpki ? bgp.rpki[0].toUpperCase() + bgp.rpki.slice(1) : "—";
   const tiles: [string, string, string][] = [
@@ -558,11 +675,13 @@ function BgpView({ trace }: { trace: PathTrace }) {
     ["Path stability", bgp.stable_days == null ? "—" : `Unchanged ${bgp.stable_days} days`, ""],
   ];
   return (
-    <section className="npv-card">
+    <section className={headless ? "npv-bgp" : "npv-card"}>
+      {headless ? null : (
       <div>
         <h2>BGP view</h2>
         <p className="npv-hint">The networks your packets crossed, next to the path BGP says should be used for the destination prefix.</p>
       </div>
+      )}
       <div className="npv-bgp-grid">
         <div className="npv-bgp-paths">
           <div>
