@@ -1,6 +1,6 @@
 /* Design system for every screen except the overview (index). The overview keeps overview.css. */
 
-.app-shell:not(.dash-shell),
+.app-shell.ui-compact,
 .login-wrap {
   color-scheme: dark;
   --bg: #0e1320;
@@ -24,18 +24,19 @@
   --role-transit: #6cb4ff;
   --role-unknown: #8793b2;
   --role-destination: #ff8a7a;
-  --r-xs: 8px;
-  --r-sm: 12px;
-  --r-md: 16px;
-  --r-lg: 22px;
-  --r-xl: 28px;
-  --r-pill: 999px;
+  --r-xs: 4px;
+  --r-sm: 8px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 12px;
+  --r-pill: 8px;
+  --r-badge: 4px;
   --s-1: 4px;
   --s-2: 8px;
   --s-3: 12px;
   --s-4: 16px;
-  --s-5: 24px;
-  --s-6: 32px;
+  --s-5: 14px;
+  --s-6: 16px;
   --font-ui: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Nunito", system-ui, sans-serif;
   --font-addr: "DM Mono", ui-monospace, monospace;
@@ -45,64 +46,64 @@
   color: var(--ink);
 }
 
-.app-shell:not(.dash-shell) h1,
-.app-shell:not(.dash-shell) h2,
-.app-shell:not(.dash-shell) h3,
-.app-shell:not(.dash-shell) .page-title,
+.app-shell.ui-compact h1,
+.app-shell.ui-compact h2,
+.app-shell.ui-compact h3,
+.app-shell.ui-compact .page-title,
 .login-wrap h1 {
   font-family: var(--font-display);
   font-weight: 800;
   letter-spacing: -0.02em;
 }
 
-.app-shell:not(.dash-shell) .page-title,
+.app-shell.ui-compact .page-title,
 .login-wrap h1 {
-  font-size: 40px;
-  line-height: 1.1;
+  font-size: 22px;
+  line-height: 1.15;
 }
 
-.app-shell:not(.dash-shell) h2,
-.app-shell:not(.dash-shell) .panel h2,
-.app-shell:not(.dash-shell) .monitor-dialog-head h2 {
-  font-size: 20px;
+.app-shell.ui-compact h2,
+.app-shell.ui-compact .panel h2,
+.app-shell.ui-compact .monitor-dialog-head h2 {
+  font-size: 16px;
   font-weight: 800;
 }
 
-.app-shell:not(.dash-shell) .page-sub,
+.app-shell.ui-compact .page-sub,
 .login-wrap .login-card p {
   color: var(--muted);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
 }
 
-.app-shell:not(.dash-shell) .main {
-  padding: var(--s-5);
+.app-shell.ui-compact .main {
+  padding: 16px;
 }
 
-.app-shell:not(.dash-shell) .panel {
+.app-shell.ui-compact .panel {
   background: var(--bg-elevated);
   border: 1px solid var(--line);
   border-radius: var(--r-xl);
-  padding: var(--s-5);
-  margin-bottom: var(--s-5);
+  padding: 14px;
+  margin-bottom: 12px;
 }
 
-.app-shell:not(.dash-shell) .page-title,
-.app-shell:not(.dash-shell) .monitor-head {
+.app-shell.ui-compact .page-title,
+.app-shell.ui-compact .monitor-head {
   align-items: flex-end;
   gap: 20px;
 }
 
-.app-shell:not(.dash-shell) .monitor-head .page-title {
+.app-shell.ui-compact .monitor-head .page-title {
   margin-bottom: 0;
 }
 
-.app-shell:not(.dash-shell) .main .btn,
-.app-shell:not(.dash-shell) .monitor-dialog .btn,
+.app-shell.ui-compact .main .btn,
+.app-shell.ui-compact .monitor-dialog .btn,
 .login-wrap .btn {
   border-radius: var(--r-pill);
-  min-height: 48px;
-  padding: 12px 24px;
+  min-height: 44px;
+  padding: 10px 16px;
   font-size: 15px;
   font-weight: 800;
   border: 1px solid var(--line);
@@ -110,9 +111,9 @@
   color: var(--ink);
 }
 
-.app-shell:not(.dash-shell) .main .btn-primary,
-.app-shell:not(.dash-shell) .monitor-dialog .btn-primary,
-.app-shell:not(.dash-shell) .confirm-actions .btn-primary,
+.app-shell.ui-compact .main .btn-primary,
+.app-shell.ui-compact .monitor-dialog .btn-primary,
+.app-shell.ui-compact .confirm-actions .btn-primary,
 .login-wrap .btn-primary,
 .login-wrap .login-card .btn-primary {
   background: var(--accent);
@@ -120,17 +121,17 @@
   color: var(--on-accent);
 }
 
-.app-shell:not(.dash-shell) .main .btn:hover,
-.app-shell:not(.dash-shell) .monitor-dialog .btn:hover,
+.app-shell.ui-compact .main .btn:hover,
+.app-shell.ui-compact .monitor-dialog .btn:hover,
 .login-wrap .btn:hover {
   background: var(--bg-soft);
   border-color: var(--line);
   color: var(--ink);
 }
 
-.app-shell:not(.dash-shell) .main .btn-primary:hover,
-.app-shell:not(.dash-shell) .monitor-dialog .btn-primary:hover,
-.app-shell:not(.dash-shell) .confirm-actions .btn-primary:hover,
+.app-shell.ui-compact .main .btn-primary:hover,
+.app-shell.ui-compact .monitor-dialog .btn-primary:hover,
+.app-shell.ui-compact .confirm-actions .btn-primary:hover,
 .login-wrap .btn-primary:hover,
 .login-wrap .login-card .btn-primary:hover {
   background: color-mix(in srgb, white 12%, var(--accent));
@@ -138,16 +139,16 @@
   color: var(--on-accent);
 }
 
-.app-shell:not(.dash-shell) .main .btn:disabled,
-.app-shell:not(.dash-shell) .monitor-dialog .btn:disabled,
+.app-shell.ui-compact .main .btn:disabled,
+.app-shell.ui-compact .monitor-dialog .btn:disabled,
 .login-wrap .btn:disabled {
   background: var(--bg-soft);
   color: var(--ink);
   cursor: progress;
 }
 
-.app-shell:not(.dash-shell) .main .tab,
-.app-shell:not(.dash-shell) .range-row .tab {
+.app-shell.ui-compact .main .tab,
+.app-shell.ui-compact .range-row .tab {
   border-radius: var(--r-pill);
   font-size: 14px;
   font-weight: 700;
@@ -156,76 +157,78 @@
   border: 1px solid var(--line);
 }
 
-.app-shell:not(.dash-shell) .main .tab:hover,
-.app-shell:not(.dash-shell) .range-row .tab:hover {
+.app-shell.ui-compact .main .tab:hover,
+.app-shell.ui-compact .range-row .tab:hover {
   color: var(--ink);
   background: var(--bg-soft);
   border-color: var(--line);
 }
 
-.app-shell:not(.dash-shell) .main .tab.active,
-.app-shell:not(.dash-shell) .range-row .tab.active {
+.app-shell.ui-compact .main .tab.active,
+.app-shell.ui-compact .range-row .tab.active {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 18%, var(--bg-elevated));
   border-color: var(--accent);
 }
 
-.app-shell:not(.dash-shell) .main input:not([type="checkbox"]):not([type="radio"]),
-.app-shell:not(.dash-shell) .main textarea,
-.app-shell:not(.dash-shell) .monitor-dialog input:not([type="checkbox"]):not([type="radio"]),
-.app-shell:not(.dash-shell) .monitor-dialog textarea,
+.app-shell.ui-compact .main input:not([type="checkbox"]):not([type="radio"]),
+.app-shell.ui-compact .main textarea,
+.app-shell.ui-compact .monitor-dialog input:not([type="checkbox"]):not([type="radio"]),
+.app-shell.ui-compact .monitor-dialog textarea,
 .login-wrap input {
   background: var(--bg-inset);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   color: var(--ink);
+  min-height: 44px;
 }
 
-.app-shell:not(.dash-shell) .main select:not(.npv-select),
-.app-shell:not(.dash-shell) .monitor-dialog select,
-.app-shell:not(.dash-shell) .log-filter select {
+.app-shell.ui-compact .main select:not(.npv-select),
+.app-shell.ui-compact .monitor-dialog select,
+.app-shell.ui-compact .log-filter select {
   background: var(--bg-inset);
   border: 1px solid var(--line);
   border-radius: var(--r-pill);
   color: var(--ink);
   padding-inline: 16px;
+  min-height: 44px;
 }
 
-.app-shell:not(.dash-shell) .log-filter select {
+.app-shell.ui-compact .log-filter select {
   border-radius: var(--r-pill);
   padding-inline: 14px;
 }
 
-.app-shell:not(.dash-shell) .table-scroll {
+.app-shell.ui-compact .table-scroll {
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   overflow: auto;
 }
 
-.app-shell:not(.dash-shell) .table th {
+.app-shell.ui-compact .table th {
   font-size: 12px;
   font-weight: 700;
   color: var(--muted);
 }
 
-.app-shell:not(.dash-shell) .table tbody tr:hover td {
+.app-shell.ui-compact .table tbody tr:hover td {
   background: var(--bg-soft);
 }
 
-.app-shell:not(.dash-shell) .menu-panel,
-.app-shell:not(.dash-shell) .monitor-dialog,
-.app-shell:not(.dash-shell) .confirm-dialog {
+.app-shell.ui-compact .menu-panel,
+.app-shell.ui-compact .monitor-dialog,
+.app-shell.ui-compact .confirm-dialog {
   background: var(--bg-elevated);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-float);
 }
 
-.app-shell:not(.dash-shell) .menu-panel {
-  border-radius: var(--r-lg);
+.app-shell.ui-compact .menu-panel {
+  border-radius: 8px;
 }
 
-.app-shell:not(.dash-shell) .monitor-dialog,
-.app-shell:not(.dash-shell) .confirm-dialog,
+.app-shell.ui-compact .monitor-dialog,
+.app-shell.ui-compact .confirm-dialog,
 .login-wrap .login-card {
   border-radius: var(--r-xl);
   background: var(--bg-elevated);
@@ -237,11 +240,11 @@
   box-shadow: var(--shadow-float);
 }
 
-.app-shell:not(.dash-shell) .monitor-dialog-backdrop {
+.app-shell.ui-compact .monitor-dialog-backdrop {
   background: rgba(0, 0, 0, 0.5);
 }
 
-.app-shell:not(.dash-shell) .state-box {
+.app-shell.ui-compact .state-box {
   border-radius: var(--r-xl);
   border: 1px dashed var(--line);
   background: var(--bg-elevated);
@@ -249,72 +252,72 @@
   font-weight: 700;
 }
 
-.app-shell:not(.dash-shell) .banner.critical {
+.app-shell.ui-compact .banner.critical {
   background: var(--banner-critical);
   border: 1px solid color-mix(in srgb, var(--fail) 45%, transparent);
   border-radius: var(--r-md);
   padding: 14px 16px;
 }
 
-.app-shell:not(.dash-shell) .banner.warning {
+.app-shell.ui-compact .banner.warning {
   background: var(--banner-warning);
   border: 1px solid color-mix(in srgb, var(--degraded) 45%, transparent);
   border-radius: var(--r-md);
   padding: 14px 16px;
 }
 
-.app-shell:not(.dash-shell) .sev {
-  border-radius: var(--r-pill);
+.app-shell.ui-compact .sev {
+  border-radius: var(--r-badge);
   font-weight: 800;
   padding: 3px 9px;
 }
 
-.app-shell:not(.dash-shell) .settings-nav a {
+.app-shell.ui-compact .settings-nav a {
   border-radius: var(--r-pill);
   font-weight: 700;
 }
 
-.app-shell:not(.dash-shell) .settings-nav a.active {
+.app-shell.ui-compact .settings-nav a.active {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 18%, var(--bg-elevated));
   border: 1px solid var(--accent);
 }
 
-.app-shell:not(.dash-shell) .monitor-card,
-.app-shell:not(.dash-shell) .saas-tile {
+.app-shell.ui-compact .monitor-card,
+.app-shell.ui-compact .saas-tile {
   border-radius: var(--r-lg);
   background: var(--bg-elevated);
 }
 
-.app-shell:not(.dash-shell) .isp-card {
+.app-shell.ui-compact .isp-card {
   border-radius: var(--r-xl);
   background: var(--bg-elevated);
   border: 1px solid var(--line);
   box-shadow: none;
 }
 
-.app-shell:not(.dash-shell) .isp-stat {
+.app-shell.ui-compact .isp-stat {
   border-radius: var(--r-md);
   background: var(--bg-inset);
 }
 
-.app-shell:not(.dash-shell) .isp-stat strong,
-.app-shell:not(.dash-shell) .device-stats strong {
+.app-shell.ui-compact .isp-stat strong,
+.app-shell.ui-compact .device-stats strong {
   font-weight: 800;
   letter-spacing: -0.02em;
 }
 
-.app-shell:not(.dash-shell) .monitor-status-box {
-  border-radius: var(--r-pill);
+.app-shell.ui-compact .monitor-status-box {
+  border-radius: var(--r-badge);
   background: var(--bg-elevated);
   border: 1px solid var(--line);
 }
 
-.app-shell:not(.dash-shell) .status-mark-ok { --mark: var(--ok); }
-.app-shell:not(.dash-shell) .status-mark-degraded { --mark: var(--degraded); }
-.app-shell:not(.dash-shell) .status-mark-offline { --mark: var(--fail); }
+.app-shell.ui-compact .status-mark-ok { --mark: var(--ok); }
+.app-shell.ui-compact .status-mark-degraded { --mark: var(--degraded); }
+.app-shell.ui-compact .status-mark-offline { --mark: var(--fail); }
 
-.app-shell:not(.dash-shell) .npv {
+.app-shell.ui-compact .npv {
   --surface: var(--bg-elevated);
   --chip: var(--bg-inset);
   --text: var(--ink);
@@ -328,107 +331,107 @@
   --font-mono: var(--font-addr);
 }
 
-.app-shell:not(.dash-shell) .npv-run:disabled {
+.app-shell.ui-compact .npv-run:disabled {
   background: var(--bg-soft);
   color: var(--ink);
 }
 
-.app-shell:not(.dash-shell) .npv-legend,
-.app-shell:not(.dash-shell) .npv-notice.silent {
+.app-shell.ui-compact .npv-legend,
+.app-shell.ui-compact .npv-notice.silent {
   color: var(--muted);
 }
 
-.app-shell:not(.dash-shell) .npv-insight,
-.app-shell:not(.dash-shell) .npv-match.no {
+.app-shell.ui-compact .npv-insight,
+.app-shell.ui-compact .npv-match.no {
   background: color-mix(in srgb, var(--degraded) 12%, var(--bg-elevated));
   border-color: color-mix(in srgb, var(--degraded) 45%, transparent);
   color: var(--ink);
 }
 
-.app-shell:not(.dash-shell) .npv-notice.inferred {
+.app-shell.ui-compact .npv-notice.inferred {
   background: color-mix(in srgb, var(--role-ixp) 12%, var(--bg-elevated));
   border-color: color-mix(in srgb, var(--role-ixp) 45%, transparent);
   color: var(--ink);
 }
 
-.app-shell:not(.dash-shell) .npv-match.yes {
+.app-shell.ui-compact .npv-match.yes {
   background: color-mix(in srgb, var(--ok) 12%, var(--bg-elevated));
   border-color: color-mix(in srgb, var(--ok) 45%, transparent);
   color: var(--ink);
 }
 
-.app-shell:not(.dash-shell) .recharts-cartesian-axis-tick text {
+.app-shell.ui-compact .recharts-cartesian-axis-tick text {
   fill: var(--muted);
   font-size: 11px;
   font-weight: 700;
 }
 
-.app-shell:not(.dash-shell) .recharts-default-tooltip {
+.app-shell.ui-compact .recharts-default-tooltip {
   background-color: var(--bg-elevated) !important;
   border: 1px solid var(--line) !important;
   border-radius: 14px !important;
   padding: 8px 12px !important;
 }
 
-.app-shell:not(.dash-shell) .recharts-default-tooltip,
-.app-shell:not(.dash-shell) .recharts-tooltip-item {
+.app-shell.ui-compact .recharts-default-tooltip,
+.app-shell.ui-compact .recharts-tooltip-item {
   color: var(--ink) !important;
   font-weight: 700;
 }
 
-.app-shell:not(.dash-shell) .npv-chip:hover {
+.app-shell.ui-compact .npv-chip:hover {
   background: var(--chip);
   color: var(--ink);
   border-color: color-mix(in srgb, var(--c) 50%, transparent);
 }
 
-.app-shell:not(.dash-shell) .npv-chip[aria-pressed="true"]:hover {
+.app-shell.ui-compact .npv-chip[aria-pressed="true"]:hover {
   background: color-mix(in srgb, var(--c) 24%, transparent);
   border-color: var(--c);
   color: var(--ink);
 }
 
-.app-shell:not(.dash-shell) .npv-run:hover {
+.app-shell.ui-compact .npv-run:hover {
   background: var(--accent);
   color: var(--on-accent);
   border-color: transparent;
 }
 
-.app-shell:not(.dash-shell) .npv-col:hover {
+.app-shell.ui-compact .npv-col:hover {
   background: transparent;
   border-color: transparent;
   color: inherit;
 }
 
-.app-shell:not(.dash-shell) .saas-tile:hover,
-.app-shell:not(.dash-shell) .isp-card:hover,
-.app-shell:not(.dash-shell) .monitor-pick:hover {
+.app-shell.ui-compact .saas-tile:hover,
+.app-shell.ui-compact .isp-card:hover,
+.app-shell.ui-compact .monitor-pick:hover {
   background: var(--bg-soft);
   color: var(--ink);
   border-color: var(--line);
 }
 
-.app-shell:not(.dash-shell) .menu-panel a:hover,
-.app-shell:not(.dash-shell) .menu-item:hover {
+.app-shell.ui-compact .menu-panel a:hover,
+.app-shell.ui-compact .menu-item:hover {
   background: var(--bg-soft);
   color: var(--ink);
   border-color: transparent;
 }
 
-.app-shell:not(.dash-shell) .menu-panel a.active,
-.app-shell:not(.dash-shell) .menu-panel a.active:hover {
+.app-shell.ui-compact .menu-panel a.active,
+.app-shell.ui-compact .menu-panel a.active:hover {
   background: color-mix(in srgb, var(--accent) 18%, var(--bg-elevated));
   color: var(--accent);
 }
 
-.app-shell:not(.dash-shell) :focus-visible,
+.app-shell.ui-compact :focus-visible,
 .login-wrap :focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
   outline-offset: 3px;
 }
 
-.app-shell:not(.dash-shell) select:not(.npv-select):focus,
-.app-shell:not(.dash-shell) select:not(.npv-select):focus-visible,
+.app-shell.ui-compact select:not(.npv-select):focus,
+.app-shell.ui-compact select:not(.npv-select):focus-visible,
 .login-wrap select:focus,
 .login-wrap select:focus-visible {
   outline: none;
@@ -461,8 +464,8 @@
   cursor: pointer;
 }
 
-.app-shell:not(.dash-shell) .select-menu-trigger:focus,
-.app-shell:not(.dash-shell) .select-menu-trigger:focus-visible {
+.app-shell.ui-compact .select-menu-trigger:focus,
+.app-shell.ui-compact .select-menu-trigger:focus-visible {
   outline: none;
   border-color: transparent;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent);
@@ -546,21 +549,63 @@
 }
 
 @media (max-width: 560px) {
-  .app-shell:not(.dash-shell) .page-title,
+  .app-shell.ui-compact .page-title,
   .login-wrap h1,
-  .app-shell:not(.dash-shell) .npv h1 {
-    font-size: 30px;
+  .app-shell.ui-compact .npv h1 {
+    font-size: 22px;
   }
 
-  .app-shell:not(.dash-shell) .panel,
+  .app-shell.ui-compact .panel,
   .login-wrap .login-card {
-    padding: 18px;
+    padding: 14px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-shell:not(.dash-shell) *,
+  .app-shell.ui-compact *,
   .login-wrap * {
     transition: none !important;
   }
+}
+
+.app-shell.ui-compact .select-menu-trigger,
+.login-wrap .select-menu-trigger {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 8px;
+}
+
+.app-shell.ui-compact .select-menu-panel,
+.login-wrap .select-menu-panel {
+  left: 0;
+  right: 0;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.app-shell.ui-compact .select-menu-option,
+.login-wrap .select-menu-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  border-radius: 8px;
+}
+
+.app-shell.ui-compact .select-menu-option-label,
+.login-wrap .select-menu-option-label {
+  min-width: 0;
+}
+
+.app-shell.ui-compact .select-menu-check,
+.login-wrap .select-menu-check {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--accent);
 }

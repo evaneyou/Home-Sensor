@@ -47,7 +47,7 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
   }
 
   return (
-    <div className="login-wrap">
+    <div className="login-wrap ui-compact">
       <form className="login-card" onSubmit={submit}>
         <h1>Home Network User Experience</h1>
         <p>Sign in to view remote agent health and staged test results.</p>
@@ -132,7 +132,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   }
 
   return (
-    <div className={loc.pathname === "/" ? "app-shell dash-shell" : "app-shell"}>
+      <div className={loc.pathname === "/" ? "app-shell dash-shell" : "app-shell ui-compact"}>
       <header className="topbar">
         <Link to="/" className="brand" aria-label="HomeNetWatch">
           <img src="/homenetwatch.png" alt="HomeNetWatch" />
