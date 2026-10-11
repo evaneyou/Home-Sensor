@@ -703,7 +703,7 @@ def check_mtr(test: dict) -> dict:
     total = round((time.perf_counter() - started) * 1000, 1)
     if not hops:
         return _result(test, started_at, "fail", [{"name": "trace", "duration_ms": total, "status": "fail"}], _trace_metrics([], total), last_error)
-    loss = max(hop["loss_pct"] for hop in hops)
+    loss = hops[-1]["loss_pct"]
     rtt = hops[-1]["avg_ms"]
     dest = rtt if rtt > 0 else None
     threshold = _threshold_ms(test)
@@ -744,7 +744,7 @@ def _trace_metrics(hops: list[dict], total: float) -> dict:
         return {"rtt_ms": None, "loss_pct": 100.0, "total_ms": total, "hops": []}
     return {
         "rtt_ms": hops[-1]["avg_ms"],
-        "loss_pct": max(hop["loss_pct"] for hop in hops),
+        "loss_pct": hops[-1]["loss_pct"],
         "total_ms": total,
         "hops": hops,
     }
