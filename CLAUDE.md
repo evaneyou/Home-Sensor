@@ -53,7 +53,9 @@ CI (`.github/workflows/ci.yml`) runs server tests, the dashboard build and `dock
 ## Ground rules
 
 - Work on a feature branch (for example `feat/enrollment-ui`) and open a PR. Do not push to `main`; merge only after review.
-- The production server runs the live stack from its own checkout on `main`. Never edit that folder by hand. Develop in a separate dev folder, deploy by merging to `main`, taking a backup first (`./scripts/backup.sh`), then `git pull && docker compose up --build -d`.
+- Dev and prod are the same machine (one Pi sensor can report to only one server), so work happens directly on the production server. The owner accepts that a change may break the live site. Still: commit changes to git so they can be reverted, and tell the owner what you are about to restart or rebuild.
+- Deploy with `docker compose up --build -d` in the repo folder. Run `./scripts/backup.sh` first when a change touches the database, migrations, enrollment or the agent/WireGuard ports.
+- Do not delete or recreate Docker volumes (database, WireGuard keys, TLS pin) without asking; they cannot be rebuilt from git.
 - **This repository is public.** Never commit or paste secrets, device keys, installer codes, `.env` values, WireGuard or TLS keys, real home IP addresses, device MACs, SSIDs or location data. Use `.env.example` for placeholders.
 - Keep dashboard changes shared-component safe: the Home page must not change unless the task says so.
 - Do not copy dev data (users, audit events, installer codes, check-ins) into production.
