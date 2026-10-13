@@ -117,6 +117,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(setting),
     }),
+  guestVisits: () => request("/api/v1/settings/guest-visits"),
   internetService: () => request("/api/v1/settings/internet-service"),
   saveInternetService: (setting: InternetServiceSetting) =>
     request("/api/v1/settings/internet-service", {

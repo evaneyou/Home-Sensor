@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Response, status
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Request, Response, status
 from sqlalchemy import Select, and_, delete, desc, func, literal, select, union_all
 from sqlalchemy.orm import Session, joinedload
 
@@ -77,6 +77,7 @@ from app.schemas import (
     IngestResponse,
     IssueOut,
     IssueSummary,
+    GuestVisitOut,
     LoginRequest,
     MetricsPoint,
     MetricsResponse,
@@ -238,9 +239,21 @@ def _user_out(user: User, session_token: str, settings: Settings) -> UserOut:
     )
 
 
+def _visitor_address(request: Request) -> str:
+    """The last forwarded hop is the one the proxy added. A client-supplied prefix is ignored."""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    parts = [part.strip() for part in forwarded.split(",") if part.strip()]
+    if parts:
+        return parts[-1][:64]
+    if request.client is not None and request.client.host:
+        return request.client.host[:64]
+    return "unknown"
+
+
 @router.post("/auth/login", response_model=UserOut)
 def login(
     body: LoginRequest,
+    request: Request,
     response: Response,
     db: Annotated[Session, Depends(get_db)],
     settings: Annotated[Settings, Depends(get_settings)],
@@ -249,7 +262,12 @@ def login(
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     token = create_session_token(user.id, settings)
-    set_session_cookie(response, token, settings)
+    if user.role == UserRole.guest:
+        db.add(AuditEvent(username=user.username, action="guest_login", detail=_visitor_address(request)))
+        db.commit()
+        set_session_cookie(response, token, settings, max_age=settings.guest_idle_seconds)
+    else:
+        set_session_cookie(response, token, settings)
     return _user_out(user, token, settings)
 
 
@@ -260,6 +278,20 @@ def logout(
 ) -> dict[str, str]:
     clear_session_cookie(response, settings)
     return {"status": "ok"}
+
+
+@router.get("/settings/guest-visits", response_model=list[GuestVisitOut])
+def guest_visits(
+    db: Annotated[Session, Depends(get_db)],
+    _admin: Annotated[User, Depends(require_admin)],
+) -> list[GuestVisitOut]:
+    rows = db.scalars(
+        select(AuditEvent)
+        .where(AuditEvent.action == "guest_login")
+        .order_by(desc(AuditEvent.created_at))
+        .limit(100)
+    ).all()
+    return [GuestVisitOut(created_at=row.created_at, address=row.detail) for row in rows]
 
 
 @router.get("/auth/me", response_model=UserOut)

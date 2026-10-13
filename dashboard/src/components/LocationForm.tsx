@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../api";
+import { useGuestGate } from "../guestGate";
 import { cityPlace, lookupCities, type CityMatch } from "../geocode";
 import { regionsFor } from "../regions";
 import type { DeviceReport } from "../types";
@@ -23,6 +24,7 @@ function errorText(error: Error, fallback: string): string {
 
 export default function LocationForm({ monitorId }: { monitorId: string }) {
   const qc = useQueryClient();
+  const run = useGuestGate();
   const deviceQ = useQuery({
     queryKey: ["monitor-device", monitorId],
     queryFn: () => api.monitorDevice(monitorId) as Promise<DeviceReport>,
@@ -92,6 +94,10 @@ export default function LocationForm({ monitorId }: { monitorId: string }) {
   }
 
   function chooseCity(match: CityMatch) {
+    run(() => applyCity(match));
+  }
+
+  function applyCity(match: CityMatch) {
     setLocation(match.name);
     if (match.region) setRegion(match.region);
     setPendingPlace(match);
@@ -103,6 +109,12 @@ export default function LocationForm({ monitorId }: { monitorId: string }) {
 
   async function submitLocation(event: FormEvent) {
     event.preventDefault();
+    run(() => {
+      void saveLocationChoice();
+    });
+  }
+
+  async function saveLocationChoice() {
     const city = location.trim();
     const regionName = region.trim();
     const countryName = country.trim();

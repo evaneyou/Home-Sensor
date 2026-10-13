@@ -321,12 +321,12 @@ def test_guest_cannot_start_a_check_or_see_the_home_address(client, db, monitor_
     from app.models import UserRole
 
     if db.scalar(select(User).where(User.username == "guest")) is None:
-        db.add(User(username="guest", password_hash=hash_password("guest-change-me"), role=UserRole.guest, is_active=True))
+        db.add(User(username="guest", password_hash=hash_password("guest"), role=UserRole.guest, is_active=True))
         db.commit()
     monitor = _monitor(db)
     monitor.public_ip = "203.0.113.50"
     db.commit()
-    guest = login(client, "guest", "guest-change-me")
+    guest = login(client, "guest", "guest")
     listed = client.get("/api/v1/monitors", headers=guest)
     assert listed.status_code == 200
     mine = next(item for item in listed.json() if item["id"] == str(monitor.id))

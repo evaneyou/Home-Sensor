@@ -18,7 +18,7 @@ The Pi stays on the LAN and reaches the server over outbound HTTPS. Only server 
 
 ## Stack
 
-- **Server:** FastAPI, SQLAlchemy, Alembic, Postgres 16, cookie session auth (`admin` / `viewer`)
+- **Server:** FastAPI, SQLAlchemy, Alembic, Postgres 16, cookie session auth (`admin` / `viewer` / `guest`)
 - **Dashboard:** React + Vite + TypeScript, TanStack Query, **Recharts** (no Grafana in this product slice)
 - **Dev:** Docker Compose (db + server + dashboard)
 
@@ -31,7 +31,7 @@ The Pi stays on the LAN and reaches the server over outbound HTTPS. Only server 
 - `tests` — `http`, `dns`, `ping`, `wifi`, … bound to a remote agent and network
 - `test_results` — staged timings + metrics + status (`ok` / `degraded` / `fail`)
 - Retention for `test_results` and `wifi_observations`: raw for 6 months, hourly averages from 6 to 12 months, daily averages from 12 months to 2 years, then deleted. The server runs this once a day. Issues are kept as written.
-- `users` — admin/viewer with password hash
+- `users` — admin, viewer, and guest with a password hash. A guest can read every page. Changes stay admin-only, and a guest session ends after 3 minutes idle.
 - `issues` — open/resolved problems with optional `root_cause_stage`
 
 ## API surface (dashboard-first)

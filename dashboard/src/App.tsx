@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "./api";
+import { GuestGate, useGuestIdle } from "./guestGate";
 import IssueDetailPage from "./pages/IssueDetailPage";
 import IssuesPage from "./pages/IssuesPage";
 import MonitorOnboardingPage from "./pages/MonitorOnboardingPage";
@@ -17,6 +18,7 @@ import AirwavesOverview from "./pages/airwaves/OverviewPage";
 import AirwavesNetworks from "./pages/airwaves/NetworksPage";
 import AirwavesChannels from "./pages/airwaves/ChannelsPage";
 import AirwavesClients from "./pages/airwaves/ClientsPage";
+import GuestVisitsPage from "./pages/GuestVisitsPage";
 import InternetServicePage from "./pages/InternetServicePage";
 import SyntheticPage from "./pages/SyntheticPage";
 import WebServicesPage from "./pages/WebServicesPage";
@@ -88,13 +90,14 @@ function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void })
   const navigate = useNavigate();
   const [params] = useSearchParams();
   useDarkTheme();
+  useGuestIdle(role, onLogout);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const links = [
     { to: "/", label: "Overview" },
     { to: "/airwaves", label: "Airwaves" },
     { to: "/issues", label: "Issues" },
-    ...(role === "admin" ? [{ to: "/settings/onboarding", label: "Settings" }] : []),
+    ...(role === "admin" || role === "guest" ? [{ to: "/settings/onboarding", label: "Settings" }] : []),
   ];
 
   useEffect(() => {
@@ -132,7 +135,10 @@ function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void })
     else navigate("/");
   }
 
+  const seeSettings = role === "admin" || role === "guest";
+
   return (
+    <GuestGate role={role}>
       <div className={loc.pathname === "/" ? "app-shell dash-shell" : "app-shell ui-compact"}>
       <header className="topbar">
         <Link to="/" className="brand" aria-label="HomeNetWatch">
@@ -235,18 +241,20 @@ function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void })
           <Route path="/tests/:id" element={<TestPage />} />
           <Route path="/issues" element={<IssuesPage />} />
           <Route path="/issues/:id" element={<IssueDetailPage />} />
-          <Route path="/settings" element={role === "admin" ? <SettingsLayout /> : <Navigate to="/" replace />}>
+          <Route path="/settings" element={seeSettings ? <SettingsLayout /> : <Navigate to="/" replace />}>
             <Route index element={<Navigate to="onboarding" replace />} />
             <Route path="onboarding" element={<MonitorOnboardingPage />} />
             <Route path="internet-service" element={<InternetServicePage />} />
             <Route path="synthetic" element={<SyntheticPage />} />
             <Route path="web-services" element={<WebServicesPage />} />
+            <Route path="guest-visits" element={<GuestVisitsPage />} />
             <Route path="agents/:id" element={<RemoteAgentPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-    </div>
+      </div>
+    </GuestGate>
   );
 }
 

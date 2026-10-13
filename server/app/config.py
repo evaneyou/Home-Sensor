@@ -16,13 +16,14 @@ class Settings(BaseSettings):
     cookie_samesite: str = "lax"
     session_cookie_name: str = "hns_session"
     session_max_age: int = 60 * 60 * 24 * 7
+    guest_idle_seconds: int = 180
 
     bootstrap_admin_username: str = "admin"
     bootstrap_admin_password: str = "admin-change-me"
     bootstrap_viewer_username: str = "viewer"
     bootstrap_viewer_password: str = "viewer-change-me"
     bootstrap_guest_username: str = "guest"
-    bootstrap_guest_password: str = "guest-change-me"
+    bootstrap_guest_password: str = "guest"
     wireguard_endpoint: str = "10.0.0.123:51820"
     wireguard_state_dir: str = ""
     # Remote agents pin this key, so check-in and poll only answer over HTTPS.

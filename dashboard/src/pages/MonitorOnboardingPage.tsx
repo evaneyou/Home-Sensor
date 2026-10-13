@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
+import { canOperate, useGuestGate } from "../guestGate";
 import ConfirmDialog from "../components/ConfirmDialog";
 import SelectMenu from "../components/SelectMenu";
 import StatusMark from "../components/StatusMark";
@@ -61,7 +62,8 @@ function formatSeen(iso: string | null): string {
 export default function MonitorOnboardingPage() {
   const qc = useQueryClient();
   const me = useQuery({ queryKey: ["me"], queryFn: () => api.me() as Promise<User> });
-  const admin = me.data?.role === "admin";
+  const operate = canOperate(me.data?.role);
+  const run = useGuestGate();
   const monitorsQ = useQuery({
     queryKey: ["monitors"],
     queryFn: () => api.monitors() as Promise<MonitorAdmin[]>,
@@ -259,6 +261,10 @@ export default function MonitorOnboardingPage() {
 
   function requestRegister(event: FormEvent) {
     event.preventDefault();
+    run(() => submitRegister());
+  }
+
+  function submitRegister() {
     const deviceName = draftName.trim();
     const code = draftCode.trim();
     if (!code || !deviceName) {
@@ -272,6 +278,10 @@ export default function MonitorOnboardingPage() {
 
   function requestSave(event: FormEvent) {
     event.preventDefault();
+    run(() => submitSave());
+  }
+
+  function submitSave() {
     if (!name.trim()) {
       setError("Enter a device name.");
       return;
@@ -336,7 +346,7 @@ export default function MonitorOnboardingPage() {
         </ol>
         {me.isLoading ? (
           <p className="muted">Loading session…</p>
-        ) : admin ? (
+        ) : operate ? (
           <form className="device-form" onSubmit={requestRegister}>
             <div className="field">
               <label htmlFor="installer-code">Installer code</label>
@@ -461,16 +471,18 @@ export default function MonitorOnboardingPage() {
                         {checkin.observed_ip ? ` · seen from ${checkin.observed_ip}` : ""}
                       </p>
                     ))}
-                    {admin ? (
+                    {operate ? (
                       <div className="form-actions">
                         <button
                           className="btn btn-primary"
                           type="button"
                           disabled={busy || !ready}
-                          onClick={() => {
-                            setError(null);
-                            setPending({ kind: "approve", registration });
-                          }}
+                          onClick={() =>
+                            run(() => {
+                              setError(null);
+                              setPending({ kind: "approve", registration });
+                            })
+                          }
                         >
                           Approve
                         </button>
@@ -494,11 +506,13 @@ export default function MonitorOnboardingPage() {
                           className="btn"
                           type="button"
                           disabled={busy || !ready || !replacement}
-                          onClick={() => {
-                            if (!replacement) return;
-                            setError(null);
-                            setPending({ kind: "replace", registration, monitor: replacement });
-                          }}
+                          onClick={() =>
+                            run(() => {
+                              if (!replacement) return;
+                              setError(null);
+                              setPending({ kind: "replace", registration, monitor: replacement });
+                            })
+                          }
                         >
                           Replace
                         </button>
@@ -506,10 +520,12 @@ export default function MonitorOnboardingPage() {
                           className="btn"
                           type="button"
                           disabled={busy}
-                          onClick={() => {
-                            setError(null);
-                            setPending({ kind: "start-over", registration });
-                          }}
+                          onClick={() =>
+                            run(() => {
+                              setError(null);
+                              setPending({ kind: "start-over", registration });
+                            })
+                          }
                         >
                           Start over
                         </button>
@@ -517,10 +533,12 @@ export default function MonitorOnboardingPage() {
                           className="btn"
                           type="button"
                           disabled={busy}
-                          onClick={() => {
-                            setError(null);
-                            setPending({ kind: "remove-code", registration });
-                          }}
+                          onClick={() =>
+                            run(() => {
+                              setError(null);
+                              setPending({ kind: "remove-code", registration });
+                            })
+                          }
                         >
                           Remove
                         </button>
@@ -573,7 +591,7 @@ export default function MonitorOnboardingPage() {
                   </button>
                   {open ? (
                     <div className="monitor-card-body">
-                      {admin ? (
+                      {operate ? (
                         <form className="device-form" onSubmit={requestSave}>
                           <div className="field">
                             <label htmlFor="onboard-name">Device name</label>
@@ -606,10 +624,12 @@ export default function MonitorOnboardingPage() {
                               className="btn"
                               type="button"
                               disabled={busy}
-                              onClick={() => {
-                                setError(null);
-                                setPending({ kind: "tunnel", monitor });
-                              }}
+                              onClick={() =>
+                                run(() => {
+                                  setError(null);
+                                  setPending({ kind: "tunnel", monitor });
+                                })
+                              }
                             >
                               {tunnelLabel(monitor)}
                             </button>
@@ -617,10 +637,12 @@ export default function MonitorOnboardingPage() {
                               className="btn"
                               type="button"
                               disabled={busy}
-                              onClick={() => {
-                                setError(null);
-                                setPending({ kind: "delete", monitor });
-                              }}
+                              onClick={() =>
+                                run(() => {
+                                  setError(null);
+                                  setPending({ kind: "delete", monitor });
+                                })
+                              }
                             >
                               Delete
                             </button>

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api } from "../../api";
+import { useGuestGate } from "../../guestGate";
 import SelectMenu from "../../components/SelectMenu";
 import type { RfAp } from "../../types";
 import { AIR_TREND_RANGE, type AirContext } from "./shared";
@@ -12,6 +13,7 @@ const PAGE = 25;
 
 export default function AirwavesNetworks() {
   const ctx = useOutletContext<AirContext>();
+  const run = useGuestGate();
   const [band, setBand] = useState("all");
   const [security, setSecurity] = useState("all");
   const [hidden, setHidden] = useState("all");
@@ -117,7 +119,7 @@ export default function AirwavesNetworks() {
               onToggle={() => toggle(ap.bssid)}
               ctx={ctx}
               pending={trust.isPending}
-              onTrust={() => trust.mutate(ap)}
+              onTrust={() => run(() => trust.mutate(ap))}
             />
           </div>
         );
@@ -241,12 +243,12 @@ function NetworkDetails({
       <button
         className={ap.trusted ? "air-trust on" : "air-trust"}
         type="button"
-        disabled={!ctx.admin || pending}
+        disabled={!ctx.operate || pending}
         onClick={onTrust}
       >
         {ap.trusted ? "Trusted" : "Trust"}
       </button>
-      {!ctx.admin ? <p className="air-caption">An admin can mark this network as trusted.</p> : null}
+      {!ctx.operate ? <p className="air-caption">An admin can mark this network as trusted.</p> : null}
       {historyQ.isLoading ? <p className="air-caption">Loading history…</p> : null}
       {historyQ.isError ? <p className="error">Could not load signal history.</p> : null}
       {points.length > 1 ? (

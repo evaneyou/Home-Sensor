@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { canOperate, useGuestGate } from "../guestGate";
 import ConfirmDialog from "../components/ConfirmDialog";
 import type { User, WebStability } from "../types";
 
@@ -117,7 +118,8 @@ function DefaultButton({ label, onClick }: { label: string; onClick: () => void 
 export default function WebServicesPage() {
   const qc = useQueryClient();
   const me = useQuery({ queryKey: ["me"], queryFn: () => api.me() as Promise<User> });
-  const admin = me.data?.role === "admin";
+  const operate = canOperate(me.data?.role);
+  const run = useGuestGate();
   const stabilityQ = useQuery({
     queryKey: ["web-stability"],
     queryFn: () => api.webStability(),
@@ -168,7 +170,7 @@ export default function WebServicesPage() {
     setStability((current) => ({ ...current, ...PRESET_NUMBERS[name] }));
   }
 
-  const locked = !admin || save.isPending;
+  const locked = !operate || save.isPending;
   const dirty = synced !== "" && stabilitySignature(stability) !== loadedSignature;
   const preset = activePreset(stability);
 
@@ -228,7 +230,7 @@ export default function WebServicesPage() {
                         onChange={(event) => setStabilityNumber(item.field, Number(event.target.value))}
                       />
                       {item.unit ? <span className="muted">{item.unit}</span> : null}
-                      {admin && value !== fallback ? (
+                      {operate && value !== fallback ? (
                         <DefaultButton label={`${fallback}${item.unit}`} onClick={() => setStabilityNumber(item.field, fallback)} />
                       ) : null}
                     </span>
@@ -240,13 +242,13 @@ export default function WebServicesPage() {
         </table>
       </div>
       {error ? <p className="form-error">{error}</p> : null}
-      {admin ? (
+      {operate ? (
         <div className="form-actions">
           <button
             className={`btn btn-primary${dirty ? " is-dirty" : ""}`}
             type="button"
             disabled={save.isPending}
-            onClick={() => setConfirming(true)}
+            onClick={() => run(() => setConfirming(true))}
           >
             Save
           </button>
