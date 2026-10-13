@@ -10,9 +10,31 @@ import WifiScans from "../components/WifiScans";
 import { networkLabel, networkOrder } from "../labels";
 import type { MonitorDetail } from "../types";
 
+const MONITOR_ZONE = "America/New_York";
+
 function formatLastSeen(iso: string): string {
-  const when = new Date(iso).toLocaleString(undefined, { timeZone: "America/New_York" });
-  return `${when} EST`;
+  return new Date(iso).toLocaleString(undefined, {
+    timeZone: MONITOR_ZONE,
+    timeZoneName: "short",
+  });
+}
+
+/** Time alone when the probe was seen today, otherwise a short date and time. */
+function shortLastSeen(iso: string): string {
+  const seen = new Date(iso);
+  const time = seen.toLocaleTimeString(undefined, {
+    timeZone: MONITOR_ZONE,
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const dayOf = (date: Date) => date.toLocaleDateString(undefined, { timeZone: MONITOR_ZONE });
+  if (dayOf(seen) === dayOf(new Date())) return time;
+  const day = seen.toLocaleDateString(undefined, {
+    timeZone: MONITOR_ZONE,
+    month: "short",
+    day: "numeric",
+  });
+  return `${day}, ${time}`;
 }
 
 export default function MonitorPage() {
@@ -83,13 +105,18 @@ export default function MonitorPage() {
           onClick={() => setStatusOpen(true)}
           aria-haspopup="dialog"
           aria-expanded={statusOpen}
+          title={
+            monitor.last_seen_at
+              ? `Last seen ${formatLastSeen(monitor.last_seen_at)}`
+              : "Not seen yet"
+          }
         >
           <StatusMark status={monitor.status} />
+          <span className="monitor-status-label">Remote Probe Status</span>
           <span className="monitor-status-seen">
-            Remote Probe Status
             {monitor.last_seen_at
-              ? ` · Last seen ${formatLastSeen(monitor.last_seen_at)}`
-              : " · Not seen yet"}
+              ? `Last seen ${shortLastSeen(monitor.last_seen_at)}`
+              : "Not seen yet"}
           </span>
         </button>
       </div>
