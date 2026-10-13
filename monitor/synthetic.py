@@ -341,13 +341,15 @@ def _route_text(target: str, source: Optional[str] = None) -> str:
     return completed.stdout
 
 
-def _send_env(target: str, source: Optional[str]) -> dict[str, str]:
+def _send_env(target: str, source: Optional[str], interface: Optional[str] = None) -> dict[str, str]:
     """Pin measurement packets to this link. The control channel stays on the tunnel."""
     env = os.environ.copy()
     if source and BIND_LIB.is_file():
         env["LD_PRELOAD"] = str(BIND_LIB)
         env["RTNP_BIND_HOST"] = target
         env["RTNP_BIND_SRC"] = source
+        if interface:
+            env["RTNP_BIND_IFACE"] = interface
     return env
 
 
@@ -470,7 +472,7 @@ def _ensure(config: dict, item: tuple[str, str], job: dict[str, Any], target: st
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        env=_send_env(target, source),
+        env=_send_env(target, source, interface),
     )
     with _lock:
         _running[item] = {"args": args, "proc": proc, "mode": job.get("mode")}

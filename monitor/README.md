@@ -62,9 +62,10 @@ Setup accepts HTTPS, or HTTP to a private LAN address.
 | File | Purpose |
 |------|---------|
 | `agent.py` | Setup page, enrollment, health reporting, test scheduling |
-| `checks.py` | HTTP, ping, MTR, File Transfer, and video-call checks |
+| `checks.py` | HTTP, ping, MTR, and File Transfer checks |
 | `install.sh` | Installs the package and `systemd` unit |
 | `monitor.service` | `systemd` unit (runs with `CAP_NET_RAW` and `CAP_NET_BIND_SERVICE` only) |
 | `avahi-monitor.service` | Advertises the setup page as `<hostname>.local` |
 | `synthetic.py` | Real-time application traffic on the physical NIC |
+| `rtnp_bind.c` | `LD_PRELOAD` shim that pins a measurement socket to one link; `install.sh` compiles it to `rtnp-bind.so` |
 | `pack.sh` | Builds `dist/monitor.tar.gz` |
