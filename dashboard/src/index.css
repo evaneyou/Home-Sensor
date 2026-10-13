@@ -811,6 +811,11 @@ button:hover,
   display: inline-flex;
   gap: 2px;
   flex-wrap: wrap;
+  /* Shrink to the choices even inside a flex or grid parent, which would
+     otherwise stretch the track across the page. */
+  align-self: flex-start;
+  justify-self: start;
+  width: fit-content;
   max-width: 100%;
   margin-bottom: 0.6rem;
   padding: 3px;
