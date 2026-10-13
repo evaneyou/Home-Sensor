@@ -844,7 +844,7 @@ def sample(config: dict) -> dict:
         "airwave_mode": airwave_mode(),
         "link_ssid": ssid,
         "link_bssid": bssid,
-        "last_error": synthetic.tunnel_warning() or _last_error,
+        "last_error": synthetic.tunnel_warning() or synthetic.last_failure() or _last_error,
     }
 
 
