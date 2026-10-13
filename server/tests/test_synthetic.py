@@ -158,6 +158,7 @@ def test_agent_module_matches_the_path_rule():
     assert len(started) == 2
     assert {item[1][1] for item in started} == {"wired", "wireless"}
     assert {item[3] for item in started} == {"203.0.113.50"}
+    # A link carries every check asked of it, and continuous ones are ordered first.
     chosen = module.jobs_for_links(
         [
             {"run_id": "manual", "link": "wired", "mode": "manual"},
@@ -165,7 +166,16 @@ def test_agent_module_matches_the_path_rule():
             {"run_id": "wifi", "link": "wireless", "mode": "continuous"},
         ]
     )
-    assert set(chosen) == {("continuous", "wired"), ("wifi", "wireless")}
+    assert set(chosen) == {("manual", "wired"), ("continuous", "wired"), ("wifi", "wireless")}
+    assert list(chosen)[0] == ("continuous", "wired")
+    # The same run on the same link is still one flow.
+    repeated = module.jobs_for_links(
+        [
+            {"run_id": "continuous", "link": "wired", "mode": "continuous"},
+            {"run_id": "continuous", "link": "wired", "mode": "continuous"},
+        ]
+    )
+    assert set(repeated) == {("continuous", "wired")}
     assert module.route_get_args("203.0.113.10", "192.0.2.10") == [
         "ip",
         "route",

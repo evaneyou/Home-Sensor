@@ -307,17 +307,22 @@ def route_get_args(target: str, source: Optional[str] = None) -> list[str]:
 
 
 def jobs_for_links(jobs: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
-    """One flow per link. A continuous check wins over a timed run on the same link."""
+    """One flow per job and link, so a link can carry several checks at once.
+
+    Continuous checks come first, so they start before a timed run when the
+    budget cuts the list short.
+    """
     ordered = sorted(
         jobs,
         key=lambda job: (0 if job.get("mode") == "continuous" else 1, str(job.get("link") or "")),
     )
-    chosen: dict[str, dict[str, Any]] = {}
+    chosen: dict[tuple[str, str], dict[str, Any]] = {}
     for job in ordered:
         link = str(job.get("link") or "")
-        if link in {"wired", "wireless"} and link not in chosen and job.get("run_id"):
-            chosen[link] = job
-    return {(str(job["run_id"]), link): job for link, job in chosen.items()}
+        run_id = job.get("run_id")
+        if link in {"wired", "wireless"} and run_id:
+            chosen[(str(run_id), link)] = job
+    return chosen
 
 
 def _route_text(target: str, source: Optional[str] = None) -> str:
