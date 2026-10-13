@@ -449,16 +449,27 @@
   color: var(--muted);
 }
 
+.app-health-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .app-health-path {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  min-height: 44px;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(4.5rem, auto);
+  min-height: 40px;
   border-radius: 8px;
   overflow: hidden;
   background: var(--bg);
 }
 
 .app-health-path button {
+  min-height: 40px;
+  padding: 0 14px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -478,8 +489,13 @@
   padding: 0 14px;
 }
 
+.app-health-primary,
+.app-health-outline {
+  min-height: 40px;
+  padding: 0 18px;
+}
+
 .app-health-primary {
-  width: 100%;
   background: var(--accent);
   color: var(--bg);
 }
@@ -577,11 +593,6 @@
     flex: 1 1 120px;
     width: 120px;
     max-width: 160px;
-  }
-
-  .app-health-primary {
-    width: auto;
-    min-width: 12rem;
   }
 
   .app-health-timed {
