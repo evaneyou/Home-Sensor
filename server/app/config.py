@@ -1,13 +1,16 @@
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEFAULT_SECRET_KEY = "dev-secret-change-me-in-production"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+psycopg://hns:hns-dev-password@127.0.0.1:55432/hns"
-    secret_key: str = "dev-secret-change-me-in-production"
+    secret_key: str = DEFAULT_SECRET_KEY
     cors_origins: str = "http://127.0.0.1:3847,http://localhost:3847"
     cookie_secure: bool = False
     cookie_samesite: str = "lax"
@@ -23,6 +26,13 @@ class Settings(BaseSettings):
     # Remote agents pin this key, so check-in and poll only answer over HTTPS.
     agent_require_https: bool = True
     tls_dir: str = "/var/lib/hns-tls"
+
+    @model_validator(mode="after")
+    def _no_default_secret_in_production(self) -> "Settings":
+        # COOKIE_SECURE=true is the production setting (see docs/deploy-oracle.md).
+        if self.cookie_secure and self.secret_key == DEFAULT_SECRET_KEY:
+            raise ValueError("SECRET_KEY is still the development default. Set a long random value in .env.")
+        return self
 
     @property
     def cors_origin_list(self) -> list[str]:

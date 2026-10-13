@@ -5,8 +5,7 @@
 <h1 align="center">HomeNetWatch</h1>
 
 <p align="center">
-  Monitor the wired and wireless performance of your home network with a Raspberry Pi,<br />
-  in the style of Aruba UXI and Ubiquiti WiFiman.
+  Monitor the wired and wireless performance of your home network with a Raspberry Pi.
 </p>
 
 <p align="center">

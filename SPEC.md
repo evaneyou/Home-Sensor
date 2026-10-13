@@ -1,6 +1,6 @@
 # HomeNetWatch — SPEC v2
 
-Ops-style UXI-inspired monitoring for a home LAN: Raspberry Pi (or Linux PC) remote agents run staged connectivity tests and push results to a central FastAPI + Postgres server. A React dashboard reads those APIs only — the remote agent never talks to the browser.
+Ops-style monitoring for a home LAN: Raspberry Pi (or Linux PC) remote agents run staged connectivity tests and push results to a central FastAPI + Postgres server. A React dashboard reads those APIs only — the remote agent never talks to the browser.
 
 ## Topology
 
@@ -88,6 +88,6 @@ Ping, MTR, Wi-Fi test runner, offline spool, Grafana, webhooks, full enrollment 
 ## Design principles
 
 - Health color is the primary signal (green / amber / red).
-- Stage waterfall on Test detail is the distinctive UXI-like moment.
+- Stage waterfall on Test detail is the distinctive moment of the product.
 - Charts live in the React app via Recharts — not an external Grafana stack.
 - Dense but readable ops UI; real copy; no marketing fluff inside the product.

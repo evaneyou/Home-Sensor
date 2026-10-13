@@ -1,6 +1,6 @@
 # HomeNetWatch: notes for Claude Code
 
-UXI-style home network monitoring. Pi remote agents push test results to a FastAPI + Postgres server. A React dashboard reads the server's API. `SPEC.md` is the source of truth for architecture, API shape and phases; read it before larger changes.
+Home network monitoring. Pi remote agents push test results to a FastAPI + Postgres server. A React dashboard reads the server's API. `SPEC.md` is the source of truth for architecture, API shape and phases; read it before larger changes.
 
 ## Architecture rules
 
