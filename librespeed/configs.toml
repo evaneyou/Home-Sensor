@@ -1,0 +1,13 @@
+bind_address = "127.0.0.1"
+listen_port = 8081
+worker_threads = "auto"
+base_url = "backend"
+ipinfo_api_key = ""
+stats_password = ""
+redact_ip_addresses = true
+result_image_theme = "light"
+assets_path = ""
+database_type = "none"
+enable_tls = false
+tls_cert_file = ""
+tls_key_file = ""
