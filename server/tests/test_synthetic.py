@@ -276,6 +276,12 @@ def test_guest_cannot_start_a_check_or_see_the_home_address(client, db, monitor_
         },
     )
     assert manual.status_code == 403
+    turned_off = client.put(
+        "/api/v1/synthetic/continuous",
+        headers=guest,
+        json={"monitor_id": str(monitor.id), "profile_slug": "voip-g711a", "links": [], "options": {}},
+    )
+    assert turned_off.status_code == 403
     scan = client.post(f"/api/v1/rf/scan-now?agent_id={monitor.id}", headers=guest)
     assert scan.status_code == 403
 
@@ -293,6 +299,41 @@ def test_presets_group_by_category_and_skip_empty_or_unknown():
     grouped = group_profiles(without_video)
     assert [group["category"] for group in grouped] == ["voice", "enterprise", "games"]
     assert all(item["slug"] != "other" for group in grouped for item in group["profiles"])
+
+
+def test_out_of_range_settings_are_rejected(client, db):
+    if db.scalar(select(User).where(User.username == "admin")) is None:
+        db.add(User(username="admin", password_hash=hash_password("admin-change-me"), role=UserRole.admin, is_active=True))
+        db.commit()
+    monitor = _monitor(db)
+    headers = login(client)
+    base = {"monitor_id": str(monitor.id), "profile_slug": "voip-g711a", "links": ["wired"]}
+    rejected = [
+        {"report_interval_s": 0},
+        {"report_interval_s": 301},
+        {"max_rtt_ms": 0},
+        {"max_rtt_ms": 10001},
+        {"max_jitter_ms": -1},
+        {"max_jitter_ms": 1001},
+        {"max_loss_pct": -0.1},
+        {"max_loss_pct": 100.1},
+        {"ptime_ms": 9},
+        {"ptime_ms": 201},
+    ]
+    for options in rejected:
+        response = client.put(
+            "/api/v1/synthetic/continuous",
+            headers=headers,
+            json={**base, "options": options},
+        )
+        assert response.status_code == 400, options
+    for duration in (4, 3601):
+        response = client.post(
+            "/api/v1/synthetic/manual",
+            headers=headers,
+            json={**base, "duration_seconds": duration, "options": {}},
+        )
+        assert response.status_code == 422, duration
 
 
 def test_srtp_key_is_a_file_and_never_an_argument(tmp_path, monkeypatch):
