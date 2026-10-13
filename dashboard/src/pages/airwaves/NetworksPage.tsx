@@ -17,7 +17,7 @@ export default function AirwavesNetworks() {
   const [hidden, setHidden] = useState("all");
   const [q, setQ] = useState("");
   const [limit, setLimit] = useState(PAGE);
-  const [openIds, setOpenIds] = useState<string[] | null>(null);
+  const [openIds, setOpenIds] = useState<string[]>([]);
   const qc = useQueryClient();
   const apsQ = useQuery({
     queryKey: ["rf-aps", ctx.agent.id, "rssi"],
@@ -47,7 +47,7 @@ export default function AirwavesNetworks() {
     return rows.sort((left, right) => bandRank(left.band) - bandRank(right.band) || right.rssi_dbm - left.rssi_dbm);
   }, [all, band, security, hidden, needle]);
   const shown = filtered.slice(0, limit);
-  const open = new Set(openIds ?? (filtered[0] ? [filtered[0].bssid] : []));
+  const open = new Set(openIds);
   const allOpen = filtered.length > 0 && filtered.every((ap) => open.has(ap.bssid));
 
   if (!ctx.overviewLoading && !ctx.overview?.last_scan_at) {
@@ -58,7 +58,7 @@ export default function AirwavesNetworks() {
 
   function toggle(bssid: string) {
     setOpenIds((current) => {
-      const next = new Set(current ?? (filtered[0] ? [filtered[0].bssid] : []));
+      const next = new Set(current);
       if (next.has(bssid)) next.delete(bssid);
       else next.add(bssid);
       return [...next];

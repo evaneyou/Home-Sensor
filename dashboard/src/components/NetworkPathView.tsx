@@ -140,7 +140,7 @@ export default function NetworkPathView({
 }) {
   const [running, setRunning] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
-  const [hopOpen, setHopOpen] = useState(true);
+  const [hopOpen, setHopOpen] = useState(false);
   const [bgpOpen, setBgpOpen] = useState(false);
   const pathQ = useQuery({
     queryKey: ["monitor-path", monitorId, link, destination],

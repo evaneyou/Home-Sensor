@@ -28,8 +28,8 @@ describe("groupPresets", () => {
 describe("open rows", () => {
   const ids = ["a", "b", "c"];
 
-  it("opens the first preset only before the session has a saved choice", () => {
-    assert.deepEqual(initialOpenIds(ids, null), ["a"]);
+  it("starts collapsed before the session has a saved choice", () => {
+    assert.deepEqual(initialOpenIds(ids, null), []);
     assert.deepEqual(initialOpenIds(ids, []), []);
     assert.deepEqual(initialOpenIds(ids, ["c", "missing"]), ["c"]);
   });

@@ -19,7 +19,7 @@ export default function AirwavesClients() {
   const [query, setQuery] = useState("");
   const [hidePrivate, setHidePrivate] = useState(false);
   const [limit, setLimit] = useState(PAGE);
-  const [openIds, setOpenIds] = useState<string[] | null>(null);
+  const [openIds, setOpenIds] = useState<string[]>([]);
 
   const clients = clientsQ.data ?? [];
   const needle = query.trim().toLowerCase();
@@ -39,7 +39,7 @@ export default function AirwavesClients() {
     [clients, hidePrivate, needle],
   );
   const shown = filtered.slice(0, limit);
-  const open = new Set(openIds ?? (filtered[0] ? [filtered[0].mac] : []));
+  const open = new Set(openIds);
   const allOpen = filtered.length > 0 && filtered.every((client) => open.has(client.mac));
 
   if (clientsQ.isLoading) return <div className="state-box">Loading clients…</div>;
@@ -55,7 +55,7 @@ export default function AirwavesClients() {
 
   function toggle(mac: string) {
     setOpenIds((current) => {
-      const next = new Set(current ?? (filtered[0] ? [filtered[0].mac] : []));
+      const next = new Set(current);
       if (next.has(mac)) next.delete(mac);
       else next.add(mac);
       return [...next];

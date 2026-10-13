@@ -102,7 +102,7 @@ function BandCard({ band, overview }: { band: RfBandAdvice; overview: RfOverview
       </div>
       {points.length > 1 ? (
         <div className="air-spark">
-          <span className="air-caption">Last 24 h</span>
+          <span className="air-caption">Last 1 h</span>
           <div className="air-spark-plot" aria-hidden="true">
             <ResponsiveContainer width="100%" height={48}>
               <AreaChart data={points}>

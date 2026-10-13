@@ -6,7 +6,7 @@ import SelectMenu from "../../components/SelectMenu";
 import type { MonitorAdmin, RfOverview, User } from "../../types";
 
 /** Sparklines and history charts. Lists use the server default, which is the same window. */
-export const AIR_TREND_RANGE = "24h";
+export const AIR_TREND_RANGE = "1h";
 
 export type AirContext = {
   agent: MonitorAdmin;

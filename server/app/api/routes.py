@@ -980,7 +980,7 @@ def metrics(
     db: Annotated[Session, Depends(get_db)],
     _user: Annotated[User, Depends(get_current_user)],
     test_id: UUID = Query(...),
-    range: str = Query("24h", pattern="^(1h|3h|6h|8h|12h|24h|7d|30d)$"),
+    range: str = Query("1h", pattern="^(1h|3h|6h|8h|12h|24h|7d|30d)$"),
 ) -> MetricsResponse:
     delta = {
         "1h": timedelta(hours=1),
@@ -1054,9 +1054,9 @@ def wifi_scans(
     db: Annotated[Session, Depends(get_db)],
     _user: Annotated[User, Depends(get_current_user)],
     monitor_id: UUID = Query(...),
-    range: str = Query("24h", pattern="^(24h|7d)$"),
+    range: str = Query("1h", pattern="^(1h|24h|7d)$"),
 ) -> list[WifiObservationOut]:
-    delta = {"24h": timedelta(hours=24), "7d": timedelta(days=7)}[range]
+    delta = {"1h": timedelta(hours=1), "24h": timedelta(hours=24), "7d": timedelta(days=7)}[range]
     since = datetime.now(timezone.utc) - delta
     if db.get(Monitor, monitor_id) is None:
         raise HTTPException(status_code=404, detail="Remote agent not found")
@@ -1259,11 +1259,11 @@ def monitor_health(
     monitor_id: UUID,
     db: Annotated[Session, Depends(get_db)],
     _user: Annotated[User, Depends(get_current_user)],
-    range: str = Query("24h", pattern="^(24h|7d|30d)$"),
+    range: str = Query("1h", pattern="^(1h|24h|7d|30d)$"),
 ) -> dict:
     if db.get(Monitor, monitor_id) is None:
         raise HTTPException(status_code=404, detail="Remote agent not found")
-    delta = {"24h": timedelta(hours=24), "7d": timedelta(days=7), "30d": timedelta(days=30)}[range]
+    delta = {"1h": timedelta(hours=1), "24h": timedelta(hours=24), "7d": timedelta(days=7), "30d": timedelta(days=30)}[range]
     since = datetime.now(timezone.utc) - delta
     rows = db.execute(
         select(TestResult.started_at, TestResult.status)

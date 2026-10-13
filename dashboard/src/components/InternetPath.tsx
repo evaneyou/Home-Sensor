@@ -481,7 +481,7 @@ function InternetDetail({
   linkLabel?: string | null;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [range, setRange] = useState<(typeof RANGES)[number]>("24h");
+  const [range, setRange] = useState<(typeof RANGES)[number]>("1h");
   const bySlug = useMemo(() => new Map(tests.map((test) => [test.slug, test])), [tests]);
   const app = APPS.find((item) => item.key === detail);
   const slugs =

@@ -27,7 +27,7 @@ const STAGE_COLORS = CHART_COLORS;
 
 export default function TestPage() {
   const { id = "" } = useParams();
-  const [range, setRange] = useState<(typeof RANGES)[number]>("24h");
+  const [range, setRange] = useState<(typeof RANGES)[number]>("1h");
 
   const testQ = useQuery({
     queryKey: ["test", id],

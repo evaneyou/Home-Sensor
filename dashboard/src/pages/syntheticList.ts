@@ -30,10 +30,10 @@ export function groupPresets<T extends { category?: string | null }>(presets: T[
   })).filter((group) => group.items.length > 0);
 }
 
-/** stored === null means this session has not chosen yet, so the first preset starts open. */
+/** stored === null means this session has not chosen yet, so every preset starts closed. */
 export function initialOpenIds(ids: string[], stored: string[] | null): string[] {
-  if (stored) return stored.filter((id) => ids.includes(id));
-  return ids[0] ? [ids[0]] : [];
+  if (!stored) return [];
+  return stored.filter((id) => ids.includes(id));
 }
 
 export function toggleOpen(open: string[], id: string): string[] {

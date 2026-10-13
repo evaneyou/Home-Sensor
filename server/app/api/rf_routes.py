@@ -416,7 +416,7 @@ def rf_overview(
     db: Annotated[Session, Depends(get_db)],
     _user: Annotated[User, Depends(get_current_user)],
     agent_id: UUID = Query(...),
-    range_key: str = Query("24h", alias="range", pattern=_RANGES),
+    range_key: str = Query("1h", alias="range", pattern=_RANGES),
 ) -> RfOverviewOut:
     monitor = _monitor_or_404(db, agent_id)
     latest, rows = _latest_rows(db, monitor.id)
@@ -502,7 +502,7 @@ def rf_ap_history(
     db: Annotated[Session, Depends(get_db)],
     _user: Annotated[User, Depends(get_current_user)],
     agent_id: UUID = Query(...),
-    range_key: str = Query("24h", alias="range", pattern=_RANGES),
+    range_key: str = Query("1h", alias="range", pattern=_RANGES),
 ) -> list[RfHistoryPoint]:
     _monitor_or_404(db, agent_id)
     key = bssid.lower()
@@ -628,7 +628,7 @@ def rf_alerts(
     db: Annotated[Session, Depends(get_db)],
     _user: Annotated[User, Depends(get_current_user)],
     agent_id: UUID = Query(...),
-    range_key: str = Query("24h", alias="range", pattern=_RANGES),
+    range_key: str = Query("1h", alias="range", pattern=_RANGES),
 ) -> list[RfAlertOut]:
     _monitor_or_404(db, agent_id)
     return _recent_alerts(db, agent_id, range_start(range_key), limit=50)
@@ -639,7 +639,7 @@ def rf_clients(
     db: Annotated[Session, Depends(get_db)],
     _user: Annotated[User, Depends(get_current_user)],
     agent_id: UUID = Query(...),
-    range_key: str = Query("24h", alias="range", pattern=_RANGES),
+    range_key: str = Query("1h", alias="range", pattern=_RANGES),
 ) -> list[RfClientOut]:
     _monitor_or_404(db, agent_id)
     trusted = _trusted_set(db, agent_id)
