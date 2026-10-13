@@ -1,0 +1,553 @@
+"""Run RTN PackGen on the physical NIC. Tunnel addresses are refused."""
+
+from __future__ import annotations
+
+import ipaddress
+import json
+import os
+import signal
+import subprocess
+import threading
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable, Optional
+
+from checks import _interface_ipv4, _link_interface
+
+UDP_PORT = 8998
+CONTROL_PORT = 8999
+KEY_PATH = Path(os.environ.get("MONITOR_RTNP_KEY", "/etc/monitor/rtnp.key"))
+SRTP_PATH = Path(os.environ.get("MONITOR_RTNP_SRTP", "/etc/monitor/rtnp-srtp.key"))
+BUDGET_PATH = Path(os.environ.get("MONITOR_RTNP_BUDGET", "/etc/monitor/rtnp-budget.json"))
+BINARY = os.environ.get("MONITOR_RTNP_BIN", "/opt/monitor/rtnp-send")
+BIND_LIB = Path(os.environ.get("MONITOR_RTNP_BIND", "/opt/monitor/rtnp-bind.so"))
+PRESETS = {
+    "voip-g711a",
+    "voip-g729",
+    "voip-g723",
+    "video-conference",
+    "fortnite",
+    "call-of-duty",
+    "remote-desktop",
+    "market-data",
+}
+VOICE_PRESETS = {"voip-g711a", "voip-g729", "voip-g723"}
+CONTROL_HOST = {"wired": "10.7.0.1", "wireless": "10.7.1.1"}
+MAX_PPS = 200
+MAX_DURATION = 3600
+MAX_RUN_BYTES = 2 * 1024 * 1024 * 1024
+DAILY_BYTES = 20 * 1024 * 1024 * 1024
+
+_lock = threading.Lock()
+_running: dict[tuple[str, str], dict[str, Any]] = {}
+
+
+def is_tunnel_target(host: str) -> bool:
+    value = host.strip().lower()
+    return value.startswith("10.7.0.") or value.startswith("10.7.1.")
+
+
+def launch_plan(link: str, target: str, interface: Optional[str]) -> dict[str, str]:
+    if link not in {"wired", "wireless"}:
+        raise ValueError("Choose wired or Wi-Fi")
+    if is_tunnel_target(target):
+        raise ValueError("Synthetic traffic must not use the tunnel")
+    if not interface:
+        raise ValueError("Synthetic traffic needs the physical NIC for this link")
+    if interface.startswith("wg"):
+        raise ValueError("Synthetic traffic must not leave through WireGuard")
+    return {"link": link, "target": target, "interface": interface}
+
+
+def route_device(route_text: str) -> Optional[str]:
+    parts = route_text.split()
+    if "dev" not in parts:
+        return None
+    index = parts.index("dev")
+    if index + 1 >= len(parts):
+        return None
+    return parts[index + 1]
+
+
+def route_is_physical(route_text: str, interface: str) -> bool:
+    device = route_device(route_text)
+    if not device or device.startswith("wg"):
+        return False
+    return device == interface
+
+
+def send_args(
+    binary: str,
+    options: dict[str, Any],
+    data_host: str,
+    *,
+    control_host: str,
+    key_file: str,
+    srtp_key_file: str,
+    forever: bool,
+    duration_seconds: Optional[int] = None,
+) -> list[str]:
+    if is_tunnel_target(data_host) or ":" in str(data_host):
+        raise ValueError("Synthetic traffic must use the public IPv4 address")
+    if control_host not in CONTROL_HOST.values():
+        raise ValueError("The control channel must use the tunnel")
+    preset = str(options.get("preset") or "")
+    if preset not in PRESETS:
+        raise ValueError("Unknown traffic preset")
+    if options.get("meter") or options.get("agent") or options.get("sip"):
+        raise ValueError("That option is not allowed")
+    payload = str(options.get("payload") or "")
+    if payload.startswith("file:") or payload.startswith("wav:"):
+        raise ValueError("File payloads are not allowed")
+    rate = options.get("rate_pps")
+    if rate is not None and float(rate) > MAX_PPS:
+        raise ValueError("Packet rate is too high")
+    args = [
+        binary,
+        "flow",
+        "-t",
+        f"{data_host}:{UDP_PORT}",
+        "-c",
+        f"{control_host}:{CONTROL_PORT}",
+        "--preset",
+        preset,
+        "--json",
+        "-i",
+        f"{int(options['report_interval_s'])}s",
+        "--key-file",
+        key_file,
+        "--srtp-key-file",
+        srtp_key_file,
+        "--max-rtt",
+        str(int(options["max_rtt_ms"])),
+        "--max-jitter",
+        str(int(options["max_jitter_ms"])),
+        "--max-loss",
+        str(options["max_loss_pct"]),
+    ]
+    if options.get("wire") == "rtp":
+        args.extend(["--wire", "rtp"])
+    if options.get("rtp"):
+        args.extend(["--rtp", str(options["rtp"])])
+    if options.get("ptime_ms"):
+        args.extend(["--ptime", str(int(options["ptime_ms"]))])
+    if options.get("video"):
+        args.append("--video")
+    if options.get("bidir"):
+        if preset not in VOICE_PRESETS:
+            raise ValueError("Two-way traffic is only for the voice profiles")
+        args.append("--bidir")
+    if options.get("rtcp_interval_s") is not None:
+        args.extend(["--rtcp-interval", f"{int(options['rtcp_interval_s'])}s"])
+    if forever:
+        args.append("--forever")
+    else:
+        duration = int(duration_seconds or 0)
+        if duration < 1 or duration > MAX_DURATION:
+            raise ValueError("A timed run needs a duration of at most 3600 seconds")
+        args.extend(["-d", f"{duration}s"])
+    return args
+
+
+def endpoint_host(text: str) -> str:
+    """Public IPv4 address from a WireGuard endpoint."""
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("["):
+            continue
+        if stripped.lower().startswith("endpoint"):
+            candidate = stripped.split("=", 1)[-1].strip()
+        else:
+            parts = stripped.split()
+            candidate = parts[-1] if len(parts) >= 2 else ""
+        if not candidate or candidate == "(none)":
+            continue
+        host = candidate.rsplit(":", 1)[0].strip()
+        if host.startswith("[") or ":" in host or is_tunnel_target(host):
+            continue
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            continue
+        if address.version == 4:
+            return str(address)
+    return ""
+
+
+def _read_conf(path: Path) -> str:
+    """Read a WireGuard config. Python 3.13 raises PermissionError from is_file()."""
+    try:
+        if not path.is_file():
+            return ""
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
+def _endpoint_text() -> str:
+    chunks = []
+    for iface in ("wg0", "wg1"):
+        text = _read_conf(Path(f"/etc/wireguard/{iface}.conf"))
+        if text:
+            chunks.append(text)
+        try:
+            completed = subprocess.run(
+                ["wg", "show", iface, "endpoints"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=3,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        chunks.append(completed.stdout)
+    return "\n".join(chunks)
+
+
+def tunnel_warning() -> str:
+    """Report a tunnel that would pull measurement traffic back inside WireGuard."""
+    if "0.0.0.0/0" in _tunnel_text().replace(" ", ""):
+        return "WireGuard AllowedIPs includes 0.0.0.0/0. Synthetic traffic is stopped."
+    return ""
+
+
+def _tunnel_text() -> str:
+    chunks = []
+    for iface in ("wg0", "wg1"):
+        text = _read_conf(Path(f"/etc/wireguard/{iface}.conf"))
+        if text:
+            chunks.append(text)
+        try:
+            completed = subprocess.run(
+                ["wg", "show", iface, "allowed-ips"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=3,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        chunks.append(completed.stdout)
+    return "\n".join(chunks)
+
+
+def _write_srtp(hex_key: str) -> None:
+    text = hex_key.strip()
+    if not text:
+        return
+    try:
+        raw = bytes.fromhex(text)
+    except ValueError:
+        return
+    if len(raw) != 30:
+        return
+    SRTP_PATH.parent.mkdir(parents=True, exist_ok=True)
+    SRTP_PATH.write_bytes(raw)
+    try:
+        os.chmod(SRTP_PATH, 0o600)
+    except OSError:
+        pass
+
+
+def _budget() -> dict[str, Any]:
+    today = datetime.now(timezone.utc).date().isoformat()
+    try:
+        stored = json.loads(BUDGET_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        stored = {}
+    if stored.get("day") != today:
+        stored = {"day": today, "bytes": 0, "run": 0}
+    return stored
+
+
+def _save_budget(state: dict[str, Any]) -> None:
+    try:
+        BUDGET_PATH.parent.mkdir(parents=True, exist_ok=True)
+        BUDGET_PATH.write_text(json.dumps(state), encoding="utf-8")
+    except OSError:
+        return
+
+
+def _over_budget() -> bool:
+    state = _budget()
+    return int(state.get("bytes") or 0) >= DAILY_BYTES
+
+
+def _charge(payload: dict[str, Any]) -> bool:
+    interval = float(payload.get("interval_s") or 0)
+    sent = 0
+    octets = 0
+    for flow in payload.get("flows") or []:
+        sent += int(flow.get("sent") or 0)
+        octets += int(float(flow.get("tx_kbps") or 0) * interval * 1000 / 8)
+    state = _budget()
+    state["bytes"] = int(state.get("bytes") or 0) + octets
+    state["run"] = int(state.get("run") or 0) + octets
+    _save_budget(state)
+    if interval > 0 and sent / interval > MAX_PPS:
+        return True
+    return int(state["bytes"]) >= DAILY_BYTES or int(state["run"]) >= MAX_RUN_BYTES
+
+
+def _write_key(key: str) -> None:
+    KEY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    KEY_PATH.write_text(key + "\n", encoding="ascii")
+    try:
+        os.chmod(KEY_PATH, 0o600)
+    except OSError:
+        pass
+
+
+def route_get_args(target: str, source: Optional[str] = None) -> list[str]:
+    """Ask the kernel which NIC would carry this address. A source follows that link's rule."""
+    args = ["ip", "route", "get", target]
+    if source:
+        args.extend(["from", source])
+    return args
+
+
+def jobs_for_links(jobs: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
+    """One flow per link. A continuous check wins over a timed run on the same link."""
+    ordered = sorted(
+        jobs,
+        key=lambda job: (0 if job.get("mode") == "continuous" else 1, str(job.get("link") or "")),
+    )
+    chosen: dict[str, dict[str, Any]] = {}
+    for job in ordered:
+        link = str(job.get("link") or "")
+        if link in {"wired", "wireless"} and link not in chosen and job.get("run_id"):
+            chosen[link] = job
+    return {(str(job["run_id"]), link): job for link, job in chosen.items()}
+
+
+def _route_text(target: str, source: Optional[str] = None) -> str:
+    try:
+        completed = subprocess.run(
+            route_get_args(target, source),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return completed.stdout
+
+
+def _send_env(target: str, source: Optional[str]) -> dict[str, str]:
+    """Pin measurement packets to this link. The control channel stays on the tunnel."""
+    env = os.environ.copy()
+    if source and BIND_LIB.is_file():
+        env["LD_PRELOAD"] = str(BIND_LIB)
+        env["RTNP_BIND_HOST"] = target
+        env["RTNP_BIND_SRC"] = source
+    return env
+
+
+def _reap_strays() -> None:
+    """A reload leaves the previous senders running. Stop any this process did not start."""
+    with _lock:
+        ours = {item["proc"].pid for item in _running.values()}
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        if pid in ours or pid == os.getpid():
+            continue
+        try:
+            command = (entry / "comm").read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if command != "rtnp-send":
+            continue
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+        try:
+            os.waitpid(pid, os.WNOHANG)
+        except OSError:
+            pass
+
+
+def sync(config: dict, get_json: Callable, post_json: Callable) -> None:
+    """Start one rtnp-send per link. The data target is the enrolled public address."""
+    base = str(config.get("server_url") or "").rstrip("/")
+    token = config.get("token")
+    name = config.get("name")
+    if not base or not token or not name:
+        return
+    config = dict(config)
+    config["post_json"] = post_json
+    _reap_strays()
+    problem = tunnel_warning()
+    body = get_json(f"{base}/api/v1/synthetic/assignment", token, name)
+    key = str(body.get("key") or "")
+    if key:
+        _write_key(key)
+    _write_srtp(str(body.get("srtp_key") or ""))
+    wanted = jobs_for_links(list(body.get("jobs") or []))
+    if problem:
+        for run_id, link in wanted:
+            _finish(config, run_id, link, "failed", problem)
+        return
+    with _lock:
+        running = [item for item in _running if item in wanted]
+        stale = [item for item in _running if item not in wanted]
+    for item in stale:
+        _stop(item)
+    if _over_budget():
+        return
+    data_host = (
+        str(body.get("target_host") or "")
+        or str(config.get("measurement_host") or "")
+        or endpoint_host(_endpoint_text())
+    )
+    for item, job in wanted.items():
+        if item in running:
+            continue
+        _ensure(config, item, job, data_host)
+
+
+def _ensure(config: dict, item: tuple[str, str], job: dict[str, Any], target: str) -> None:
+    run_id, link = item
+    try:
+        interface = _link_interface(link)
+        plan = launch_plan(link, target, interface)
+        source = _interface_ipv4(interface) if interface else None
+        if link == "wireless" and not source:
+            raise ValueError("Wi-Fi has no address")
+        if link == "wireless" and not BIND_LIB.is_file():
+            raise ValueError("Wi-Fi traffic needs the interface binding")
+        route = _route_text(target, source)
+        if route and not route_is_physical(route, plan["interface"]):
+            device = route_device(route) or ""
+            if device.startswith("wg"):
+                raise ValueError("Synthetic traffic would leave through WireGuard")
+            raise ValueError("Synthetic traffic would leave through the wrong interface")
+        control = CONTROL_HOST[link]
+        forever = job.get("mode") == "continuous"
+        args = send_args(
+            BINARY,
+            job["options"],
+            target,
+            control_host=control,
+            key_file=str(KEY_PATH),
+            srtp_key_file=str(SRTP_PATH),
+            forever=forever,
+            duration_seconds=job.get("duration_seconds"),
+        )
+    except (ValueError, KeyError) as exc:
+        _finish(config, run_id, link, "failed", str(exc))
+        return
+    with _lock:
+        current = _running.get(item)
+        if current and current["args"] == args and current["proc"].poll() is None:
+            return
+    if current:
+        _stop(item)
+    if not Path(BINARY).is_file():
+        _finish(config, run_id, link, "failed", "rtnp-send is not installed")
+        return
+    state = _budget()
+    state["run"] = 0
+    _save_budget(state)
+    proc = subprocess.Popen(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        env=_send_env(target, source),
+    )
+    with _lock:
+        _running[item] = {"args": args, "proc": proc, "mode": job.get("mode")}
+    threading.Thread(
+        target=_read_output,
+        args=(config, item, proc),
+        name=f"rtnp-{link}",
+        daemon=True,
+    ).start()
+
+
+def _read_output(config: dict, item: tuple[str, str], proc: subprocess.Popen) -> None:
+    run_id, link = item
+    base = str(config.get("server_url") or "").rstrip("/")
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        payload = _json_line(line)
+        if payload is None or payload.get("type") not in {None, "interval"}:
+            if payload and payload.get("type") == "final":
+                continue
+            if payload is None:
+                continue
+        if payload.get("type") == "final":
+            continue
+        if "flows" not in payload:
+            continue
+        if _charge(payload):
+            proc.terminate()
+            _finish(config, run_id, link, "failed", "Traffic cap reached")
+            break
+        index = int(payload.get("index") or 0)
+        unix_ms = payload.get("unix_ms")
+        recorded = datetime.now(timezone.utc).isoformat()
+        if isinstance(unix_ms, (int, float)):
+            recorded = datetime.fromtimestamp(unix_ms / 1000, tz=timezone.utc).isoformat()
+        try:
+            post = config["post_json"]
+            post(
+                f"{base}/api/v1/synthetic/samples",
+                {
+                    "run_id": run_id,
+                    "link": link,
+                    "interval_index": index,
+                    "recorded_at": recorded,
+                    "metrics": payload,
+                },
+                config.get("token"),
+                config.get("name"),
+            )
+        except (OSError, ValueError, KeyError):
+            continue
+    code = proc.wait()
+    with _lock:
+        state = _running.get(item)
+        mode = state["mode"] if state else None
+        if state and state["proc"] is proc:
+            _running.pop(item, None)
+    if mode == "manual":
+        _finish(config, run_id, link, "finished" if code == 0 else "failed", None)
+
+
+def _json_line(line: str) -> Optional[dict]:
+    text = line.strip()
+    if not text.startswith("{"):
+        return None
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _finish(config: dict, run_id: str, link: str, status: str, message: Optional[str]) -> None:
+    base = str(config.get("server_url") or "").rstrip("/")
+    try:
+        config["post_json"](
+            f"{base}/api/v1/synthetic/runs/{run_id}/finish",
+            {"link": link, "status": status, "message": message},
+            config.get("token"),
+            config.get("name"),
+        )
+    except (OSError, ValueError, KeyError):
+        return
+
+
+def _stop(item: tuple[str, str]) -> None:
+    with _lock:
+        state = _running.pop(item, None)
+    if not state:
+        return
+    proc = state["proc"]
+    if proc.poll() is None:
+        proc.terminate()

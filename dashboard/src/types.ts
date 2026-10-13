@@ -343,6 +343,7 @@ export type MonitorDetail = {
   location_label: string | null;
   public_ip: string | null;
   isp: string | null;
+  probes?: { slug: string; name: string }[];
   tests: {
     id: string;
     slug: string;

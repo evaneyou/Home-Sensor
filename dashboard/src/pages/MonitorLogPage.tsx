@@ -17,7 +17,7 @@ function metric(value: number | undefined): string {
   return value.toFixed(1);
 }
 
-function probeGroups(tests: MonitorDetail["tests"]): ProbeGroup[] {
+function probeGroups(tests: MonitorDetail["tests"], probes: { slug: string; name: string }[]): ProbeGroup[] {
   const internet = INTERNET_SLUGS.flatMap((slug) => {
     const test = tests.find((item) => item.slug === slug);
     return test ? [{ value: `slug:${slug}`, label: checkLabel(test) }] : [];
@@ -56,6 +56,15 @@ function probeGroups(tests: MonitorDetail["tests"]): ProbeGroup[] {
       options: other.sort((a, b) => a.label.localeCompare(b.label)),
     });
   }
+  if (probes.length > 0) {
+    groups.push({
+      label: "Real-Time Application Health",
+      options: [
+        { value: "rtnp", label: "All Real-Time Application Health" },
+        ...probes.map((probe) => ({ value: `rtnp:${probe.slug}`, label: probe.name })),
+      ],
+    });
+  }
   return groups;
 }
 
@@ -81,7 +90,7 @@ export default function MonitorLogPage() {
 
   const monitor = monitorQ.data;
   const page = logQ.data;
-  const groups = probeGroups(monitor.tests);
+  const groups = probeGroups(monitor.tests, monitor.probes ?? []);
   const from = page.total === 0 ? 0 : offset + 1;
   const to = Math.min(offset + page.items.length, page.total);
 
@@ -174,11 +183,15 @@ export default function MonitorLogPage() {
 
 function LogRow({ row }: { row: Result }) {
   const metrics = row.metrics ?? {};
+  const href =
+    row.test_kind === "rtnp"
+      ? `/monitors/${row.monitor_id}?detail=isp&link=${row.network_slug === "wifi" ? "wireless" : "wired"}&check=rtnp:${row.test_slug}`
+      : `/tests/${row.test_id}`;
   return (
     <tr>
       <td className="mono">{new Date(row.started_at).toLocaleString()}</td>
       <td>
-        <Link to={`/tests/${row.test_id}`}>{checkLabel({ slug: row.test_slug, name: row.test_name })}</Link>
+        <Link to={href}>{checkLabel({ slug: row.test_slug, name: row.test_name })}</Link>
       </td>
       <td>{networkLabel({ slug: row.network_slug, name: row.network_name })}</td>
       <td>

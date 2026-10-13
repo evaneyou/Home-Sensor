@@ -7,7 +7,7 @@ from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Response, status
-from sqlalchemy import Select, and_, delete, desc, func, select
+from sqlalchemy import Select, and_, delete, desc, func, literal, select, union_all
 from sqlalchemy.orm import Session, joinedload
 
 from app.auth import (
@@ -55,6 +55,9 @@ from app.models import (
     MonitorStatus,
     Network,
     ResultStatus,
+    SyntheticProfile,
+    SyntheticRun,
+    SyntheticSample,
     Test,
     TestResult,
     User,
@@ -894,6 +897,177 @@ def results(
     return [_result_to_out(r) for r in rows]
 
 
+_LOG_LINK = {"wired": ("wired", "Wired"), "wireless": ("wifi", "Wi-Fi")}
+
+
+def _synthetic_slug(probe: str) -> Optional[str]:
+    """'' for every application probe, a slug for one, or None when this is not that filter."""
+    if probe == "rtnp":
+        return ""
+    if not probe.startswith("rtnp:"):
+        return None
+    slug = probe[5:]
+    if re.fullmatch(r"[a-z0-9-]{1,64}", slug) is None:
+        raise ValueError("Invalid probe filter")
+    return slug
+
+
+def _sample_rows(monitor_id: UUID, slug: str):
+    stmt = (
+        select(SyntheticSample)
+        .join(SyntheticRun, SyntheticSample.run_id == SyntheticRun.id)
+        .where(
+            SyntheticRun.monitor_id == monitor_id,
+            ~SyntheticSample.sample_key.startswith("hour:"),
+            ~SyntheticSample.sample_key.startswith("day:"),
+        )
+        .options(joinedload(SyntheticSample.run))
+    )
+    if slug:
+        stmt = stmt.where(SyntheticRun.profile_slug == slug)
+    return stmt
+
+
+def _profile_names(db: Session, slugs: set[str]) -> dict[str, str]:
+    if not slugs:
+        return {}
+    rows = db.scalars(select(SyntheticProfile).where(SyntheticProfile.slug.in_(slugs))).all()
+    return {row.slug: row.name for row in rows}
+
+
+def _synthetic_out(sample: SyntheticSample, monitor: Monitor, names: dict[str, str]) -> ResultOut:
+    network_slug, network_name = _LOG_LINK.get(sample.link, (sample.link, sample.link))
+    if sample.verdict == "pass":
+        status, reason = "ok", "Within the round-trip, jitter, and loss limits."
+    elif sample.verdict == "fail":
+        status, reason = "fail", "Outside the round-trip, jitter, or loss limit."
+    else:
+        status, reason = "unknown", None
+    metrics = {
+        key: value
+        for key, value in (
+            ("rtt_ms", sample.rtt_ms),
+            ("jitter_ms", sample.jitter_ms),
+            ("loss_pct", sample.loss_pct),
+        )
+        if value is not None
+    }
+    slug = sample.run.profile_slug
+    return ResultOut(
+        id=sample.id,
+        external_id=sample.sample_key,
+        test_id=sample.run_id,
+        test_slug=slug,
+        test_name=names.get(slug, slug),
+        test_kind="rtnp",
+        monitor_id=monitor.id,
+        monitor_slug=monitor.slug,
+        network_id=monitor.id,
+        network_slug=network_slug,
+        network_name=network_name,
+        started_at=sample.recorded_at,
+        finished_at=sample.recorded_at,
+        status=status,
+        stages=[],
+        metrics=metrics,
+        status_reason=reason,
+    )
+
+
+def _synthetic_page(db: Session, monitor: Monitor, slug: str, offset: int, limit: int) -> ResultPage:
+    filters = [
+        SyntheticRun.monitor_id == monitor.id,
+        ~SyntheticSample.sample_key.startswith("hour:"),
+        ~SyntheticSample.sample_key.startswith("day:"),
+    ]
+    if slug:
+        filters.append(SyntheticRun.profile_slug == slug)
+    total = db.scalar(
+        select(func.count(SyntheticSample.id))
+        .join(SyntheticRun, SyntheticSample.run_id == SyntheticRun.id)
+        .where(*filters)
+    ) or 0
+    rows = db.scalars(
+        _sample_rows(monitor.id, slug)
+        .order_by(desc(SyntheticSample.recorded_at), desc(SyntheticSample.id))
+        .offset(offset)
+        .limit(limit)
+    ).unique().all()
+    names = _profile_names(db, {row.run.profile_slug for row in rows})
+    return ResultPage(
+        total=total,
+        offset=offset,
+        limit=limit,
+        items=[_synthetic_out(row, monitor, names) for row in rows],
+    )
+
+
+def _merged_page(db: Session, monitor: Monitor, offset: int, limit: int) -> ResultPage:
+    tests = (
+        select(
+            TestResult.started_at.label("at"),
+            TestResult.id.label("row_id"),
+            literal("test").label("src"),
+        )
+        .join(Test, TestResult.test_id == Test.id)
+        .where(Test.monitor_id == monitor.id)
+    )
+    samples = (
+        select(
+            SyntheticSample.recorded_at.label("at"),
+            SyntheticSample.id.label("row_id"),
+            literal("sample").label("src"),
+        )
+        .join(SyntheticRun, SyntheticSample.run_id == SyntheticRun.id)
+        .where(
+            SyntheticRun.monitor_id == monitor.id,
+            ~SyntheticSample.sample_key.startswith("hour:"),
+            ~SyntheticSample.sample_key.startswith("day:"),
+        )
+    )
+    merged = union_all(tests, samples).subquery()
+    total = db.scalar(select(func.count()).select_from(merged)) or 0
+    picked = db.execute(
+        select(merged.c.row_id, merged.c.src)
+        .order_by(desc(merged.c.at), desc(merged.c.row_id))
+        .offset(offset)
+        .limit(limit)
+    ).all()
+    test_ids = [row_id for row_id, src in picked if src == "test"]
+    sample_ids = [row_id for row_id, src in picked if src == "sample"]
+    test_rows = {}
+    if test_ids:
+        test_rows = {
+            row.id: row
+            for row in db.scalars(
+                select(TestResult)
+                .where(TestResult.id.in_(test_ids))
+                .options(
+                    joinedload(TestResult.test).joinedload(Test.monitor),
+                    joinedload(TestResult.test).joinedload(Test.network),
+                )
+            ).unique().all()
+        }
+    sample_rows = {}
+    if sample_ids:
+        sample_rows = {
+            row.id: row
+            for row in db.scalars(
+                select(SyntheticSample)
+                .where(SyntheticSample.id.in_(sample_ids))
+                .options(joinedload(SyntheticSample.run))
+            ).unique().all()
+        }
+    names = _profile_names(db, {row.run.profile_slug for row in sample_rows.values()})
+    items = []
+    for row_id, src in picked:
+        if src == "test" and row_id in test_rows:
+            items.append(_result_to_out(test_rows[row_id]))
+        elif src == "sample" and row_id in sample_rows:
+            items.append(_synthetic_out(sample_rows[row_id], monitor, names))
+    return ResultPage(total=total, offset=offset, limit=limit, items=items)
+
+
 @router.get("/monitors/{monitor_id}/log", response_model=ResultPage)
 def monitor_log(
     monitor_id: UUID,
@@ -906,6 +1080,14 @@ def monitor_log(
     monitor = db.get(Monitor, monitor_id)
     if monitor is None:
         raise HTTPException(status_code=404, detail="Remote agent not found")
+    try:
+        synthetic = _synthetic_slug(probe)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid probe filter") from exc
+    if synthetic is not None:
+        return _synthetic_page(db, monitor, synthetic, offset, limit)
+    if probe in ("", "all"):
+        return _merged_page(db, monitor, offset, limit)
     try:
         probe_filter = log_slug_filter(probe)
     except ValueError as exc:
@@ -1113,6 +1295,18 @@ def _latest_test_fields(test: Test, row: TestResult | None) -> dict:
     }
 
 
+def _monitor_probes(db: Session, monitor_id: UUID) -> list[dict[str, str]]:
+    """Profiles that have been started on this agent, including ones added after the log was built."""
+    rows = db.execute(
+        select(SyntheticProfile.slug, SyntheticProfile.name, SyntheticProfile.position)
+        .join(SyntheticRun, SyntheticRun.profile_slug == SyntheticProfile.slug)
+        .where(SyntheticRun.monitor_id == monitor_id)
+        .distinct()
+        .order_by(SyntheticProfile.position)
+    ).all()
+    return [{"slug": slug, "name": name} for slug, name, _position in rows]
+
+
 @router.get("/monitors/{monitor_id}")
 def get_monitor(
     monitor_id: UUID,
@@ -1158,6 +1352,7 @@ def get_monitor(
         "location_label": monitor.location_label,
         "public_ip": None if _user.role == UserRole.guest else monitor.public_ip,
         "isp": monitor.isp,
+        "probes": _monitor_probes(db, monitor_id),
         "tests": [
             {
                 "id": str(t.id),
