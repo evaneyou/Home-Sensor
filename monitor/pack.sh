@@ -2,5 +2,10 @@
 set -eu
 cd "$(dirname "$0")"
 mkdir -p dist
-tar -czf dist/monitor.tar.gz agent.py checks.py kismet_view.py rf_spool.py synthetic.py install.sh monitor.service avahi-monitor.service
+files="agent.py checks.py kismet_view.py rf_spool.py synthetic.py install.sh monitor.service avahi-monitor.service"
+if [ -f rtnp-send ]; then
+  files="$files rtnp-send"
+fi
+# shellcheck disable=SC2086
+tar -czf dist/monitor.tar.gz $files
 echo "Wrote $(pwd)/dist/monitor.tar.gz"

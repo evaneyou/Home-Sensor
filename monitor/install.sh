@@ -20,6 +20,9 @@ if ! id monitor >/dev/null 2>&1; then
 fi
 install -d -m 755 /opt/monitor
 install -m 644 agent.py checks.py kismet_view.py rf_spool.py synthetic.py /opt/monitor/
+if [ -f rtnp-send ]; then
+  install -m 755 rtnp-send /opt/monitor/rtnp-send
+fi
 install -d -o monitor -g monitor -m 750 /etc/monitor
 install -m 644 monitor.service /etc/systemd/system/monitor.service
 if [ -d /etc/avahi/services ]; then
