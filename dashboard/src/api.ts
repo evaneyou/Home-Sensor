@@ -123,6 +123,16 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(setting),
     }),
+  syntheticProfiles: (monitorId: string) =>
+    request(`/api/v1/synthetic/profiles?monitor_id=${monitorId}`),
+  saveSyntheticContinuous: (body: unknown) =>
+    request("/api/v1/synthetic/continuous", { method: "PUT", body: JSON.stringify(body) }),
+  startSyntheticManual: (body: unknown) =>
+    request("/api/v1/synthetic/manual", { method: "POST", body: JSON.stringify(body) }),
+  syntheticRuns: (monitorId: string) => request(`/api/v1/synthetic/runs?monitor_id=${monitorId}`),
+  syntheticReport: (runId: string) => request(`/api/v1/synthetic/runs/${runId}/report`),
+  syntheticHealth: (monitorId: string, link: string, range: string) =>
+    request(`/api/v1/synthetic/health?monitor_id=${monitorId}&link=${link}&range=${range}`),
   rfOverview: (agentId: string) =>
     request<RfOverview>(`/api/v1/rf/overview?agent_id=${agentId}`),
   rfAps: (agentId: string, params: Record<string, string>) => {

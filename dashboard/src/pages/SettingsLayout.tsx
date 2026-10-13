@@ -3,6 +3,7 @@ import { NavLink, Outlet } from "react-router-dom";
 const PAGES = [
   { to: "/settings/onboarding", label: "Remote Agent Onboarding" },
   { to: "/settings/internet-service", label: "Internet Service" },
+  { to: "/settings/synthetic", label: "Real-Time Application Health" },
   { to: "/settings/web-services", label: "Web Services" },
 ];
 

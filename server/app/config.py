@@ -21,11 +21,16 @@ class Settings(BaseSettings):
     bootstrap_admin_password: str = "admin-change-me"
     bootstrap_viewer_username: str = "viewer"
     bootstrap_viewer_password: str = "viewer-change-me"
+    bootstrap_guest_username: str = "guest"
+    bootstrap_guest_password: str = "guest-change-me"
     wireguard_endpoint: str = "10.0.0.123:51820"
     wireguard_state_dir: str = ""
     # Remote agents pin this key, so check-in and poll only answer over HTTPS.
     agent_require_https: bool = True
     tls_dir: str = "/var/lib/hns-tls"
+    rtnp_state_dir: str = ""
+    rtnp_udp_port: int = 8998
+    rtnp_control_port: int = 8999
 
     @model_validator(mode="after")
     def _no_default_secret_in_production(self) -> "Settings":

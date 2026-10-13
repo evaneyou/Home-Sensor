@@ -18,6 +18,7 @@ import AirwavesNetworks from "./pages/airwaves/NetworksPage";
 import AirwavesChannels from "./pages/airwaves/ChannelsPage";
 import AirwavesClients from "./pages/airwaves/ClientsPage";
 import InternetServicePage from "./pages/InternetServicePage";
+import SyntheticPage from "./pages/SyntheticPage";
 import WebServicesPage from "./pages/WebServicesPage";
 import TestPage from "./pages/TestPage";
 import type { User } from "./types";
@@ -82,7 +83,7 @@ function LegacyMonitorRedirect({ log = false }: { log?: boolean }) {
   return <Navigate to={query ? `${path}?${query}` : path} replace />;
 }
 
-function Shell({ onLogout }: { onLogout: () => void }) {
+function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void }) {
   const loc = useLocation();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -93,7 +94,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
     { to: "/", label: "Overview" },
     { to: "/airwaves", label: "Airwaves" },
     { to: "/issues", label: "Issues" },
-    { to: "/settings/onboarding", label: "Settings" },
+    ...(role === "admin" ? [{ to: "/settings/onboarding", label: "Settings" }] : []),
   ];
 
   useEffect(() => {
@@ -234,10 +235,11 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           <Route path="/tests/:id" element={<TestPage />} />
           <Route path="/issues" element={<IssuesPage />} />
           <Route path="/issues/:id" element={<IssueDetailPage />} />
-          <Route path="/settings" element={<SettingsLayout />}>
+          <Route path="/settings" element={role === "admin" ? <SettingsLayout /> : <Navigate to="/" replace />}>
             <Route index element={<Navigate to="onboarding" replace />} />
             <Route path="onboarding" element={<MonitorOnboardingPage />} />
             <Route path="internet-service" element={<InternetServicePage />} />
+            <Route path="synthetic" element={<SyntheticPage />} />
             <Route path="web-services" element={<WebServicesPage />} />
             <Route path="agents/:id" element={<RemoteAgentPage />} />
           </Route>
@@ -273,6 +275,7 @@ export default function App() {
 
   return (
     <Shell
+      role={me.data.role}
       onLogout={() => {
         void api.logout().finally(() => {
           qc.setQueryData(["me"], null);

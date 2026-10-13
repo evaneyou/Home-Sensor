@@ -94,3 +94,478 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+.main:has(.app-health) {
+  max-width: 1120px;
+  width: 100%;
+  min-width: 0;
+}
+
+.app-shell.ui-compact .settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.app-shell.ui-compact .settings-layout:has(.app-health) .page-title {
+  font-size: 22px;
+}
+
+.app-shell.ui-compact .settings-layout > aside {
+  min-width: 0;
+}
+
+.app-shell.ui-compact .settings-content {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.app-shell.ui-compact .settings-nav {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
+
+.app-shell.ui-compact .settings-nav a {
+  min-height: 40px;
+  height: auto;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.2;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 900px) {
+  .app-shell.ui-compact .settings-layout {
+    grid-template-columns: 200px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .app-shell.ui-compact .settings-nav {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .app-shell.ui-compact .settings-nav a {
+    justify-content: flex-start;
+    text-align: left;
+  }
+}
+
+.app-health {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  font-size: 14px;
+  font-family: var(--font-ui);
+}
+
+.app-health-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.app-health-intro,
+.app-health-note,
+.app-health-group p,
+.app-health-sub,
+.app-health-field small {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.app-health-error {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--fail, #ff8f85);
+}
+
+.app-health-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.app-health-agent {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.app-health-agent span,
+.app-health-field > span,
+.app-health-head {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.app-health input,
+.app-health select,
+.app-health button {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.app-health select,
+.app-health-text,
+.app-health-primary,
+.app-health-outline,
+.app-health-path button,
+.app-health input {
+  box-sizing: border-box;
+  min-height: 44px;
+  border-radius: 8px;
+}
+
+.app-health select,
+.app-health-text {
+  width: 100%;
+  border: 0;
+  background: var(--bg-elevated);
+  color: var(--ink);
+  padding: 0 12px;
+}
+
+.app-health-text {
+  width: auto;
+  cursor: pointer;
+}
+
+.app-health-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.app-health-card {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+}
+
+.app-health-group {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.app-health-group h3,
+.app-health-runs > h3,
+.app-health-form h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.app-health-count,
+.app-health-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-soft));
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.app-health-badge.running,
+.app-health-badge.done {
+  color: var(--ok, #7dcea0);
+}
+
+.app-health-badge.failed {
+  color: var(--fail, #ff8f85);
+}
+
+.app-health-head,
+.app-health-col,
+.app-health-status {
+  display: none;
+}
+
+.app-health-item + .app-health-item {
+  border-top: 1px solid var(--line);
+}
+
+.app-health-row,
+.app-health-run {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name chevron"
+    "sub sub";
+  gap: 2px 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-health-name {
+  grid-area: name;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.app-health-name strong,
+.app-health-sub,
+.app-health-run > span:first-child {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-health-name strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.app-health-sub {
+  grid-area: sub;
+}
+
+.app-health-chevron {
+  grid-area: chevron;
+  color: var(--muted);
+}
+
+.app-health-row:focus-visible,
+.app-health-run:focus-visible,
+.app-health button:focus-visible,
+.app-health select:focus-visible,
+.app-health input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.app-health-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0 12px;
+  min-width: 0;
+}
+
+.app-health-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.app-health-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.app-health-input {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.app-health-input input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 0;
+}
+
+.app-health-input i {
+  flex: none;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.app-health-path {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-height: 44px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.app-health-path button {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.app-health-path button.on {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.app-health-primary,
+.app-health-outline {
+  border: 0;
+  cursor: pointer;
+  padding: 0 14px;
+}
+
+.app-health-primary {
+  width: 100%;
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.app-health-outline {
+  background: transparent;
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.app-health-primary:disabled,
+.app-health-outline:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.app-health-split {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.app-health-timed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.app-health-run {
+  grid-template-areas: "name name";
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.app-health-runs {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.app-health-report p {
+  margin: 8px 0 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 900px) {
+  .app-health-head,
+  .app-health-row {
+    grid-template-columns: minmax(0, 1.5fr) 6.2rem minmax(0, 0.8fr) 4.2rem 6.5rem 4.2rem 1rem;
+  }
+
+  .app-health-row {
+    grid-template-areas: "name status path interval rtt loss chevron";
+  }
+
+  .app-health-head {
+    display: grid;
+    gap: 8px;
+    padding-top: 8px;
+  }
+
+  .app-health-row {
+    min-height: 52px;
+  }
+
+  .app-health-col,
+  .app-health-status {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+  }
+
+  .app-health-status { grid-area: status; }
+  .app-health-pathcol { grid-area: path; }
+  .app-health-interval { grid-area: interval; }
+  .app-health-rtt { grid-area: rtt; }
+  .app-health-loss { grid-area: loss; }
+  .app-health-sub,
+  .app-health-name .app-health-badge {
+    display: none;
+  }
+
+  .app-health-fields {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .app-health-field {
+    flex: 1 1 120px;
+    width: 120px;
+    max-width: 160px;
+  }
+
+  .app-health-primary {
+    width: auto;
+    min-width: 12rem;
+  }
+
+  .app-health-timed {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: end;
+  }
+}
