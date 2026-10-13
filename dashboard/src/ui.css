@@ -149,7 +149,7 @@
 
 .app-shell.ui-compact .main .tab,
 .app-shell.ui-compact .range-row .tab {
-  border-radius: var(--r-pill);
+  border-radius: 999px;
   font-size: 14px;
   font-weight: 700;
   background: transparent;

@@ -820,16 +820,21 @@ button:hover,
   margin-bottom: 0.6rem;
   padding: 3px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 999px;
   background: var(--bg-elevated);
+}
+
+/* The strip range heads the table, so it sits over the table's right edge. */
+.service-compare > .range-row {
+  align-self: flex-end;
 }
 
 .tab {
   border: 0;
   background: transparent;
   color: var(--muted);
-  border-radius: 7px;
-  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  padding: 0.35rem 0.95rem;
   min-height: 38px;
   cursor: pointer;
 }
@@ -1660,6 +1665,9 @@ h3.settings-block {
   flex: 1 1 auto;
   width: auto;
   margin: 0;
+  /* The base strip stretches, which pins it to the top of the row while the
+     status mark stays centred. */
+  align-self: center;
 }
 
 .svc-cell:hover .isp-strip {
