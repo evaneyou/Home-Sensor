@@ -1,0 +1,187 @@
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { api } from "../api";
+import { CHART_COLORS } from "../chartTheme";
+import { chartTicks, chartWindow, formatChartTick } from "../chartTime";
+
+const RANGES = ["1h", "6h", "12h", "24h", "7d"] as const;
+type Range = (typeof RANGES)[number];
+
+type Point = {
+  t: string;
+  rtt_ms: number | null;
+  jitter_ms: number | null;
+  loss_pct: number | null;
+  verdict: string | null;
+};
+
+type TrafficType = {
+  slug: string;
+  name: string;
+  latest: { rtt_ms: number | null; jitter_ms: number | null; loss_pct: number | null; verdict: string | null };
+  points: Point[];
+};
+
+function fmt(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  return value >= 100 ? value.toFixed(0) : value.toFixed(1);
+}
+
+function statusOf(verdict: string | null): string {
+  if (verdict === "pass") return "ok";
+  if (verdict === "fail") return "fail";
+  return "unknown";
+}
+
+export default function RealtimeHealth({
+  monitorId,
+  link,
+  range,
+  slug,
+  onOpen,
+}: {
+  monitorId: string;
+  link: "wired" | "wireless";
+  range: Range;
+  slug?: string | null;
+  onOpen?: (slug: string) => void;
+}) {
+  const healthQ = useQuery({
+    queryKey: ["synthetic-health", monitorId, link, range],
+    queryFn: () => api.syntheticHealth(monitorId, link, range) as Promise<{ types: TrafficType[] }>,
+    refetchInterval: 15000,
+  });
+  const types = healthQ.data?.types ?? [];
+  const selected = slug ? types.find((item) => item.slug === slug) : null;
+
+  if (slug) {
+    return (
+      <div className="panel">
+        <h2 style={{ marginTop: 0, fontSize: "1.4rem" }}>
+          {link === "wireless" ? "Wi-Fi" : "Wired"} · {selected?.name ?? "Real-Time Application Health"}
+        </h2>
+        <ChartBody item={selected} range={range} loading={healthQ.isLoading} failed={healthQ.isError} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="health-stack">
+      <h3 className="wifi-heading">Real-Time Application Health</h3>
+      {healthQ.isLoading ? <div className="muted">Loading real-time application health…</div> : null}
+      {healthQ.isError ? <div className="muted">Could not load real-time application health.</div> : null}
+      {!healthQ.isLoading && types.length === 0 ? (
+        <div className="muted">No continuous application check is running on this link.</div>
+      ) : null}
+      {types.map((item) => (
+        <div className="health-row" key={item.slug}>
+          <div className="health-row-head">
+            <button className="health-row-title" type="button" onClick={() => onOpen?.(item.slug)}>
+              {item.name}
+            </button>
+            <span className="mono">
+              {fmt(item.latest.rtt_ms)} ms · jitter {fmt(item.latest.jitter_ms)} ms · loss {fmt(item.latest.loss_pct)}%
+            </span>
+          </div>
+          <span
+            className="isp-strip health-bar"
+            title={item.name}
+            style={{ background: strip(item.points) }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function strip(points: Point[]): string {
+  if (points.length === 0) return "var(--line)";
+  const statuses = points.map((point) => statusOf(point.verdict));
+  const stops: string[] = [];
+  let index = 0;
+  while (index < statuses.length) {
+    const status = statuses[index];
+    let end = index + 1;
+    while (end < statuses.length && statuses[end] === status) end += 1;
+    const color = status === "ok" ? "var(--ok)" : status === "fail" ? "var(--fail)" : "var(--line)";
+    stops.push(`${color} ${(index / statuses.length) * 100}% ${(end / statuses.length) * 100}%`);
+    index = end;
+  }
+  return `linear-gradient(90deg, ${stops.join(", ")})`;
+}
+
+function ChartBody({
+  item,
+  range,
+  loading,
+  failed,
+}: {
+  item: TrafficType | null | undefined;
+  range: Range;
+  loading: boolean;
+  failed: boolean;
+}) {
+  const data = useMemo(
+    () =>
+      (item?.points ?? []).map((point) => ({
+        t: point.t,
+        ts: new Date(point.t).getTime(),
+        rtt: point.rtt_ms,
+        jitter: point.jitter_ms,
+        loss: point.loss_pct,
+      })),
+    [item],
+  );
+  const span = chartWindow(range);
+  if (loading) return <div className="muted">Loading real-time application health…</div>;
+  if (failed) return <div className="muted">Could not load real-time application health.</div>;
+  if (data.length === 0) return <div className="muted">No samples in this range.</div>;
+  return (
+    <>
+      <MiniChart title="Round-trip" data={data} span={span} dataKey="rtt" unit=" ms" />
+      <div className="chart-pair">
+        <MiniChart title="Jitter" data={data} span={span} dataKey="jitter" unit=" ms" />
+        <MiniChart title="Packet loss" data={data} span={span} dataKey="loss" unit=" %" />
+      </div>
+    </>
+  );
+}
+
+function MiniChart({
+  title,
+  data,
+  span,
+  dataKey,
+  unit,
+}: {
+  title: string;
+  data: { ts: number; rtt: number | null; jitter: number | null; loss: number | null }[];
+  span: [number, number];
+  dataKey: "rtt" | "jitter" | "loss";
+  unit: string;
+}) {
+  return (
+    <div>
+      <h3 className="wifi-heading">{title}</h3>
+      <ResponsiveContainer width="100%" height={180}>
+        <LineChart data={data}>
+          <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" />
+          <XAxis
+            dataKey="ts"
+            type="number"
+            domain={span}
+            ticks={chartTicks(span)}
+            tickFormatter={(value) => formatChartTick(value, span[1] - span[0])}
+          />
+          <YAxis />
+          <Tooltip
+            labelFormatter={(value) => formatChartTick(Number(value), span[1] - span[0])}
+            formatter={(value) => `${value ?? ""}${unit}`}
+          />
+          <Line type="monotone" dataKey={dataKey} stroke={CHART_COLORS[0]} dot={false} connectNulls />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
