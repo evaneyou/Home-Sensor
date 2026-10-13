@@ -804,26 +804,44 @@ button:hover,
   margin-bottom: 1rem;
 }
 
-.tabs {
-  display: flex;
-  gap: 0.35rem;
+/* Tabs and time ranges are segmented controls: one track holding its choices,
+   rather than a row of separately bordered pills. */
+.tabs,
+.range-row {
+  display: inline-flex;
+  gap: 2px;
   flex-wrap: wrap;
-  margin-bottom: 1rem;
+  max-width: 100%;
+  margin-bottom: 0.6rem;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-elevated);
 }
 
 .tab {
-  border: 1px solid var(--line);
+  border: 0;
   background: transparent;
   color: var(--muted);
-  border-radius: 999px;
-  padding: 0.35rem 0.8rem;
+  border-radius: 7px;
+  padding: 0.35rem 0.85rem;
+  min-height: 38px;
   cursor: pointer;
 }
 
-.tab.active {
+.tab:hover {
   color: var(--ink);
-  background: var(--bg-soft);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+
+/* The page's own tabs carry the stronger mark; a time range stays secondary. */
+.tabs .tab.active {
+  color: var(--bg);
+  background: var(--accent);
+}
+
+.range-row .tab.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-soft));
 }
 
 .wifi-heading {
@@ -1102,12 +1120,6 @@ button:hover,
   margin-bottom: 0.75rem;
 }
 
-.range-row {
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
 
 .passfail {
   display: flex;
