@@ -168,7 +168,7 @@ export default function MonitorPage() {
 
       {activeNetwork?.slug === "wifi-main" ? <WifiScans monitorId={monitor.id} /> : null}
       {activeNetwork?.slug === "wan" ? (
-        <InternetPath tests={tests} isp={monitor.isp} />
+        <InternetPath tests={tests} isp={monitor.isp} monitorId={monitor.id} />
       ) : null}
 
       <div className="panel">

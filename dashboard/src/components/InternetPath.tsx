@@ -17,6 +17,7 @@ import { CHART_COLORS } from "../chartTheme";
 import { formatChartTick, chartTicks, chartWindow, zoomedDomain } from "../chartTime";
 import type { MetricsResponse, MonitorDetail } from "../types";
 import { useChartZoom } from "../useChartZoom";
+import RealtimeHealth from "./RealtimeHealth";
 import StatusMark, { statusLabel } from "./StatusMark";
 
 const RANGES = ["1h", "6h", "12h", "24h", "7d"] as const;
@@ -51,7 +52,8 @@ const APPS = [
 
 type AppKey = (typeof APPS)[number]["key"];
 type DetailKey = "isp" | AppKey;
-type CheckKey = "librespeed" | "webrtc";
+/** A built-in check, or one application probe by slug. */
+type CheckKey = "librespeed" | "webrtc" | `rtnp:${string}`;
 
 function probeKinds(_key: AppKey): ("http" | "icmp")[] {
   return ["http", "icmp"];
@@ -181,7 +183,7 @@ function isDetail(value: string | null): value is DetailKey {
 }
 
 function isCheck(value: string | null): value is CheckKey {
-  return value === "librespeed" || value === "webrtc";
+  return value === "librespeed" || value === "webrtc" || Boolean(value?.startsWith("rtnp:"));
 }
 
 export function logProbeForDetail(detail: string | null, check: string | null = null): string | null {
@@ -217,9 +219,11 @@ function useSeries(tests: TestRow[], range: string) {
 export default function InternetPath({
   tests,
   isp,
+  monitorId,
 }: {
   tests: MonitorDetail["tests"];
   isp: string | null;
+  monitorId?: string;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const requested = searchParams.get("detail");
@@ -271,6 +275,7 @@ export default function InternetPath({
           tests={pool.length > 0 ? pool : tests}
           detail={detail}
           isp={isp}
+          monitorId={monitorId}
           linkLabel={resolved === "wired" ? "Wired" : resolved === "wireless" ? "Wi-Fi" : null}
         />
       </>
@@ -510,11 +515,13 @@ function InternetDetail({
   detail,
   isp,
   linkLabel,
+  monitorId,
 }: {
   tests: TestRow[];
   detail: DetailKey;
   isp: string | null;
   linkLabel?: string | null;
+  monitorId?: string;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [range, setRange] = useState<(typeof RANGES)[number]>("1h");
@@ -625,13 +632,31 @@ function InternetDetail({
   );
   const span = chartWindow(range);
   const linkHealth = detail === "isp" && (linkLabel === "Wired" || linkLabel === "Wi-Fi");
+  const healthLink = linkLabel === "Wi-Fi" ? "wireless" : "wired";
   const requestedCheck = searchParams.get("check");
+  const rtnpSlug = requestedCheck?.startsWith("rtnp:") ? requestedCheck.slice(5) : null;
   const check = linkHealth && isCheck(requestedCheck) ? requestedCheck : null;
 
   function openCheck(key: CheckKey) {
     const next = new URLSearchParams(searchParams);
     next.set("check", key);
     setSearchParams(next);
+  }
+
+  if (linkHealth && rtnpSlug && monitorId) {
+    return (
+      <>
+        <div className="panel">
+          <RangeTabs range={range} onChange={setRange} />
+        </div>
+        <RealtimeHealth
+          monitorId={monitorId}
+          link={healthLink}
+          range={range}
+          slug={rtnpSlug}
+        />
+      </>
+    );
   }
 
   if (linkHealth && !check) {
@@ -659,6 +684,14 @@ function InternetDetail({
               empty={callChart.length === 0}
               onOpen={() => openCheck("webrtc")}
             />
+            {monitorId ? (
+              <RealtimeHealth
+                monitorId={monitorId}
+                link={healthLink}
+                range={range}
+                onOpen={(slug) => openCheck(`rtnp:${slug}`)}
+              />
+            ) : null}
           </div>
         )}
       </section>
