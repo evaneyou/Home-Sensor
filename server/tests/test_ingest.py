@@ -163,7 +163,8 @@ def test_health_assigns_transfer_and_web_services(client: TestClient, db):
     assert "librespeed" in slugs
     assert "webrtc" in slugs
     assert "icmp-youtube" in slugs
-    assert "mtr-youtube" in slugs
+    # Only the ISP path is traced; web services get no MTR test.
+    assert not any(slug.startswith("mtr-") and slug != "mtr-path" for slug in slugs)
     stored_transfer = db.scalar(text("SELECT librespeed_interval_seconds FROM internet_service_settings WHERE id = 1"))
     transfer = next(item for item in tests if item["slug"] == "librespeed")
     assert transfer["kind"] == "librespeed"
@@ -182,9 +183,6 @@ def test_health_assigns_transfer_and_web_services(client: TestClient, db):
     mtr = next(item for item in tests if item["slug"] == "mtr-path")
     assert mtr["kind"] == "mtr"
     assert mtr["target"] == public_trace_host()
-    youtube_trace = next(item for item in tests if item["slug"] == "mtr-youtube")
-    assert youtube_trace["kind"] == "mtr"
-    assert youtube_trace["target"].count(".") == 3
     web = next(item for item in tests if item["slug"] == "http-youtube")
     assert web["target"] == "https://www.youtube.com/generate_204"
     stored = db.scalar(text("SELECT interval_seconds FROM web_service_settings WHERE key = 'youtube'"))

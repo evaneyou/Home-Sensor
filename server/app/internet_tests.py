@@ -52,7 +52,13 @@ WEB_SERVICES: tuple[tuple[str, str, str, str], ...] = (
     ("teams", "Microsoft Teams", "https://teams.microsoft.com", "teams.microsoft.com"),
     ("facebook", "Facebook", "https://www.facebook.com", "www.facebook.com"),
 )
-RETIRED_WEB_SLUGS = ("http-slack", "icmp-slack", "mtr-slack")
+# Web services are traced no longer: only the ISP path keeps an MTR test.
+RETIRED_WEB_SLUGS = (
+    "http-slack",
+    "icmp-slack",
+    "mtr-slack",
+    *(f"mtr-{key}" for key, _, _, _ in WEB_SERVICES),
+)
 
 INTERNET_SLUGS = frozenset(
     {
@@ -61,7 +67,6 @@ INTERNET_SLUGS = frozenset(
         *(slug for slug, _, _, _, _ in PATH_TESTS),
         *(f"http-{key}" for key, _, _, _ in WEB_SERVICES),
         *(f"icmp-{key}" for key, _, _, _ in WEB_SERVICES),
-        *(f"mtr-{key}" for key, _, _, _ in WEB_SERVICES),
     }
 )
 
@@ -252,18 +257,6 @@ def _sync_link_tests(db: Session, monitor: Monitor, network: Network, server_ip:
             service.host,
             interval,
             service.icmp_enabled,
-        )
-        _ensure_test(
-            monitor,
-            network,
-            existing_rows,
-            rows,
-            f"mtr-{service.key}",
-            f"{service.label} MTR",
-            TestKind.mtr,
-            _ipv4_literal(service.host),
-            max(interval, 120),
-            True,
         )
     for slug in RETIRED_WEB_SLUGS:
         _disable_test(existing_rows, slug)
