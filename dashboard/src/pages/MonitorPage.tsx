@@ -10,6 +10,11 @@ import WifiScans from "../components/WifiScans";
 import { networkLabel, networkOrder } from "../labels";
 import type { MonitorDetail } from "../types";
 
+function formatLastSeen(iso: string): string {
+  const when = new Date(iso).toLocaleString(undefined, { timeZone: "America/New_York" });
+  return `${when} EST`;
+}
+
 export default function MonitorPage() {
   const { id = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -83,7 +88,7 @@ export default function MonitorPage() {
           <span className="monitor-status-seen">
             Remote Probe Status
             {monitor.last_seen_at
-              ? ` · Last seen ${new Date(monitor.last_seen_at).toLocaleString()}`
+              ? ` · Last seen ${formatLastSeen(monitor.last_seen_at)}`
               : " · Not seen yet"}
           </span>
         </button>
