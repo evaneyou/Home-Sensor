@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { MonitorAdmin } from "../types";
+import { PresetForm } from "./SyntheticForm";
 import {
   collapseAll,
   expandAll,
@@ -87,6 +88,7 @@ function Profiles({
   monitors: MonitorAdmin[];
   onMonitor: (id: string) => void;
 }) {
+  const queryClient = useQueryClient();
   const profilesQ = useQuery({
     queryKey: ["synthetic-profiles", monitorId],
     queryFn: () => api.syntheticProfiles(monitorId) as Promise<{ profiles: Profile[] }>,
@@ -159,9 +161,11 @@ function Profiles({
           {group.items.map((profile) => (
             <PresetRow
               key={profile.slug}
+              monitorId={monitorId}
               profile={profile}
               expanded={open.has(profile.slug)}
               onToggle={() => remember(toggleOpen([...open], profile.slug))}
+              onSaved={() => queryClient.invalidateQueries({ queryKey: ["synthetic-profiles", monitorId] })}
             />
           ))}
         </section>
@@ -192,13 +196,17 @@ function Profiles({
 }
 
 function PresetRow({
+  monitorId,
   profile,
   expanded,
   onToggle,
+  onSaved,
 }: {
+  monitorId: string;
   profile: Profile;
   expanded: boolean;
   onToggle: () => void;
+  onSaved: () => void;
 }) {
   const status = statusOf(profile);
   const source = profile.continuous?.options ?? profile.options;
@@ -221,6 +229,7 @@ function PresetRow({
         <span className="app-health-chevron" aria-hidden="true">{expanded ? "▾" : "▸"}</span>
         <span className="app-health-sub">{rowSummary(profile)}</span>
       </button>
+      {expanded ? <PresetForm monitorId={monitorId} profile={profile} onSaved={onSaved} /> : null}
     </div>
   );
 }
