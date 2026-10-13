@@ -23,6 +23,16 @@ install -m 644 agent.py checks.py kismet_view.py rf_spool.py synthetic.py /opt/m
 if [ -f rtnp-send ]; then
   install -m 755 rtnp-send /opt/monitor/rtnp-send
 fi
+# The sender binds its own UDP port, so the measurement socket can only be moved
+# onto one link by this shim. Without it every link measures the default route.
+if [ -f rtnp_bind.c ] && command -v cc >/dev/null 2>&1; then
+  cc -O2 -fPIC -shared -o /opt/monitor/rtnp-bind.so rtnp_bind.c
+  chmod 644 /opt/monitor/rtnp-bind.so
+elif [ -f rtnp-bind.so ]; then
+  install -m 644 rtnp-bind.so /opt/monitor/rtnp-bind.so
+else
+  echo "No C compiler and no rtnp-bind.so: Wi-Fi measurements would use the wired link." >&2
+fi
 install -d -o monitor -g monitor -m 750 /etc/monitor
 install -m 644 monitor.service /etc/systemd/system/monitor.service
 if [ -d /etc/avahi/services ]; then

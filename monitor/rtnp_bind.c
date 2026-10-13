@@ -2,7 +2,9 @@
 #define _GNU_SOURCE
 #include <arpa/inet.h>
 #include <dlfcn.h>
+#include <net/if.h>
 #include <netinet/in.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -17,16 +19,29 @@ static int is_target(const struct sockaddr *addr) {
 
 static void pin(int fd) {
     const char *src = getenv("RTNP_BIND_SRC");
+    const char *iface = getenv("RTNP_BIND_IFACE");
     struct sockaddr_in current;
     struct sockaddr_in local;
     socklen_t length = sizeof current;
-    if (!src || !src[0]) return;
+    if ((!src || !src[0]) && (!iface || !iface[0])) return;
     memset(&current, 0, sizeof current);
     if (getsockname(fd, (struct sockaddr *)&current, &length) == 0 && current.sin_addr.s_addr != 0) return;
-    memset(&local, 0, sizeof local);
-    local.sin_family = AF_INET;
-    if (inet_pton(AF_INET, src, &local.sin_addr) != 1) return;
-    bind(fd, (struct sockaddr *)&local, sizeof local);
+    /* A sender that bound its own port cannot be bound a second time, and every
+       Rust UDP socket is bound before it connects. Steering by interface works
+       on a bound socket and needs no privilege, so do that first. */
+    if (iface && iface[0]) {
+        unsigned int index = if_nametoindex(iface);
+        if (index != 0) {
+            uint32_t network_order = htonl(index);
+            setsockopt(fd, IPPROTO_IP, IP_UNICAST_IF, &network_order, sizeof network_order);
+        }
+    }
+    if (src && src[0]) {
+        memset(&local, 0, sizeof local);
+        local.sin_family = AF_INET;
+        if (inet_pton(AF_INET, src, &local.sin_addr) != 1) return;
+        bind(fd, (struct sockaddr *)&local, sizeof local);
+    }
 }
 
 int connect(int fd, const struct sockaddr *addr, socklen_t len) {
