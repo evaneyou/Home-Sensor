@@ -14,7 +14,7 @@ This project is pre-1.0. Security fixes are made on the latest release and on `m
 Please **do not open a public issue** for a security problem.
 
 Report it privately through GitHub:
-[Report a vulnerability](https://github.com/evaneyou/Home-Sensor/security/advisories/new).
+[Report a vulnerability](https://github.com/evaneyou/homenetwatch/security/advisories/new).
 
 Include what you found, the version or commit, steps to reproduce, and the impact you expect.
 You can expect an acknowledgement within a few days. Fixes are released first and disclosed after,

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/evaneyou/Home-Sensor/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/evaneyou/Home-Sensor/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/evaneyou/homenetwatch/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/evaneyou/homenetwatch/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
   <img alt="Version" src="https://img.shields.io/badge/version-0.1.0-informational" />
   <img alt="Status: alpha" src="https://img.shields.io/badge/status-alpha-orange" />
@@ -57,8 +57,8 @@ and never to the Pi. See [`SPEC.md`](./SPEC.md) for the data model, API surface 
 You need [Docker](https://docs.docker.com/get-docker/) with Compose v2.
 
 ```bash
-git clone https://github.com/evaneyou/Home-Sensor.git
-cd Home-Sensor
+git clone https://github.com/evaneyou/homenetwatch.git
+cd homenetwatch
 ./scripts/local-up.sh
 ```
 

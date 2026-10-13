@@ -35,9 +35,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/evaneyou/Home-Sensor"
-Issues = "https://github.com/evaneyou/Home-Sensor/issues"
-Changelog = "https://github.com/evaneyou/Home-Sensor/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/evaneyou/homenetwatch"
+Issues = "https://github.com/evaneyou/homenetwatch/issues"
+Changelog = "https://github.com/evaneyou/homenetwatch/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["hatchling>=1.27"]

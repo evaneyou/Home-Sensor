@@ -6,11 +6,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/evaneyou/Home-Sensor.git",
+    "url": "git+https://github.com/evaneyou/homenetwatch.git",
     "directory": "dashboard"
   },
   "bugs": {
-    "url": "https://github.com/evaneyou/Home-Sensor/issues"
+    "url": "https://github.com/evaneyou/homenetwatch/issues"
   },
   "engines": {
     "node": ">=22"

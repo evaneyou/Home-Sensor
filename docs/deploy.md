@@ -44,8 +44,8 @@ docker compose version      # must be 2.24 or newer
 ## 3. Get the code and configure it
 
 ```bash
-git clone https://github.com/evaneyou/Home-Sensor.git
-cd Home-Sensor
+git clone https://github.com/evaneyou/homenetwatch.git
+cd homenetwatch
 cp .env.example .env
 ```
 
@@ -127,7 +127,7 @@ docker compose restart
 ## Updating
 
 ```bash
-cd Home-Sensor
+cd homenetwatch
 git pull
 docker compose up --build -d
 ```

@@ -29,4 +29,4 @@ First release.
 
 - iperf3 bandwidth checks. File Transfer is the throughput check.
 
-[0.1.0]: https://github.com/evaneyou/Home-Sensor/releases/tag/v0.1.0
+[0.1.0]: https://github.com/evaneyou/homenetwatch/releases/tag/v0.1.0
