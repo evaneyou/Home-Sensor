@@ -410,20 +410,27 @@ function ServiceCompare({
   return (
     <div className="service-compare">
       <StripRangeTabs range={stripRange} onChange={setStripRange} />
-      {APPS.map((app) => (
-        <section className="panel service-pair" key={app.key}>
-          <h2>{app.label}</h2>
-          <div className="service-pair-links">
-            <ServiceSide
-              label="Wired"
+      <div className="svc-table">
+        <div className="svc-head" aria-hidden="true">
+          <span>Service</span>
+          <span>Wired</span>
+          <span>Wi-Fi</span>
+        </div>
+        {APPS.map((app) => (
+          <div className="svc-row" key={app.key}>
+            <h2 className="svc-name">{app.label}</h2>
+            <ServiceCell
+              link="Wired"
+              app={app.label}
               status={wiredView.statusFor(app.key)}
               detail={wiredView.detailFor(app.key)}
               strip={wiredView.appStrips.get(app.key) ?? []}
               stripLabel={wiredView.stripLabel}
               onOpen={() => onOpen(app.key, "wired")}
             />
-            <ServiceSide
-              label="Wi-Fi"
+            <ServiceCell
+              link="Wi-Fi"
+              app={app.label}
               status={wirelessView.statusFor(app.key)}
               detail={wirelessView.detailFor(app.key)}
               strip={wirelessView.appStrips.get(app.key) ?? []}
@@ -431,9 +438,37 @@ function ServiceCompare({
               onOpen={() => onOpen(app.key, "wireless")}
             />
           </div>
-        </section>
-      ))}
+        ))}
+      </div>
     </div>
+  );
+}
+
+/** One link of one service: the column heading names it on wide screens, the
+    inline label does below 700px where the columns stack. */
+function ServiceCell({
+  link,
+  app,
+  status,
+  detail,
+  strip,
+  stripLabel,
+  onOpen,
+}: {
+  link: string;
+  app: string;
+  status: string;
+  detail: string | null;
+  strip: string[];
+  stripLabel: string;
+  onOpen: () => void;
+}) {
+  return (
+    <button className="svc-cell" type="button" onClick={onOpen} aria-label={`${app} over ${link}`}>
+      <span className="svc-link">{link}</span>
+      <StatusMark status={status} detail={detail} focusable={false} />
+      <span className="isp-strip" title={stripLabel} style={{ background: stripGradient(strip) }} />
+    </button>
   );
 }
 

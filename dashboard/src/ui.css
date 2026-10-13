@@ -84,8 +84,8 @@
   background: var(--bg-elevated);
   border: 1px solid var(--line);
   border-radius: var(--r-xl);
-  padding: 14px;
-  margin-bottom: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
 }
 
 .app-shell.ui-compact .page-title,
