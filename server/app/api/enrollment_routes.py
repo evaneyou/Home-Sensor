@@ -56,6 +56,7 @@ from app.wireguard_tunnel import (
     WIRELESS_SERVER_IP,
     TunnelNotReady,
     allocate_address,
+    ensure_srtp_key,
     endpoint,
     new_preshared_key,
     read_preshared_key,
@@ -474,6 +475,7 @@ def approve(
         new_preshared_key(monitor.id, "wired")
         if monitor.wg_wireless_public_key:
             new_preshared_key(monitor.id, "wireless")
+        ensure_srtp_key(monitor.id)
     except TunnelNotReady as exc:
         db.rollback()
         raise HTTPException(status_code=503, detail="WireGuard hub is not ready") from exc

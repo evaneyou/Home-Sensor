@@ -73,6 +73,15 @@ def apply_retention(db: Session, now: datetime) -> dict[str, int]:
     hourly_channels = _rollup_channels(db, daily_before, hourly_before, "hour")
     daily_clients = _rollup_clients(db, delete_before, daily_before, "day")
     hourly_clients = _rollup_clients(db, daily_before, hourly_before, "hour")
+    # Imported here: app.synthetic reaches back into the services package.
+    from app.synthetic import rollup_samples
+
+    synthetic = rollup_samples(
+        db,
+        hourly_before=hourly_before,
+        daily_before=daily_before,
+        delete_before=delete_before,
+    )
     summary = {
         "deleted_results": deleted_results or 0,
         "deleted_wifi": deleted_wifi or 0,
@@ -87,6 +96,7 @@ def apply_retention(db: Session, now: datetime) -> dict[str, int]:
         "hourly_channels": hourly_channels,
         "daily_clients": daily_clients,
         "hourly_clients": hourly_clients,
+        **synthetic,
     }
     log.info("measurement retention %s", summary)
     return summary
