@@ -396,9 +396,6 @@ export type InternetServiceSetting = {
   http_variance_pct: number;
   icmp_variance_pct: number;
   mtr_variance_pct: number;
-  iperf_enabled: boolean;
-  iperf_interval_seconds: number;
-  iperf_variance_pct: number;
   librespeed_enabled: boolean;
   librespeed_interval_seconds: number;
   librespeed_variance_pct: number;

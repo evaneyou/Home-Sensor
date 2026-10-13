@@ -36,7 +36,7 @@ const STRIP_RANGES = [
 
 type StripRange = (typeof STRIP_RANGES)[number]["id"];
 const COLORS = CHART_COLORS;
-const ISP_SLUGS = ["http-path", "icmp-path", "mtr-path", "iperf3"] as const;
+const ISP_SLUGS = ["http-path", "icmp-path", "mtr-path"] as const;
 
 const APPS = [
   { key: "youtube", label: "YouTube" },
@@ -51,7 +51,7 @@ const APPS = [
 
 type AppKey = (typeof APPS)[number]["key"];
 type DetailKey = "isp" | AppKey;
-type CheckKey = "iperf3" | "librespeed" | "webrtc";
+type CheckKey = "librespeed" | "webrtc";
 
 function probeKinds(_key: AppKey): ("http" | "icmp")[] {
   return ["http", "icmp"];
@@ -181,7 +181,7 @@ function isDetail(value: string | null): value is DetailKey {
 }
 
 function isCheck(value: string | null): value is CheckKey {
-  return value === "iperf3" || value === "librespeed" || value === "webrtc";
+  return value === "librespeed" || value === "webrtc";
 }
 
 export function logProbeForDetail(detail: string | null, check: string | null = null): string | null {
@@ -548,15 +548,6 @@ function InternetDetail({
     [points, mtrSlug],
   );
 
-  const speedChart = useMemo(
-    () =>
-      (points.get("iperf3") ?? []).map((point) => {
-        const sample = speed(point);
-        return { t: point.t, ts: new Date(point.t).getTime(), down: sample.down, up: sample.up };
-      }),
-    [points],
-  );
-
   const transferChart = useMemo(
     () =>
       (points.get("librespeed") ?? []).map((point) => {
@@ -586,13 +577,8 @@ function InternetDetail({
   );
 
   const latestHops = (points.get(mtrSlug) ?? []).at(-1)?.hops ?? [];
-  const latestSpeed = speed((points.get("iperf3") ?? []).at(-1));
   const latestLibre = (points.get("librespeed") ?? []).at(-1);
   const latestCall = (points.get("webrtc") ?? []).at(-1);
-  const bandwidthStrip = useMemo(
-    () => statusStrip(points.get("iperf3") ?? [], range),
-    [points, range],
-  );
   const transferStrip = useMemo(
     () => statusStrip(points.get("librespeed") ?? [], range),
     [points, range],
@@ -623,13 +609,6 @@ function InternetDetail({
           <div className="muted">Could not load internet checks.</div>
         ) : (
           <div className="health-stack">
-            <HealthBar
-              title="Bandwidth"
-              detail={`${fmt(latestSpeed.down)} Mbps down · ${fmt(latestSpeed.up)} Mbps up`}
-              strip={bandwidthStrip}
-              empty={speedChart.length === 0}
-              onOpen={() => openCheck("iperf3")}
-            />
             <HealthBar
               title="Transfer Speed"
               detail={`${fmt(speed(latestLibre).down)} Mbps down · ${fmt(speed(latestLibre).up)} Mbps up · ping ${fmt(latestLibre?.rtt_ms)} ms · jitter ${fmt(latestLibre?.jitter_ms)} ms`}
@@ -664,7 +643,7 @@ function InternetDetail({
         ) : (
           <>
             <PathChart
-              title="Bandwidth"
+              title="Download and upload"
               data={transferChart}
               span={span}
               series={[
@@ -720,25 +699,13 @@ function InternetDetail({
         <div className="muted">Could not load internet checks.</div>
       ) : detail === "isp" ? (
         <>
-          <div className="chart-pair">
-            <div>
-              <h3 className="wifi-heading">HTTP</h3>
-              {httpChart.rows.length === 0 ? (
-                <div className="muted">No samples in this range.</div>
-              ) : (
-                <HttpAreaChart rows={httpChart.rows} stageNames={httpChart.stageNames} span={span} />
-              )}
-            </div>
-            <PathChart
-              title="Bandwidth (iperf3)"
-              data={speedChart}
-              span={span}
-              series={[
-                { key: "down", label: "Download" },
-                { key: "up", label: "Upload" },
-              ]}
-              unit=" Mbps"
-            />
+          <div>
+            <h3 className="wifi-heading">HTTP</h3>
+            {httpChart.rows.length === 0 ? (
+              <div className="muted">No samples in this range.</div>
+            ) : (
+              <HttpAreaChart rows={httpChart.rows} stageNames={httpChart.stageNames} span={span} />
+            )}
           </div>
           <div className="chart-pair">
             <PathChart title="ICMP round-trip" data={icmpChart} span={span} dataKey="rtt" label="Round-trip" unit=" ms" />

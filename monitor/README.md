@@ -2,7 +2,7 @@
 
 The agent runs on a Raspberry Pi or other Linux PC inside your home network. It serves a small
 setup page on the LAN, reports device health to the server, and runs the connectivity tests the
-server assigns to it: HTTP, ICMP ping, MTR and iperf3.
+server assigns to it: HTTP, ICMP ping, MTR, File Transfer, and a video call.
 
 The agent uses only the Python 3 standard library. Its version is `AGENT_VERSION` in
 [`agent.py`](./agent.py).
@@ -13,7 +13,7 @@ The agent uses only the Python 3 standard library. Its version is `AGENT_VERSION
 - Python 3 and root access for installation
 - Network access to the server (see [Network](#network))
 
-The installer adds `iperf3`, `iputils-ping` and `mtr-tiny` if they are missing, plus `wireguard`
+The installer adds `iputils-ping` and `mtr-tiny` if they are missing, plus `wireguard`
 and `iw` when a tunnel config is present.
 
 ## Install
@@ -62,7 +62,7 @@ Setup accepts HTTPS, or HTTP to a private LAN address.
 | File | Purpose |
 |------|---------|
 | `agent.py` | Setup page, enrollment, health reporting, test scheduling |
-| `checks.py` | HTTP, ping, MTR and iperf3 checks |
+| `checks.py` | HTTP, ping, MTR, File Transfer, and video-call checks |
 | `install.sh` | Installs the package and `systemd` unit |
 | `monitor.service` | `systemd` unit (runs with `CAP_NET_RAW` and `CAP_NET_BIND_SERVICE` only) |
 | `avahi-monitor.service` | Advertises the setup page as `<hostname>.local` |

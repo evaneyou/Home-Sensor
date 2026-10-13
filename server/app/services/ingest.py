@@ -6,7 +6,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.internet_tests import (
-    classify_iperf,
+    classify_transfer,
     classify_web_service,
     classify_webrtc,
     is_web_check,
@@ -61,9 +61,9 @@ def ingest_results(
         variance = service_variance(settings, test.slug)
         if variance is None:
             variance = path_variance(internet, test.slug)
-        if test.slug in {"iperf3", "librespeed"}:
-            pct = variance[0] if variance is not None else internet.iperf_variance_pct
-            status, reason = classify_iperf(db, test, item.metrics, pct)
+        if test.slug == "librespeed":
+            pct = variance[0] if variance is not None else internet.librespeed_variance_pct
+            status, reason = classify_transfer(db, test, item.metrics, pct)
         elif test.slug == "webrtc":
             status, reason = classify_webrtc(item.metrics, internet.webrtc_variance_pct)
         elif variance is not None:

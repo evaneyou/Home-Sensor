@@ -1,4 +1,4 @@
-"""Internet checks assigned to every monitor: path, iperf3, and web services."""
+"""Internet checks assigned to every monitor: path, File Transfer, video call, and web services."""
 
 from __future__ import annotations
 
@@ -26,10 +26,8 @@ from app.wireguard_tunnel import TUNNEL_SERVER_IP, WIRELESS_SERVER_IP, endpoint
 # Latency checks use the tunnel address. Traceroute uses the public endpoint,
 # because the tunnel address is a single hop and hides the path.
 # Web services probe each service's own hostname.
-IPERF_HOST = TUNNEL_SERVER_IP
-IPERF_TARGET = TUNNEL_SERVER_IP
 SERVER_HTTP = f"http://{TUNNEL_SERVER_IP}:8847/api/v1/healthz"
-IPERF_INTERVAL_SECONDS = 900
+HEAVY_INTERVAL_SECONDS = 900
 PATH_HTTP_INTERVAL_SECONDS = 60
 PATH_ICMP_INTERVAL_SECONDS = 60
 PATH_MTR_INTERVAL_SECONDS = 300
@@ -38,8 +36,8 @@ WEB_HTTP_INTERVAL_SECONDS = 300
 # ISP path checks. The Internet page reads these slugs.
 PATH_TESTS: tuple[tuple[str, str, TestKind, str, int], ...] = (
     ("http-path", "HTTP", TestKind.http, SERVER_HTTP, PATH_HTTP_INTERVAL_SECONDS),
-    ("icmp-path", "ICMP", TestKind.ping, IPERF_HOST, PATH_ICMP_INTERVAL_SECONDS),
-    ("mtr-path", "MTR", TestKind.mtr, IPERF_HOST, PATH_MTR_INTERVAL_SECONDS),
+    ("icmp-path", "ICMP", TestKind.ping, TUNNEL_SERVER_IP, PATH_ICMP_INTERVAL_SECONDS),
+    ("mtr-path", "MTR", TestKind.mtr, TUNNEL_SERVER_IP, PATH_MTR_INTERVAL_SECONDS),
 )
 
 # Same destinations the Internet page labels as Web Services.
@@ -58,7 +56,6 @@ RETIRED_WEB_SLUGS = ("http-slack", "icmp-slack", "mtr-slack")
 
 INTERNET_SLUGS = frozenset(
     {
-        "iperf3",
         "librespeed",
         "webrtc",
         *(slug for slug, _, _, _, _ in PATH_TESTS),
@@ -188,18 +185,7 @@ def _sync_link_tests(db: Session, monitor: Monitor, network: Network, server_ip:
     path = load_internet_service(db)
     path_interval = max(path.interval_seconds, 60)
     rows: list[Test] = []
-    _ensure_test(
-        monitor,
-        network,
-        existing_rows,
-        rows,
-        "iperf3",
-        "iperf3",
-        TestKind.iperf3,
-        server_ip,
-        max(path.iperf_interval_seconds, 300),
-        path.iperf_enabled,
-    )
+    _disable_test(existing_rows, "iperf3")
     _ensure_test(
         monitor,
         network,
@@ -298,7 +284,6 @@ def scheduled_tests(db: Session, monitor: Monitor) -> list[dict]:
             continue
         if test.kind not in (
             TestKind.http,
-            TestKind.iperf3,
             TestKind.librespeed,
             TestKind.webrtc,
             TestKind.ping,
@@ -322,7 +307,7 @@ def scheduled_tests(db: Session, monitor: Monitor) -> list[dict]:
     return assigned
 
 
-PATH_SLUGS = frozenset({"http-path", "icmp-path", "mtr-path", "iperf3"})
+PATH_SLUGS = frozenset({"http-path", "icmp-path", "mtr-path"})
 
 
 def matrix_column(network_slug: str, test_slug: str) -> str | None:
@@ -362,14 +347,12 @@ def path_variance(setting: InternetServiceSetting, slug: str) -> tuple[int, int 
         return setting.icmp_variance_pct, setting.icmp_variance_pct
     if slug == "mtr-path":
         return setting.mtr_variance_pct, None
-    if slug == "iperf3":
-        return setting.iperf_variance_pct, None
     if slug == "librespeed":
         return setting.librespeed_variance_pct, None
     return None
 
 
-def classify_iperf(db: Session, test: Test, metrics: dict, variance_pct: int) -> tuple[ResultStatus, str]:
+def classify_transfer(db: Session, test: Test, metrics: dict, variance_pct: int) -> tuple[ResultStatus, str]:
     """Amber when throughput falls past the variance. Red when neither direction answers."""
     down = _number(metrics.get("down_mbps"))
     up = _number(metrics.get("up_mbps"))
@@ -577,8 +560,6 @@ def explain_result(
             return "No HTTP response."
         if kind == "mtr":
             return "The trace got no response."
-        if kind == "iperf3":
-            return "Neither download nor upload answered."
         if kind == "librespeed":
             return "Neither download nor upload answered."
         if kind == "webrtc":
@@ -607,7 +588,7 @@ def _degraded_fallback(kind: str, metrics: dict, stages: list, message: str | No
         if ttfb is not None and ttfb > 0:
             sentence += f". Time to first byte was {_ms(ttfb)}"
         return sentence + "."
-    if kind in {"iperf3", "librespeed"}:
+    if kind == "librespeed":
         down = _number(metrics.get("down_mbps"))
         up = _number(metrics.get("up_mbps"))
         if down is not None and down > 0 and (up is None or up <= 0):
@@ -647,7 +628,7 @@ def _ok_fallback(kind: str, metrics: dict, message: str | None) -> str:
         if total is None:
             return f"{head} answered within the recent normal."
         return f"{head} answered in {_ms(total)}, within the recent normal."
-    if kind in {"iperf3", "librespeed"}:
+    if kind == "librespeed":
         down = _number(metrics.get("down_mbps"))
         up = _number(metrics.get("up_mbps"))
         if down is None and up is None:
@@ -874,15 +855,12 @@ def load_internet_service(db: Session) -> InternetServiceSetting:
         http_variance_pct=25,
         icmp_variance_pct=25,
         mtr_variance_pct=25,
-        iperf_variance_pct=25,
-        iperf_enabled=True,
-        iperf_interval_seconds=IPERF_INTERVAL_SECONDS,
         librespeed_variance_pct=25,
         librespeed_enabled=True,
-        librespeed_interval_seconds=IPERF_INTERVAL_SECONDS,
+        librespeed_interval_seconds=HEAVY_INTERVAL_SECONDS,
         webrtc_variance_pct=5,
         webrtc_enabled=True,
-        webrtc_interval_seconds=IPERF_INTERVAL_SECONDS,
+        webrtc_interval_seconds=HEAVY_INTERVAL_SECONDS,
     )
     db.add(row)
     db.flush()
@@ -898,10 +876,7 @@ def save_internet_service(db: Session, update: dict) -> InternetServiceSetting:
     row.http_variance_pct = int(update["http_variance_pct"])
     row.icmp_variance_pct = int(update["icmp_variance_pct"])
     row.mtr_variance_pct = int(update["mtr_variance_pct"])
-    row.iperf_variance_pct = int(update["iperf_variance_pct"])
     row.variance_pct = row.http_variance_pct
-    row.iperf_enabled = bool(update["iperf_enabled"])
-    row.iperf_interval_seconds = max(int(update["iperf_interval_seconds"]), 300)
     row.librespeed_variance_pct = int(update["librespeed_variance_pct"])
     row.librespeed_enabled = bool(update["librespeed_enabled"])
     row.librespeed_interval_seconds = max(int(update["librespeed_interval_seconds"]), 300)

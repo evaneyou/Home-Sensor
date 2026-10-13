@@ -19,10 +19,6 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
   The path trace (MTR) failed whenever the last hop dropped probe packets, and that alone turned the
   tiles red. The agent now confirms a silent last hop with a ping, and the server no longer lets the
   path trace set the tile status.
-- Pi agent iperf3 check: the download test was often cut off by the server ("Connection reset by
-  peer") right after the upload test, so it reported 0 Mbps. The agent now pauses between the two
-  directions and retries a direction that fails this way, and the result message shows iperf3's
-  real error instead of the last line of its JSON output.
 
 ### Added
 
@@ -36,6 +32,11 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
 - Production deployment: `docker-compose.prod.yml` (Caddy with automatic HTTPS, internal ports closed),
   `deploy/Caddyfile`, `scripts/backup.sh`, and `docs/deploy-oracle.md`.
 - `python -m app.seed --users-only` creates only the admin and viewer accounts, and refuses default passwords.
+
+### Removed
+
+- iperf3 bandwidth checks. The agent no longer runs them, the WireGuard hub no longer serves iperf3,
+  and the dashboard no longer shows Bandwidth. Stored iperf3 results are deleted. File Transfer stays.
 
 ### Changed
 

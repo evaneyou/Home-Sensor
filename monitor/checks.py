@@ -1,4 +1,4 @@
-"""iperf3 throughput and web-service HTTP checks for the remote agent."""
+"""File Transfer, video call, and web-service HTTP checks for the remote agent."""
 
 from __future__ import annotations
 
@@ -16,21 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 
-IPERF_PORT = 5201
-IPERF_SECONDS = 4
-IPERF_HOST = "10.7.0.1"
-# Give up on a stalled control connection or a transfer that stops moving,
-# instead of waiting until the process is killed. A killed client is what
-# left the server holding unfinished sessions.
-IPERF_CONNECT_TIMEOUT_MS = 3000
-IPERF_IO_TIMEOUT_MS = 5000
-# The server handles one test at a time and can reset the control connection of a
-# client that arrives right after the previous test. Pause between the two
-# directions and retry a direction that fails this way.
-IPERF_DIRECTION_GAP_S = 1.5
-IPERF_RETRY_ATTEMPTS = 3
-IPERF_RETRY_PAUSE_S = 2.0
-_IPERF_TRANSIENT = ("reset by peer", "busy", "control message", "refused", "broken pipe")
+TUNNEL_HOST = "10.7.0.1"
 LIBRESPEED_PORT = 8080
 LIBRESPEED_SECONDS = 8
 WEBRTC_PORT = 8090
@@ -87,93 +73,6 @@ def _result(
     if message:
         body["message"] = message
     return body
-
-
-def parse_iperf_mbps(payload: str) -> float | None:
-    try:
-        body = json.loads(payload)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(body, dict) or body.get("error"):
-        return None
-    end = body.get("end")
-    if not isinstance(end, dict):
-        return None
-    sent = end.get("sum_sent") if isinstance(end.get("sum_sent"), dict) else {}
-    received = end.get("sum_received") if isinstance(end.get("sum_received"), dict) else {}
-    bits = received.get("bits_per_second", sent.get("bits_per_second"))
-    if not isinstance(bits, (int, float)) or bits < 0:
-        return None
-    return round(bits / 1_000_000, 1)
-
-
-def _iperf_once(host: str, port: int, reverse: bool, bind: str | None = None) -> tuple[float | None, str]:
-    command = [
-        "iperf3",
-        "-4",
-        "-c",
-        host,
-        "-p",
-        str(port),
-        "-t",
-        str(IPERF_SECONDS),
-        "-J",
-        "--connect-timeout",
-        str(IPERF_CONNECT_TIMEOUT_MS),
-    ]
-    if bind:
-        command.extend(["-B", bind])
-    if reverse:
-        command.extend(["-R", "--rcv-timeout", str(IPERF_IO_TIMEOUT_MS)])
-    else:
-        command.extend(["--snd-timeout", str(IPERF_IO_TIMEOUT_MS)])
-    try:
-        completed = subprocess.run(
-            command,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=IPERF_SECONDS + 8,
-        )
-    except subprocess.TimeoutExpired:
-        return None, "iperf3 timed out"
-    except OSError as exc:
-        return None, str(exc)
-    mbps = parse_iperf_mbps(completed.stdout)
-    if mbps is None:
-        return None, _iperf_error(completed)
-    return mbps, ""
-
-
-def _iperf_error(completed: subprocess.CompletedProcess) -> str:
-    """The reason iperf3 gave. With -J the reason is in the JSON "error" field, not on the last line."""
-    try:
-        body = json.loads(completed.stdout)
-    except (TypeError, ValueError):
-        body = None
-    if isinstance(body, dict) and isinstance(body.get("error"), str) and body["error"].strip():
-        return body["error"].strip()[:200]
-    detail = (completed.stderr or completed.stdout or "iperf3 failed").strip().splitlines()
-    return detail[-1][:200] if detail else "iperf3 failed"
-
-
-def _iperf_transient(error: str) -> bool:
-    lowered = error.lower()
-    return any(marker in lowered for marker in _IPERF_TRANSIENT)
-
-
-def _iperf_direction(host: str, port: int, reverse: bool, bind: str | None) -> tuple[float | None, str]:
-    """One direction, tried again when the server drops the connection."""
-    error = ""
-    for attempt in range(IPERF_RETRY_ATTEMPTS):
-        if attempt:
-            time.sleep(IPERF_RETRY_PAUSE_S)
-        mbps, error = _iperf_once(host, port, reverse=reverse, bind=bind)
-        if mbps is not None:
-            return mbps, ""
-        if not _iperf_transient(error):
-            break
-    return None, error
 
 
 def _valid_host(host: str) -> bool:
@@ -407,68 +306,6 @@ def _bind_socket(sock: socket.socket, iface: str | None) -> None:
         return
 
 
-def _iperf_target(test: dict) -> tuple[str, int]:
-    raw = str(test.get("target") or IPERF_HOST).strip()
-    host, separator, port_text = raw.partition(":")
-    if separator and port_text.isdigit():
-        return host, int(port_text)
-    return raw, IPERF_PORT
-
-
-def check_iperf(test: dict) -> dict:
-    started_at = _now()
-    started = time.perf_counter()
-    host, port = _iperf_target(test)
-    if _tool("iperf3") is None:
-        return _result(
-            test,
-            started_at,
-            "fail",
-            [_stage("transfer", started, "fail")],
-            {"down_mbps": 0.0, "up_mbps": 0.0, "rtt_ms": 0.0, "loss_pct": 100.0, "total_ms": 0.0},
-            "iperf3 is not installed",
-        )
-    last_error = "iperf3 failed"
-    if _valid_host(host) and 1 <= port <= 65535:
-        iface = _probe_interface(test)
-        bind = _interface_ipv4(iface) if iface else None
-        upload, up_error = _iperf_direction(host, port, False, bind)
-        time.sleep(IPERF_DIRECTION_GAP_S)
-        download, down_error = _iperf_direction(host, port, True, bind)
-        if upload is not None or download is not None:
-            total_ms = round((time.perf_counter() - started) * 1000, 1)
-            status = "ok"
-            if upload is None or download is None or (download or 0) < 5 or (upload or 0) < 1:
-                status = "degraded"
-            message = host
-            if upload is None or download is None:
-                message = f"{host}: {down_error or up_error}".strip()
-            return _result(
-                test,
-                started_at,
-                status,
-                [{"name": "transfer", "duration_ms": total_ms, "status": status}],
-                {
-                    "down_mbps": download if download is not None else 0.0,
-                    "up_mbps": upload if upload is not None else 0.0,
-                    "rtt_ms": 0.0,
-                    "loss_pct": 0.0,
-                    "total_ms": total_ms,
-                },
-                message,
-            )
-        last_error = down_error or up_error or last_error
-    total_ms = round((time.perf_counter() - started) * 1000, 1)
-    return _result(
-        test,
-        started_at,
-        "fail",
-        [{"name": "transfer", "duration_ms": total_ms, "status": "fail"}],
-        {"down_mbps": 0.0, "up_mbps": 0.0, "rtt_ms": 0.0, "loss_pct": 100.0, "total_ms": total_ms},
-        last_error,
-    )
-
-
 def _threshold_ms(test: dict) -> float | None:
     value = test.get("threshold_ms")
     if value is None:
@@ -637,7 +474,7 @@ def _path_status(loss: float | None, rtt: float | None) -> str:
 def check_ping(test: dict) -> dict:
     started_at = _now()
     started = time.perf_counter()
-    host = _host_only(str(test.get("target") or IPERF_HOST))
+    host = _host_only(str(test.get("target") or TUNNEL_HOST))
     if _tool("ping") is None:
         return _result(test, started_at, "fail", [{"name": "icmp", "duration_ms": 0.0, "status": "fail"}], _path_metrics(None, 100.0, 0.0), "ping is not installed")
     if not _valid_host(host):
@@ -712,7 +549,7 @@ def parse_mtr_hubs(payload: str) -> list[dict]:
 def check_mtr(test: dict) -> dict:
     started_at = _now()
     started = time.perf_counter()
-    host = _host_only(str(test.get("target") or IPERF_HOST))
+    host = _host_only(str(test.get("target") or TUNNEL_HOST))
     if _tool("mtr") is None:
         return _result(test, started_at, "fail", [{"name": "trace", "duration_ms": 0.0, "status": "fail"}], _trace_metrics([], 0.0), "mtr is not installed")
     if not _valid_host(host):
@@ -802,8 +639,6 @@ def _trace_metrics(hops: list[dict], total: float) -> dict:
 
 def run_check(test: dict) -> dict | None:
     kind = test.get("kind")
-    if kind == "iperf3":
-        return check_iperf(test)
     if kind == "librespeed":
         return check_librespeed(test)
     if kind == "webrtc":
@@ -820,7 +655,7 @@ def run_check(test: dict) -> dict | None:
 def check_librespeed(test: dict) -> dict:
     started_at = _now()
     started = time.perf_counter()
-    host = _host_only(str(test.get("target") or IPERF_HOST))
+    host = _host_only(str(test.get("target") or TUNNEL_HOST))
     if _tool("librespeed-cli") is None:
         return _result(test, started_at, "fail", [_stage("transfer", started, "fail")], _speed_metrics(None, None, None, None, 0), "librespeed-cli is not installed")
     if not _valid_host(host):
@@ -924,7 +759,7 @@ def _float_value(value: object) -> float | None:
 def check_webrtc(test: dict) -> dict:
     started_at = _now()
     started = time.perf_counter()
-    host = _host_only(str(test.get("target") or IPERF_HOST))
+    host = _host_only(str(test.get("target") or TUNNEL_HOST))
     empty = {"rtt_ms": None, "jitter_ms": None, "loss_pct": None, "frames_in": 0, "frames_out": 0, "total_ms": 0.0}
     if _tool("webrtc-call") is None:
         return _result(test, started_at, "fail", [_stage("call", started, "fail")], empty, "webrtc-call is not installed")

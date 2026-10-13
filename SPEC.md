@@ -52,7 +52,7 @@ The Pi stays on the LAN and reaches the server over outbound HTTPS. Only server 
 | `POST` | `/api/v1/enrollment/codes/{id}/start-over` | Admin + CSRF. Clear check-ins after two devices used one code |
 | `DELETE` | `/api/v1/enrollment/codes/{id}` | Admin + CSRF. Remove a registration that was never approved |
 | `DELETE` | `/api/v1/monitors/{id}` | Admin + CSRF. Remove a remote agent and its tunnel peer, and release its installer code |
-| `POST` | `/api/v1/monitors/health` | Remote agent posts one device-health sample; response is the desired config, including iperf3 and web-service HTTP tests |
+| `POST` | `/api/v1/monitors/health` | Remote agent posts one device-health sample; response is the desired config, including File Transfer and web-service HTTP tests |
 | `GET` | `/api/v1/monitors/{id}/device` | Latest device health, 24h chart points, and whether config is applied |
 | `GET` | `/api/v1/summary` | Remote agent × network health matrix + open issues |
 | `GET` | `/api/v1/results` | Filtered test results |
@@ -77,7 +77,7 @@ Loading / empty states required. Dark/light theme when cheap. Viewer role hides 
 |---|---|
 | **0 — Dashboard-first (this repo slice)** | Thin server + seed + core UI on Compose. No Pi required. |
 | **1 — Server hardening** | Full enrollment, config ETag, auth polish, issue engine |
-| **2 — Remote agent** | Pi package: LAN setup page, enroll, device health, HTTP, ICMP, and MTR against the server at 10.7.0.1, iperf3 against Hurricane Electric, plus web-service HTTP checks. Other staged tests and the offline spool come later |
+| **2 — Remote agent** | Pi package: LAN setup page, enroll, device health, HTTP, ICMP, and MTR against the server at 10.7.0.1, File Transfer and a video call over the tunnel, plus web-service HTTP checks. Other staged tests and the offline spool come later |
 | **3 — Wireless / RF** | Airwaves. The link adapter carries traffic. A second radio adapter, preferably a USB MediaTek, runs the scans. With only one adapter, scans wait at least 15 minutes and never run during a test. A new access point of the joined SSID is trusted when it shares the OUI (the first three MAC bytes) with the BSSID the remote agent is associated to, and is labeled a mesh node. A different OUI opens a possible evil-twin issue. Access points already seen are checked again the first time that association is known. Manual trust is left alone. |
 | **4 — Cloud** | Same Compose on a small VPS (Hetzner CX / DO droplet) + TLS |
 
