@@ -24,10 +24,12 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-hns}:${POSTGRES_PASSWORD:-hns-dev-password}@db:5432/${POSTGRES_DB:-hns}
       WIREGUARD_ENDPOINT: ${WIREGUARD_ENDPOINT:-10.0.0.123:51820}
       WIREGUARD_STATE_DIR: /var/lib/hns-wireguard
+      RTNP_STATE_DIR: /var/lib/hns-rtnp
     ports:
       - "8847:8847"
     volumes:
       - wgstate:/var/lib/hns-wireguard
+      - rtnpstate:/var/lib/hns-rtnp
     depends_on:
       db:
         condition: service_healthy
@@ -74,6 +76,7 @@ services:
       - /dev/net/tun:/dev/net/tun
     ports:
       - "51820:51820/udp"
+      - "0.0.0.0:8998:8998/udp"
     volumes:
       - wgstate:/etc/wireguard
     environment:
@@ -82,6 +85,27 @@ services:
     depends_on:
       - server
       - librespeed
+    restart: unless-stopped
+
+  rtnp:
+    build:
+      context: .
+      dockerfile: deploy/rtnp.Dockerfile
+    network_mode: service:wireguard
+    user: "65532:65532"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.50
+    tmpfs:
+      - /tmp
+    volumes:
+      - rtnpstate:/var/lib/hns-rtnp:ro
+    depends_on:
+      - wireguard
     restart: unless-stopped
 
   dashboard:
@@ -100,3 +124,4 @@ volumes:
   pgdata:
   wgstate:
   servertls:
+  rtnpstate:

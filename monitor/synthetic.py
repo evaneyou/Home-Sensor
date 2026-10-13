@@ -7,6 +7,7 @@ import json
 import os
 import signal
 import subprocess
+import sys
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,6 +41,7 @@ DAILY_BYTES = 20 * 1024 * 1024 * 1024
 
 _lock = threading.Lock()
 _running: dict[tuple[str, str], dict[str, Any]] = {}
+_last_failure = ""
 
 
 def is_tunnel_target(host: str) -> bool:
@@ -349,6 +351,12 @@ def _send_env(target: str, source: Optional[str]) -> dict[str, str]:
     return env
 
 
+def last_failure() -> str:
+    """Why the most recent flow stopped on its own, for the agent's status page."""
+    with _lock:
+        return _last_failure
+
+
 def _reap_strays() -> None:
     """A reload leaves the previous senders running. Stop any this process did not start."""
     with _lock:
@@ -460,7 +468,7 @@ def _ensure(config: dict, item: tuple[str, str], job: dict[str, Any], target: st
     proc = subprocess.Popen(
         args,
         stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
         text=True,
         env=_send_env(target, source),
     )
@@ -515,6 +523,13 @@ def _read_output(config: dict, item: tuple[str, str], proc: subprocess.Popen) ->
         except (OSError, ValueError, KeyError):
             continue
     code = proc.wait()
+    note = ""
+    if proc.stderr is not None:
+        try:
+            lines = [line for line in proc.stderr.read().splitlines() if line.strip()]
+            note = lines[-1].strip()[:200] if lines else ""
+        except (OSError, ValueError):
+            note = ""
     with _lock:
         state = _running.get(item)
         mode = state["mode"] if state else None
@@ -522,6 +537,15 @@ def _read_output(config: dict, item: tuple[str, str], proc: subprocess.Popen) ->
             _running.pop(item, None)
     if mode == "manual":
         _finish(config, run_id, link, "finished" if code == 0 else "failed", None)
+    elif state is not None and code != 0:
+        # A continuous flow that stops by itself is relaunched on the next sync.
+        # Without this it fails in silence: nothing finishes the run, and the
+        # sender's own complaint used to go to /dev/null.
+        global _last_failure
+        trouble = note or f"rtnp-send exited with code {code}"
+        with _lock:
+            _last_failure = f"{link}: {trouble}"
+        print(f"synthetic: {link} flow stopped: {trouble}", file=sys.stderr, flush=True)
 
 
 def _json_line(line: str) -> Optional[dict]:

@@ -70,9 +70,13 @@ Because `COMPOSE_FILE` is set, plain `docker compose` commands in this directory
 ## 4. Start it
 
 ```bash
-docker compose up --build -d
+./scripts/deploy.sh
 docker compose exec server python -m app.seed --users-only
 ```
+
+The `rtnp` image builds from a copy of the [RTN_PackGen](https://github.com/evaneyou/RTN_PackGen)
+project in `rtnp/`. It is a separate repository, so clone it there first; it is not
+part of this one.
 
 The first build compiles the dashboard and takes a few minutes. Migrations run automatically on start. `--users-only` creates the admin and viewer accounts **without demo data**, and refuses to run with the default passwords. Do not run the plain seed on this server.
 
@@ -129,8 +133,15 @@ docker compose restart
 ```bash
 cd homenetwatch
 git pull
-docker compose up --build -d
+./scripts/deploy.sh
 ```
+
+Use the script rather than `docker compose up --build -d` on its own. `rtnp` runs
+with `network_mode: service:wireguard`, so it has no network of its own. Recreating
+the tunnel destroys the namespace `rtnp` is attached to: the container still reports
+**Up** while its listener is gone, and every measurement flow dies at launch with
+nothing in any log. The script recreates `rtnp` whenever `wireguard` is recreated.
+Named services work too: `./scripts/deploy.sh server dashboard`.
 
 ## Troubleshooting
 
@@ -143,3 +154,4 @@ docker compose up --build -d
 | Pi can't enroll | Port 8848/TCP open; Pi can reach `https://<domain>`; `WIREGUARD_ENDPOINT` is the public IP and port |
 | Pi tunnel never connects | Port 51820/UDP open; `WIREGUARD_ENDPOINT` correct, then re-issue the tunnel |
 | Build is killed or very slow | The machine needs more memory, or build on another machine |
+| Application checks stop reporting after a deploy | `rtnp` lost the tunnel's network namespace: `docker compose up -d --force-recreate rtnp`. From the Pi, `10.7.0.1:8999` refusing a connection confirms it |
