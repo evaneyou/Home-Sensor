@@ -52,7 +52,7 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
   return (
     <div className="login-wrap ui-compact">
       <form className="login-card" onSubmit={submit}>
-        <h1>Home Network User Experience</h1>
+        <h1>HomeNetWatch</h1>
         <p>Sign in to view remote agent health and staged test results.</p>
         {error && <div className="error">{error}</div>}
         <div className="field">
