@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOutletContext } from "react-router-dom";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
 import { api } from "../../api";
+import { useGuestGate } from "../../guestGate";
 import { CHART_COLORS } from "../../chartTheme";
 import WaitButton from "../../components/WaitButton";
 import type { RfBandAdvice, RfOverview } from "../../types";
@@ -9,6 +10,7 @@ import { type AirContext, scanLabel } from "./shared";
 
 export default function AirwavesOverview() {
   const ctx = useOutletContext<AirContext>();
+  const run = useGuestGate();
   const qc = useQueryClient();
   const scan = useMutation({
     mutationFn: () => api.rfScanNow(ctx.agent.id),
@@ -24,7 +26,7 @@ export default function AirwavesOverview() {
     return (
       <div className="state-box">
         No data yet. {ctx.agent.name} uploads scans on its own.
-        {ctx.admin ? <ScanButton ctx={ctx} pending={scan.isPending} onScan={() => scan.mutate()} /> : null}
+        {ctx.operate ? <ScanButton ctx={ctx} pending={scan.isPending} onScan={() => run(() => scan.mutate())} /> : null}
       </div>
     );
   }
@@ -43,8 +45,8 @@ export default function AirwavesOverview() {
           <h2>Run scan now</h2>
           <p>{place}</p>
         </div>
-        {ctx.admin ? (
-          <WaitButton className="air-scan-btn" busy={waiting} label="Scan now" onClick={() => scan.mutate()} />
+        {ctx.operate ? (
+          <WaitButton className="air-scan-btn" busy={waiting} label="Scan now" onClick={() => run(() => scan.mutate())} />
         ) : (
           <p className="air-caption">An admin can ask the agent to scan.</p>
         )}

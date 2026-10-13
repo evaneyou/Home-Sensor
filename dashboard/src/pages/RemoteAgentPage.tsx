@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../api";
+import { canOperate, useGuestGate } from "../guestGate";
 import ConfirmDialog from "../components/ConfirmDialog";
 import SelectMenu from "../components/SelectMenu";
 import LocationForm from "../components/LocationForm";
@@ -41,7 +42,8 @@ export default function RemoteAgentPage() {
   const { id = "" } = useParams();
   const qc = useQueryClient();
   const me = useQuery({ queryKey: ["me"], queryFn: () => api.me() as Promise<User> });
-  const admin = me.data?.role === "admin";
+  const operate = canOperate(me.data?.role);
+  const run = useGuestGate();
   const monitorsQ = useQuery({
     queryKey: ["monitors"],
     queryFn: () => api.monitors() as Promise<MonitorAdmin[]>,
@@ -115,12 +117,14 @@ export default function RemoteAgentPage() {
 
   function requestSave(event: FormEvent) {
     event.preventDefault();
-    if (!name.trim()) {
-      setError("Enter a device name.");
-      return;
-    }
-    setError(null);
-    setConfirming(true);
+    run(() => {
+      if (!name.trim()) {
+        setError("Enter a device name.");
+        return;
+      }
+      setError(null);
+      setConfirming(true);
+    });
   }
 
   if (monitorsQ.isLoading || deviceQ.isLoading) return <div className="state-box">Loading remote agent…</div>;
@@ -187,16 +191,16 @@ export default function RemoteAgentPage() {
         {report?.restart_requested_at ? (
           <p className="muted">A restart is waiting. The probe picks it up within about 15 seconds.</p>
         ) : null}
-        {admin ? (
+        {operate ? (
           <div className="form-actions">
-            <button className="btn" type="button" disabled={busy} onClick={() => setConfirmingRestart(true)}>
+            <button className="btn" type="button" disabled={busy} onClick={() => run(() => setConfirmingRestart(true))}>
               Restart probe
             </button>
           </div>
         ) : null}
       </section>
 
-      {admin ? (
+      {operate ? (
         <section className="panel">
           <h3 className="wifi-heading" style={{ marginTop: 0 }}>
             Setup

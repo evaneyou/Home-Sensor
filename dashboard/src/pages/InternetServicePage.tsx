@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { canOperate, useGuestGate } from "../guestGate";
 import ConfirmDialog from "../components/ConfirmDialog";
 import type { InternetServiceSetting, User } from "../types";
 
@@ -129,7 +130,8 @@ function errorText(error: Error): string {
 export default function InternetServicePage() {
   const qc = useQueryClient();
   const me = useQuery({ queryKey: ["me"], queryFn: () => api.me() as Promise<User> });
-  const admin = me.data?.role === "admin";
+  const operate = canOperate(me.data?.role);
+  const run = useGuestGate();
   const settingQ = useQuery({
     queryKey: ["internet-service"],
     queryFn: () => api.internetService() as Promise<InternetServiceSetting>,
@@ -177,7 +179,7 @@ export default function InternetServicePage() {
 
   const currentSignature = signatureOf(row);
   const dirty = synced !== "" && currentSignature !== signature;
-  const locked = !admin || save.isPending;
+  const locked = !operate || save.isPending;
 
   return (
     <div>
@@ -321,13 +323,13 @@ export default function InternetServicePage() {
         </table>
       </div>
       {error ? <p className="form-error">{error}</p> : null}
-      {admin ? (
+      {operate ? (
         <div className="form-actions">
           <button
             className={`btn btn-primary${dirty ? " is-dirty" : ""}`}
             type="button"
             disabled={save.isPending}
-            onClick={() => setConfirming(true)}
+            onClick={() => run(() => setConfirming(true))}
           >
             Save
           </button>

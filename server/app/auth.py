@@ -33,14 +33,19 @@ def create_session_token(user_id: UUID, settings: Settings) -> str:
     return _serializer(settings).dumps({"uid": str(user_id)})
 
 
-def set_session_cookie(response: Response, token: str, settings: Settings) -> None:
+def set_session_cookie(
+    response: Response,
+    token: str,
+    settings: Settings,
+    max_age: int | None = None,
+) -> None:
     response.set_cookie(
         key=settings.session_cookie_name,
         value=token,
         httponly=True,
         secure=settings.cookie_secure,
         samesite=settings.cookie_samesite,
-        max_age=settings.session_max_age,
+        max_age=settings.session_max_age if max_age is None else max_age,
         path="/",
     )
 
@@ -50,6 +55,7 @@ def clear_session_cookie(response: Response, settings: Settings) -> None:
 
 
 def get_current_user(
+    response: Response,
     db: Annotated[Session, Depends(get_db)],
     settings: Annotated[Settings, Depends(get_settings)],
     hns_session: Annotated[Optional[str], Cookie(alias="hns_session")] = None,
@@ -65,6 +71,13 @@ def get_current_user(
     user = db.get(User, user_id)
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    if user.role == UserRole.guest:
+        try:
+            _serializer(settings).loads(hns_session, max_age=settings.guest_idle_seconds)
+        except SignatureExpired as exc:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session") from exc
+        fresh = create_session_token(user.id, settings)
+        set_session_cookie(response, fresh, settings, max_age=settings.guest_idle_seconds)
     return user
 
 

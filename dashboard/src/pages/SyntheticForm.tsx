@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../api";
+import { canOperate, useGuestGate } from "../guestGate";
 import type { User } from "../types";
 import { FIELD_LIMITS, rangeError } from "./syntheticList";
 
@@ -36,7 +37,8 @@ export function PresetForm({
   onSaved: () => void;
 }) {
   const me = useQuery({ queryKey: ["me"], queryFn: () => api.me() as Promise<User> });
-  const admin = me.data?.role === "admin";
+  const operate = canOperate(me.data?.role);
+  const run = useGuestGate();
   const source = profile.continuous?.options ?? profile.options;
   const running = profile.continuous?.status === "running" || profile.continuous?.status === "pending";
   const [path, setPath] = useState<PathChoice>(running ? pathOf(profile.continuous?.links) : "both");
@@ -107,30 +109,30 @@ export function PresetForm({
       </div>
       <div className="app-health-actions">
         <PathControl label="Continuous path" value={path} onChange={setPath} />
-        {admin ? (
+        {operate ? (
           <button
             className="app-health-primary"
             type="button"
             disabled={save.isPending || continuousInvalid || (action === "save" && !dirty)}
-            onClick={() => save.mutate(action === "off" ? [] : linksFor(path))}
+            onClick={() => run(() => save.mutate(action === "off" ? [] : linksFor(path)))}
           >
             {save.isPending ? "Saving…" : actionLabel}
           </button>
         ) : null}
       </div>
-      {admin ? null : <p className="app-health-note">An admin starts and changes these checks.</p>}
+      {operate ? null : <p className="app-health-note">An admin starts and changes these checks.</p>}
       {save.isError ? <p className="app-health-error">Could not save this continuous check.</p> : null}
       <div className="app-health-split">
         <h4>Timed run</h4>
         <div className="app-health-timed">
           <NumberField label="Duration" unit="s" value={duration} limits={FIELD_LIMITS.duration_seconds} error={errors.duration} onChange={setDuration} />
           <PathControl label="Timed run path" value={manualPath} onChange={setManualPath} />
-          {admin ? (
+          {operate ? (
             <button
               className="app-health-outline"
               type="button"
               disabled={manual.isPending || continuousInvalid || Boolean(errors.duration)}
-              onClick={() => manual.mutate()}
+              onClick={() => run(() => manual.mutate())}
             >
               {manual.isPending ? "Starting…" : "Run once"}
             </button>

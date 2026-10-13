@@ -216,6 +216,11 @@ class ProbeCommandOut(BaseModel):
     trusted_bssids: list[str] = Field(default_factory=list)
 
 
+class GuestVisitOut(BaseModel):
+    created_at: datetime
+    address: str
+
+
 class UserOut(BaseModel):
     id: UUID
     username: str

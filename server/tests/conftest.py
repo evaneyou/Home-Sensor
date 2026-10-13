@@ -106,6 +106,9 @@ def db(engine) -> Generator[Session, None, None]:
     session.execute(text("DELETE FROM monitors WHERE group_id = :gid"), {"gid": group.id})
     session.execute(text("DELETE FROM networks WHERE group_id = :gid"), {"gid": group.id})
     session.execute(text("DELETE FROM groups WHERE id = :gid"), {"gid": group.id})
+    session.execute(
+        text("DELETE FROM audit_events WHERE action = 'guest_login' AND detail IN ('testclient', '203.0.113.5')")
+    )
     session.commit()
     session.close()
 

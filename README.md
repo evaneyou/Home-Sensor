@@ -77,6 +77,7 @@ Open the dashboard at <http://127.0.0.1:3847>.
 |------|----------|----------|
 | Admin | `admin` | `admin-change-me` |
 | Viewer | `viewer` | `viewer-change-me` |
+| Guest | `guest` | `guest` |
 
 > [!WARNING]
 > These are development defaults. Change every secret in `.env` before you expose the stack to

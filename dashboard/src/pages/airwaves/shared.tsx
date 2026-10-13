@@ -10,7 +10,7 @@ export const AIR_TREND_RANGE = "1h";
 
 export type AirContext = {
   agent: MonitorAdmin;
-  admin: boolean;
+  operate: boolean;
   refresh: boolean;
   overview: RfOverview | undefined;
   overviewLoading: boolean;
@@ -69,7 +69,7 @@ export function useAirwaves(): AirContext | "loading" | "error" | "empty" {
 
   return {
     agent,
-    admin: me.data.role === "admin",
+    operate: me.data.role === "admin" || me.data.role === "guest",
     refresh,
     overview: overviewQ.data,
     overviewLoading: overviewQ.isLoading,
