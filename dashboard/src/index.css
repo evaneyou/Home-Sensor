@@ -3611,14 +3611,31 @@ button.npv-select {
   color: var(--soft);
 }
 
-.airwaves.npv .air-switch {
+/* Keep the 44px tap target, but draw the usual 30px pill track inside it. */
+.airwaves.npv .air-switch,
+.airwaves.npv .air-switch.on {
   width: 52px;
   height: 44px;
   flex: none;
+  background: transparent;
+}
+
+.airwaves.npv .air-switch::before {
+  content: "";
+  position: absolute;
+  inset: 7px 0;
+  border-radius: 999px;
+  background: #2a3558;
+  transition: background 0.15s ease;
+}
+
+.airwaves.npv .air-switch.on::before {
+  background: var(--mint);
 }
 
 .airwaves.npv .air-switch i {
   top: 10px;
+  transition: left 0.15s ease;
 }
 
 .airwaves.npv .air-switch.on i {
