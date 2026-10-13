@@ -7,17 +7,15 @@ import "../overview.css";
 type CheckState = "ok" | "slow" | "down" | "unknown";
 type Mood = "happy" | "curious" | "slow" | "down";
 
-const CHECKS: { key: "wired" | "wifi" | "internet" | "web"; label: string; icon: string; column: string }[] = [
+const CHECKS: { key: "wired" | "wifi" | "web"; label: string; icon: string; column: string }[] = [
   { key: "wired", label: "Wired", icon: "plug", column: "lan" },
   { key: "wifi", label: "Wi-Fi", icon: "wifi", column: "wifi-main" },
-  { key: "internet", label: "Internet", icon: "globe", column: "internet" },
   { key: "web", label: "Web", icon: "cloud", column: "web" },
 ];
 
 const DEFAULT_DETAIL: Record<string, Record<CheckState, string>> = {
   wired: { ok: "Rock solid", slow: "Running slow", down: "Not connected", unknown: "Not tested yet" },
   wifi: { ok: "Strong signal", slow: "Weak signal", down: "Not connected", unknown: "Not tested yet" },
-  internet: { ok: "Humming along", slow: "Running slow", down: "Not reachable", unknown: "Not tested yet" },
   web: { ok: "Loading quickly", slow: "Loading slowly", down: "Not loading", unknown: "Not tested yet" },
 };
 
@@ -92,15 +90,7 @@ function slugNetworkId(cells: HealthCell[], monitorId: string, slug: string): st
   return (tested ?? matches[0])?.network_id ?? null;
 }
 
-function internetLink(cells: HealthCell[], monitorId: string): "wired" | "wireless" | null {
-  const matches = checkCells(cells, monitorId, "internet", "internet");
-  const slug = (matches.find((cell) => hasResult(cell)) ?? matches[0])?.network_slug;
-  if (slug === "wired") return "wired";
-  if (slug === "wifi") return "wireless";
-  return null;
-}
-
-function checkHref(monitorId: string, key: string, networkId: string | null, link: string | null): string {
+function checkHref(monitorId: string, key: string, networkId: string | null): string {
   if (!networkId) return `/monitors/${monitorId}`;
   if (key === "wired" || key === "wifi") {
     const params = new URLSearchParams({
@@ -108,11 +98,6 @@ function checkHref(monitorId: string, key: string, networkId: string | null, lin
       detail: "isp",
       link: key === "wired" ? "wired" : "wireless",
     });
-    return `/monitors/${monitorId}?${params}`;
-  }
-  if (key === "internet") {
-    const params = new URLSearchParams({ network: networkId, detail: "isp" });
-    if (link === "wired" || link === "wireless") params.set("link", link);
     return `/monitors/${monitorId}?${params}`;
   }
   return `/monitors/${monitorId}?network=${networkId}`;
@@ -132,14 +117,6 @@ function Icon({ name }: { name: string }) {
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0" />
         <circle className="solid" cx="12" cy="19.5" r="1" />
-      </svg>
-    );
-  }
-  if (name === "globe") {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="12" cy="12" r="9" />
-        <path d="M3 12h18M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18" />
       </svg>
     );
   }
@@ -166,17 +143,16 @@ function viewOf(data: Summary, regionById: Map<string, string | null>) {
   const locations = data.monitors.map((monitor) => {
     const checks = CHECKS.map((check) => {
       const state = columnState(data.matrix, monitor.id, check.key, check.column);
-      const link = check.key === "internet" ? internetLink(data.matrix, monitor.id) : null;
       const wifiId = slugNetworkId(data.matrix, monitor.id, "wifi");
       const networkId =
-        check.key === "wifi" || link === "wireless"
+        check.key === "wifi"
           ? (wifiId ?? checkNetworkId(data.matrix, monitor.id, check.key, check.column))
           : checkNetworkId(data.matrix, monitor.id, check.key, check.column);
       return {
         ...check,
         state,
         detail: DEFAULT_DETAIL[check.key][state],
-        href: checkHref(monitor.id, check.key, networkId, link),
+        href: checkHref(monitor.id, check.key, networkId),
       };
     });
     const labels = (state: CheckState) => checks.filter((check) => check.state === state).map((check) => check.label);
