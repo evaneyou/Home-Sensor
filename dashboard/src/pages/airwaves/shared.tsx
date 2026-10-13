@@ -1,16 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { api } from "../../api";
 import SelectMenu from "../../components/SelectMenu";
 import type { MonitorAdmin, RfOverview, User } from "../../types";
 
-export const RANGES = ["1h", "6h", "24h", "7d"] as const;
-export type AirRange = (typeof RANGES)[number];
+/** Sparklines and history charts. Lists use the server default, which is the same window. */
+export const AIR_TREND_RANGE = "24h";
 
 export type AirContext = {
   agent: MonitorAdmin;
-  range: AirRange;
   admin: boolean;
   refresh: boolean;
   overview: RfOverview | undefined;
@@ -27,7 +26,13 @@ export function isStale(lastScan: string | null | undefined): boolean {
 
 export function scanLabel(lastScan: string | null | undefined): string {
   if (!lastScan) return "No scans yet";
-  return `Last scan ${new Date(lastScan).toLocaleString()}`;
+  return `Last scan ${new Date(lastScan).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
+}
+
+export function modeLabel(mode: string | undefined): string {
+  if (mode === "kismet") return "Kismet capture";
+  if (mode === "scan") return "Scan capture";
+  return "Capture off";
 }
 
 export function useAirwaves(): AirContext | "loading" | "error" | "empty" {
@@ -40,20 +45,20 @@ export function useAirwaves(): AirContext | "loading" | "error" | "empty" {
   const monitors = monitorsQ.data ?? [];
   const requested = params.get("agent");
   const agent = monitors.find((item) => item.id === requested) ?? monitors[0];
-  const rangeParam = params.get("range");
-  const range: AirRange = RANGES.includes(rangeParam as AirRange) ? (rangeParam as AirRange) : "24h";
   const refresh = params.get("refresh") !== "off";
 
   useEffect(() => {
-    if (!agent || requested === agent.id) return;
+    if (!agent) return;
+    if (!params.has("range") && requested === agent.id) return;
     const next = new URLSearchParams(params);
+    next.delete("range");
     next.set("agent", agent.id);
     setParams(next, { replace: true });
   }, [agent, requested, params, setParams]);
 
   const overviewQ = useQuery({
-    queryKey: ["rf-overview", agent?.id, range],
-    queryFn: () => api.rfOverview(agent.id, range),
+    queryKey: ["rf-overview", agent?.id],
+    queryFn: () => api.rfOverview(agent.id),
     enabled: Boolean(agent),
     refetchInterval: refresh ? 15_000 : false,
   });
@@ -64,7 +69,6 @@ export function useAirwaves(): AirContext | "loading" | "error" | "empty" {
 
   return {
     agent,
-    range,
     admin: me.data.role === "admin",
     refresh,
     overview: overviewQ.data,
@@ -77,24 +81,27 @@ export default function AirwavesLayout() {
   const state = useAirwaves();
   const [params, setParams] = useSearchParams();
   const loc = useLocation();
+  const coarse = useCoarsePointer();
 
   if (state === "loading") return <div className="state-box">Loading airwaves…</div>;
   if (state === "error") return <div className="state-box">Could not load airwave data.</div>;
   if (state === "empty") return <div className="state-box">No remote agents yet.</div>;
 
-  const { agent, range, overview, overviewLoading, overviewError } = state;
+  const { agent, overview, overviewLoading, overviewError } = state;
 
   function setQuery(patch: Record<string, string>) {
     const next = new URLSearchParams(params);
+    next.delete("range");
     for (const [key, value] of Object.entries(patch)) next.set(key, value);
     setParams(next);
   }
 
   function pageHref(path: string) {
     const next = new URLSearchParams(params);
+    next.delete("range");
     next.set("agent", agent.id);
-    next.set("range", range);
-    return `${path}?${next.toString()}`;
+    const query = next.toString();
+    return query ? `${path}?${query}` : path;
   }
 
   const pages = [
@@ -108,46 +115,37 @@ export default function AirwavesLayout() {
 
   return (
     <div className="npv airwaves">
-      <div className="npv-titlebar">
-        <div className="air-brand">
-          <div className="air-mark" aria-hidden="true">
-            <WaveIcon />
-          </div>
-          <div>
-            <h1>Airwaves</h1>
-            <p className="npv-sub">What's in the air around {place}</p>
-          </div>
+      <header className="air-titlebar">
+        <div className="air-title">
+          <h1>Airwaves</h1>
+          <span className="air-badge">{modeLabel(overview?.airwave_mode)}</span>
         </div>
-        <div className={overview?.last_scan_at ? "npv-agent" : "npv-agent offline"}>
-          <span className="npv-dot" />
-          <span>{overviewLoading ? "Checking scans…" : scanLabel(overview?.last_scan_at)}</span>
-        </div>
-      </div>
+        <p className="air-sub">What's in the air around {place}</p>
+      </header>
       <div className="npv-card air-controls">
         <div className="air-agent">
-          <span id="air-agent-label">Remote Agent</span>
+          <span className="air-label" id="air-agent-label">Remote agent</span>
           <div className="air-select-wrap">
-            <SelectMenu
-              className="air-select"
-              aria-labelledby="air-agent-label"
-              value={agent.id}
-              onChange={(event) => setQuery({ agent: event.target.value })}
-            >
-              <AgentOptions />
-            </SelectMenu>
+            {coarse ? (
+              <select
+                className="air-select"
+                aria-labelledby="air-agent-label"
+                value={agent.id}
+                onChange={(event) => setQuery({ agent: event.target.value })}
+              >
+                <AgentOptions />
+              </select>
+            ) : (
+              <SelectMenu
+                className="air-select"
+                aria-labelledby="air-agent-label"
+                value={agent.id}
+                onChange={(event) => setQuery({ agent: event.target.value })}
+              >
+                <AgentOptions />
+              </SelectMenu>
+            )}
           </div>
-        </div>
-        <div className="air-pills" role="group" aria-label="Time range">
-          {RANGES.map((item) => (
-            <button
-              key={item}
-              className={item === range ? "air-pill active" : "air-pill"}
-              type="button"
-              onClick={() => setQuery({ range: item })}
-            >
-              {item}
-            </button>
-          ))}
         </div>
         <div className="air-live">
           <button
@@ -161,24 +159,26 @@ export default function AirwavesLayout() {
           </button>
           <span>Refresh every 15 s</span>
         </div>
+        <p className="air-scan-time">{overviewLoading ? "Checking scans…" : scanLabel(overview?.last_scan_at)}</p>
       </div>
       {overviewError ? <div className="error">Could not load the latest scan.</div> : null}
-      {isStale(overview?.last_scan_at) ? <div className="air-stale">The last scan is more than 15 minutes old.</div> : null}
+      {isStale(overview?.last_scan_at) ? <p className="air-stale">The last scan is more than 15 minutes old.</p> : null}
       <div className="air-tabs">
-        <div className="air-pills" role="tablist">
+        <div className="air-tab-grid" role="tablist">
           {pages.map((page) => (
             <Link
               key={page.path}
               to={pageHref(page.path)}
               className={loc.pathname === page.path ? "air-pill active" : "air-pill"}
               role="tab"
+              aria-selected={loc.pathname === page.path}
             >
               {page.label}
             </Link>
           ))}
         </div>
         {loc.pathname === "/airwaves/channels" ? (
-          <div className="air-pills" role="group" aria-label="Band">
+          <div className="air-band-picks" role="group" aria-label="Band">
             {["2.4", "5"].map((item) => (
               <button
                 key={item}
@@ -192,17 +192,22 @@ export default function AirwavesLayout() {
           </div>
         ) : null}
       </div>
+      {overview?.headline ? <p className="air-headline">{overview.headline}</p> : null}
       <Outlet context={state} />
     </div>
   );
 }
 
-function WaveIcon() {
-  return (
-    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#5eead4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M2 12c2-5 4-5 6 0s4 5 6 0 4-5 6 0" />
-    </svg>
-  );
+function useCoarsePointer(): boolean {
+  const [coarse, setCoarse] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(pointer: coarse)");
+    const update = () => setCoarse(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  return coarse;
 }
 
 function AgentOptions() {
