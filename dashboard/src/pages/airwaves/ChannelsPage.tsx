@@ -199,7 +199,7 @@ function Stat({ label, value, note }: { label: string; value: string; note: stri
 
 function AxisLabel({ x, y, text }: { x: number; y: number; text: string }) {
   return (
-    <text x={x} y={y} fill="#9aa6c0" fontSize={13} fontWeight={700} textAnchor="end">
+    <text x={x} y={y} fill="#9aa6c0" fontSize={12} fontWeight={700} textAnchor="end">
       {text}
     </text>
   );

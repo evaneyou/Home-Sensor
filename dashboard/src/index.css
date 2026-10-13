@@ -3491,3 +3491,776 @@ button.npv-select {
   }
 }
 
+.main:has(.airwaves) {
+  max-width: 1120px;
+  width: 100%;
+  min-width: 0;
+  padding: 16px 12px 32px;
+}
+
+.airwaves.npv {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  gap: 12px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.airwaves.npv h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.airwaves.npv h2,
+.airwaves.npv h3 {
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.airwaves.npv .npv-card {
+  border-radius: 12px;
+  padding: 12px 14px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.air-titlebar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.air-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.air-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--chip);
+  color: var(--mint);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.air-sub,
+.air-label,
+.air-scan-time,
+.air-caption {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.airwaves.npv .air-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.airwaves.npv .air-agent {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.airwaves.npv .air-select-wrap,
+.airwaves.npv .air-select,
+.airwaves.npv .select-menu {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.airwaves.npv .air-select {
+  min-height: 44px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.airwaves.npv .air-live {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--soft);
+}
+
+.airwaves.npv .air-switch {
+  width: 52px;
+  height: 44px;
+  flex: none;
+}
+
+.airwaves.npv .air-switch i {
+  top: 10px;
+}
+
+.airwaves.npv .air-switch.on i {
+  left: 25px;
+}
+
+.airwaves.npv .air-stale {
+  margin: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.air-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.air-tab-grid,
+.air-band-picks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.airwaves.npv .air-tab-grid .air-pill,
+.airwaves.npv .air-band-picks .air-pill {
+  min-width: 0;
+  min-height: 40px;
+  width: 100%;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.air-headline {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--soft);
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 600px) {
+  .main:has(.airwaves) {
+    padding: 24px 16px 40px;
+  }
+
+  .airwaves.npv .air-controls {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .airwaves.npv .air-agent {
+    flex: 1 1 220px;
+    width: auto;
+  }
+
+  .air-tab-grid {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .airwaves.npv .air-tab-grid .air-pill {
+    width: auto;
+    flex: 1 1 8rem;
+  }
+
+  .air-band-picks {
+    display: flex;
+    flex-wrap: wrap;
+    width: auto;
+  }
+
+  .airwaves.npv .air-band-picks .air-pill {
+    width: auto;
+  }
+}
+
+.air-overview,
+.air-bands {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.air-band-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.air-band-line h2,
+.air-band-line span {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.air-band-line span {
+  font-size: 14px;
+  color: var(--soft);
+}
+
+.air-band-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.air-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 64px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--chip);
+  min-width: 0;
+}
+
+.air-box span {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.air-box strong {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.air-box-accent {
+  box-shadow: inset 0 0 0 1px var(--mint);
+}
+
+.air-spark {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  min-width: 0;
+}
+
+.air-spark-plot {
+  width: 100%;
+  height: 48px;
+  min-width: 0;
+}
+
+.air-scan-card {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.air-scan-copy h2,
+.air-scan-copy p {
+  margin: 0;
+}
+
+.air-scan-copy p {
+  font-size: 14px;
+  color: var(--soft);
+  overflow-wrap: anywhere;
+}
+
+.airwaves.npv .air-scan-btn {
+  min-height: 44px;
+  width: 100%;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.air-scan-status {
+  grid-column: 1 / -1;
+}
+
+.air-alerts-title,
+.air-alerts-desk {
+  display: none;
+}
+
+.air-alerts-phone summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.air-alerts-list p,
+.air-alerts-desk p {
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 600px) {
+  .air-bands {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .air-band {
+    flex: 1 1 0;
+  }
+
+  .air-scan-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .airwaves.npv .air-scan-btn {
+    width: auto;
+    min-width: 8rem;
+  }
+
+  .air-alerts-phone {
+    display: none;
+  }
+
+  .air-alerts-title,
+  .air-alerts-desk {
+    display: block;
+  }
+}
+
+.air-list-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.air-list-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  min-width: 0;
+}
+
+.air-filter {
+  flex: 1 1 100%;
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--chip);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  padding: 0 12px;
+}
+
+.air-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--soft);
+}
+
+.air-text-btn {
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--chip);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.air-colhead {
+  display: none;
+}
+
+.air-list-item {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  min-width: 0;
+}
+
+.air-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "device signal chevron"
+    "sub sub sub";
+  gap: 2px 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.air-row:hover,
+.air-row:focus-visible {
+  background: rgba(255, 255, 255, 0.04);
+  outline: 2px solid var(--mint);
+  outline-offset: -2px;
+}
+
+.air-row-device { grid-area: device; min-width: 0; }
+.air-row-signal { grid-area: signal; }
+.air-chevron { grid-area: chevron; font-size: 14px; color: var(--muted); }
+.air-row-sub { grid-area: sub; }
+
+.air-row strong,
+.air-row em,
+.air-row-sub,
+.air-row-band,
+.air-row-net,
+.air-row-seen {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-wrap: anywhere;
+}
+
+.air-row strong { font-size: 14px; font-weight: 800; }
+.air-row em,
+.air-row-sub { font-size: 12px; font-style: normal; font-weight: 700; color: var(--muted); }
+.air-row-device em,
+.air-row-net,
+.air-row-band,
+.air-row-retries,
+.air-row-seen,
+.air-sigbar,
+.air-colhead { display: none; }
+
+.air-row-signal {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.air-details {
+  padding: 0 0 10px;
+  min-width: 0;
+}
+
+.air-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.air-tile {
+  min-width: 0;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--chip);
+}
+
+.air-tile span {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.air-tile strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.air-client-spark,
+.air-net-spark {
+  width: 100%;
+  min-width: 0;
+  margin-top: 8px;
+}
+
+.air-client-spark {
+  height: 60px;
+}
+
+.air-net-spark {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.air-group {
+  margin: 8px 0 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+@media (min-width: 900px) {
+  .air-colhead {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.3fr) minmax(0, 0.9fr) 7.5rem 4rem 6.5rem 1rem;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--muted);
+  }
+
+  .air-row {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.3fr) minmax(0, 0.9fr) 7.5rem 4rem 6.5rem 1rem;
+    grid-template-areas: "device net band signal retries seen chevron";
+    min-height: 48px;
+  }
+
+  .air-row-device em,
+  .air-row-net,
+  .air-row-band,
+  .air-row-retries,
+  .air-row-seen,
+  .air-sigbar {
+    display: block;
+  }
+
+  .air-row-sub { display: none; }
+
+  .air-row-net em { display: block; }
+
+  .air-sigbar {
+    width: 48px;
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .air-sigbar i {
+    display: block;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--mint);
+  }
+
+  .air-row-retries,
+  .air-row-seen,
+  .air-row-band {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--soft);
+  }
+
+  .air-tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .air-ap-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "device signal chevron"
+      "sub sub sub";
+  }
+
+  .air-ap-row .air-row-sub {
+    display: block;
+  }
+}
+
+.air-mini-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.airwaves.npv .air-trust {
+  min-height: 44px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.airwaves.npv .air-plot {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  aspect-ratio: auto;
+  height: 220px;
+}
+
+.airwaves.npv .air-nets {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.airwaves.npv .air-net {
+  min-width: 0;
+  border-radius: 8px;
+}
+
+.airwaves.npv .air-net-name,
+.airwaves.npv .air-net-dbm,
+.airwaves.npv .air-reason,
+.airwaves.npv .air-empty p {
+  font-size: 14px;
+}
+
+.airwaves.npv .air-net-meta,
+.airwaves.npv .npv-hint {
+  font-size: 12px;
+}
+
+.airwaves.npv .air-kicker {
+  font-size: 11px;
+  border-radius: 4px;
+}
+
+.airwaves.npv .air-rec h2 {
+  font-size: 16px;
+}
+
+.airwaves.npv .air-rec .npv-stat .v,
+.airwaves.npv .air-near-stat .v {
+  font-size: 22px;
+}
+
+.airwaves.npv .recharts-responsive-container {
+  max-width: 100%;
+  min-width: 0 !important;
+}
+
+.app-shell:not(.dash-shell) .main:has(.airwaves) {
+  max-width: 1120px;
+  width: 100%;
+  min-width: 0;
+  padding: 16px 12px 32px;
+}
+
+.app-shell:not(.dash-shell) .main .airwaves .air-select,
+.app-shell:not(.dash-shell) .main .airwaves .select-menu-trigger.air-select,
+.airwaves.npv select,
+.airwaves.npv option {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  font-size: 14px;
+  border-radius: 8px;
+}
+
+.airwaves.npv .air-agent .air-label {
+  font-size: 12px;
+}
+
+.airwaves.npv .air-rec {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.airwaves.npv .air-rec-copy,
+.airwaves.npv .air-rec .npv-stats {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.airwaves.npv .air-rec .npv-stat {
+  border-radius: 8px;
+  min-width: 0;
+}
+
+.airwaves.npv .npv-stat .k,
+.airwaves.npv .npv-stat .s,
+.airwaves.npv .air-empty-note {
+  font-size: 12px;
+}
+
+.airwaves.npv .air-rec-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+}
+
+.airwaves.npv .air-rec-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+@media (min-width: 600px) {
+  .app-shell:not(.dash-shell) .main:has(.airwaves) {
+    padding: 24px 16px 40px;
+  }
+
+  .airwaves.npv .air-rec {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .airwaves.npv .air-plot {
+    height: auto;
+    aspect-ratio: 900 / 364;
+  }
+
+  .airwaves.npv .air-nets {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  }
+}
+

@@ -123,8 +123,8 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(setting),
     }),
-  rfOverview: (agentId: string, range: string) =>
-    request<RfOverview>(`/api/v1/rf/overview?agent_id=${agentId}&range=${range}`),
+  rfOverview: (agentId: string) =>
+    request<RfOverview>(`/api/v1/rf/overview?agent_id=${agentId}`),
   rfAps: (agentId: string, params: Record<string, string>) => {
     const query = new URLSearchParams({ agent_id: agentId, ...params });
     return request<RfAp[]>(`/api/v1/rf/aps?${query}`);
@@ -133,8 +133,8 @@ export const api = {
     request<RfHistoryPoint[]>(
       `/api/v1/rf/aps/${encodeURIComponent(bssid)}/history?agent_id=${agentId}&range=${range}`,
     ),
-  rfClients: (agentId: string, range: string) =>
-    request<RfClient[]>(`/api/v1/rf/clients?agent_id=${agentId}&range=${range}`),
+  rfClients: (agentId: string) =>
+    request<RfClient[]>(`/api/v1/rf/clients?agent_id=${agentId}`),
   rfChannels: (agentId: string, band: string) =>
     request<RfChannelSnapshot>(
       `/api/v1/rf/channel-snapshot?agent_id=${agentId}&band=${encodeURIComponent(band)}`,
