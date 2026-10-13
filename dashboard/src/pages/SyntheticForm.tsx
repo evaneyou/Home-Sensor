@@ -105,19 +105,20 @@ export function PresetForm({
           <NumberField label="Packet time" unit="ms" value={ptime} limits={FIELD_LIMITS.ptime_ms} error={errors.ptime} onChange={setPtime} />
         ) : null}
       </div>
-      <PathControl label="Continuous path" value={path} onChange={setPath} />
-      {admin ? (
-        <button
-          className="app-health-primary"
-          type="button"
-          disabled={save.isPending || continuousInvalid || (action === "save" && !dirty)}
-          onClick={() => save.mutate(action === "off" ? [] : linksFor(path))}
-        >
-          {save.isPending ? "Saving…" : actionLabel}
-        </button>
-      ) : (
-        <p className="app-health-note">An admin starts and changes these checks.</p>
-      )}
+      <div className="app-health-actions">
+        <PathControl label="Continuous path" value={path} onChange={setPath} />
+        {admin ? (
+          <button
+            className="app-health-primary"
+            type="button"
+            disabled={save.isPending || continuousInvalid || (action === "save" && !dirty)}
+            onClick={() => save.mutate(action === "off" ? [] : linksFor(path))}
+          >
+            {save.isPending ? "Saving…" : actionLabel}
+          </button>
+        ) : null}
+      </div>
+      {admin ? null : <p className="app-health-note">An admin starts and changes these checks.</p>}
       {save.isError ? <p className="app-health-error">Could not save this continuous check.</p> : null}
       <div className="app-health-split">
         <h4>Timed run</h4>
