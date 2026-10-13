@@ -10,6 +10,8 @@ import base64
 import os
 import secrets
 import uuid
+
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -270,6 +272,77 @@ def _require_state_dir() -> Path:
     if directory is None:
         raise TunnelNotReady()
     return directory
+
+
+SRTP_KEY_LEN = 30
+RTNP_UID = 65532
+
+
+def ensure_srtp_key(monitor_id: uuid.UUID) -> bytes | None:
+    """Return this monitor's 30-byte SRTP key, creating an encrypted copy if needed.
+
+    The ciphertext lives next to the WireGuard preshared keys. A plaintext file is
+    written for the receiver process only. The key is not returned in logs.
+    """
+    directory = _state_dir()
+    if directory is None:
+        return None
+    master = _srtp_master(directory)
+    path = directory / "srtp" / f"{monitor_id}.bin"
+    if path.is_file():
+        stored = path.read_bytes()
+        if len(stored) < 13:
+            raise ValueError("Stored SRTP key is unreadable")
+        key = AESGCM(master).decrypt(stored[:12], stored[12:], None)
+    else:
+        key = secrets.token_bytes(SRTP_KEY_LEN)
+        nonce = secrets.token_bytes(12)
+        _write_bytes(path, nonce + AESGCM(master).encrypt(nonce, key, None))
+    if len(key) != SRTP_KEY_LEN:
+        raise ValueError("Stored SRTP key is unreadable")
+    _publish_srtp_key(monitor_id, key)
+    return key
+
+
+def _srtp_master(directory: Path) -> bytes:
+    path = directory / "srtp.master"
+    if path.is_file():
+        master = path.read_bytes()
+        if len(master) == 32:
+            return master
+    master = secrets.token_bytes(32)
+    _write_bytes(path, master)
+    return master
+
+
+def _publish_srtp_key(monitor_id: uuid.UUID, key: bytes) -> None:
+    raw = get_settings().rtnp_state_dir.strip()
+    if not raw:
+        return
+    directory = Path(raw) / "keys"
+    directory.mkdir(mode=0o750, exist_ok=True)
+    _give_to_receiver(directory)
+    path = directory / str(monitor_id)
+    _write_bytes(path, key)
+    _give_to_receiver(path)
+
+
+def _give_to_receiver(path: Path) -> None:
+    try:
+        os.chown(path, RTNP_UID, RTNP_UID)
+        os.chmod(path, 0o500 if path.is_dir() else 0o400)
+    except OSError:
+        pass
+
+
+def _write_bytes(target: Path, data: bytes) -> None:
+    target.parent.mkdir(mode=0o700, exist_ok=True)
+    temporary = target.with_name(f"{target.name}.{os.getpid()}.tmp")
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(data)
+    os.chmod(temporary, 0o600)
+    temporary.replace(target)
 
 
 def _state_dir() -> Path | None:

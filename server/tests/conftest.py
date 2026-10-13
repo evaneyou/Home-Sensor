@@ -98,6 +98,8 @@ def db(engine) -> Generator[Session, None, None]:
     app.dependency_overrides.clear()
 
     session.rollback()
+    session.execute(text("DELETE FROM synthetic_samples WHERE run_id IN (SELECT id FROM synthetic_runs WHERE monitor_id IN (SELECT id FROM monitors WHERE group_id = :gid))"), {"gid": group.id})
+    session.execute(text("DELETE FROM synthetic_runs WHERE monitor_id IN (SELECT id FROM monitors WHERE group_id = :gid)"), {"gid": group.id})
     session.execute(text("DELETE FROM monitor_health WHERE monitor_id IN (SELECT id FROM monitors WHERE group_id = :gid)"), {"gid": group.id})
     session.execute(text("DELETE FROM test_results WHERE test_id IN (SELECT id FROM tests WHERE monitor_id IN (SELECT id FROM monitors WHERE group_id = :gid))"), {"gid": group.id})
     session.execute(text("DELETE FROM tests WHERE monitor_id IN (SELECT id FROM monitors WHERE group_id = :gid)"), {"gid": group.id})

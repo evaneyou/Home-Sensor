@@ -58,6 +58,7 @@ from app.models import (
     Test,
     TestResult,
     User,
+    UserRole,
     WifiObservation,
 )
 from app.schemas import (
@@ -429,7 +430,11 @@ def list_monitors(
     monitors = db.scalars(select(Monitor).order_by(Monitor.name)).all()
     refresh_handshakes(db, list(monitors))
     db.commit()
-    return [monitor_admin_out(monitor) for monitor in monitors]
+    rows = [monitor_admin_out(monitor) for monitor in monitors]
+    if _user.role == UserRole.guest:
+        for row in rows:
+            row.public_ip = None
+    return rows
 
 
 @router.delete("/monitors/{monitor_id}", status_code=204)
@@ -1151,7 +1156,7 @@ def get_monitor(
         "latitude": monitor.latitude,
         "longitude": monitor.longitude,
         "location_label": monitor.location_label,
-        "public_ip": monitor.public_ip,
+        "public_ip": None if _user.role == UserRole.guest else monitor.public_ip,
         "isp": monitor.isp,
         "tests": [
             {
@@ -1334,7 +1339,7 @@ def get_device(
         "connected": connected,
         "last_seen_at": monitor.last_seen_at.isoformat() if monitor.last_seen_at else None,
         "lan_ip": monitor.lan_ip,
-        "public_ip": monitor.public_ip,
+        "public_ip": None if _user.role == UserRole.guest else monitor.public_ip,
         "isp": monitor.isp,
         "agent_version": monitor.agent_version,
         "hostname": latest.hostname if latest else None,

@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.enrollment_routes import router as enrollment_router
 from app.api.rf_routes import router as rf_router
 from app.api.routes import router
+from app.api.synthetic_routes import router as synthetic_router
 from app.config import get_settings
 
 log = logging.getLogger(__name__)
@@ -28,11 +29,20 @@ async def _lifespan(_app: FastAPI):
 
     from app.db import SessionLocal
     from app.services.retention import run_retention
-    from app.wireguard_tunnel import rewrite_peers
+    from sqlalchemy import select
+
+    from app.models import Monitor
+    from app.synthetic import ensure_key, ensure_profiles
+    from app.wireguard_tunnel import ensure_srtp_key, rewrite_peers
 
     try:
         with SessionLocal() as db:
             rewrite_peers(db)
+            ensure_profiles(db)
+            ensure_key(db)
+            for monitor in db.scalars(select(Monitor)).all():
+                ensure_srtp_key(monitor.id)
+            db.commit()
     except Exception:
         log.exception("wireguard peer list was not written")
 
@@ -68,6 +78,7 @@ def create_app() -> FastAPI:
     app.include_router(router)
     app.include_router(rf_router)
     app.include_router(enrollment_router)
+    app.include_router(synthetic_router)
     return app
 
 

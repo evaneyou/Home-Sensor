@@ -31,6 +31,7 @@ def _uuid() -> uuid.UUID:
 class UserRole(str, enum.Enum):
     admin = "admin"
     viewer = "viewer"
+    guest = "guest"
 
 
 class MonitorStatus(str, enum.Enum):
@@ -483,3 +484,62 @@ class WebStabilitySetting(Base):
     abs_floor_jitter_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=15)
     quorum_degraded_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
     quorum_fail_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=40)
+
+
+class RtnpSecret(Base):
+    """One shared key for the public RTNP receiver. Every monitor is given this key."""
+
+    __tablename__ = "rtnp_secrets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    key: Mapped[str] = mapped_column(String(128), nullable=False)
+
+
+class SyntheticProfile(Base):
+    __tablename__ = "synthetic_profiles"
+
+    slug: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    options: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+
+class SyntheticRun(Base):
+    __tablename__ = "synthetic_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    monitor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"), nullable=False)
+    profile_slug: Mapped[str] = mapped_column(String(64), nullable=False)
+    mode: Mapped[str] = mapped_column(String(16), nullable=False)
+    links: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    options: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    duration_seconds: Mapped[Optional[int]] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="running")
+    finished_links: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    samples: Mapped[list["SyntheticSample"]] = relationship(back_populates="run")
+
+
+class SyntheticSample(Base):
+    __tablename__ = "synthetic_samples"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("synthetic_runs.id", ondelete="CASCADE"), nullable=False)
+    link: Mapped[str] = mapped_column(String(16), nullable=False)
+    sample_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    interval_index: Mapped[Optional[int]] = mapped_column(Integer)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    rtt_ms: Mapped[Optional[float]] = mapped_column(Float)
+    jitter_ms: Mapped[Optional[float]] = mapped_column(Float)
+    loss_pct: Mapped[Optional[float]] = mapped_column(Float)
+    verdict: Mapped[Optional[str]] = mapped_column(String(16))
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+
+    run: Mapped[SyntheticRun] = relationship(back_populates="samples")
+
+    __table_args__ = (
+        UniqueConstraint("run_id", "link", "sample_key", name="uq_synthetic_sample"),
+        Index("ix_synthetic_sample_recorded", "recorded_at"),
+    )

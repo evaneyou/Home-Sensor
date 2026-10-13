@@ -18,6 +18,7 @@ import AirwavesNetworks from "./pages/airwaves/NetworksPage";
 import AirwavesChannels from "./pages/airwaves/ChannelsPage";
 import AirwavesClients from "./pages/airwaves/ClientsPage";
 import InternetServicePage from "./pages/InternetServicePage";
+import SyntheticPage from "./pages/SyntheticPage";
 import WebServicesPage from "./pages/WebServicesPage";
 import TestPage from "./pages/TestPage";
 import type { User } from "./types";
@@ -238,6 +239,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             <Route index element={<Navigate to="onboarding" replace />} />
             <Route path="onboarding" element={<MonitorOnboardingPage />} />
             <Route path="internet-service" element={<InternetServicePage />} />
+            <Route path="synthetic" element={<SyntheticPage />} />
             <Route path="web-services" element={<WebServicesPage />} />
             <Route path="agents/:id" element={<RemoteAgentPage />} />
           </Route>

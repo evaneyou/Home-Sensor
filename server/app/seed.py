@@ -45,6 +45,7 @@ IDS = {
     "net_wifi": uuid.UUID("cccccccc-cccc-cccc-cccc-ccccccccccc3"),
     "admin": uuid.UUID("dddddddd-dddd-dddd-dddd-ddddddddddd1"),
     "viewer": uuid.UUID("dddddddd-dddd-dddd-dddd-ddddddddddd2"),
+    "guest": uuid.UUID("dddddddd-dddd-dddd-dddd-ddddddddddd3"),
 }
 
 
@@ -311,6 +312,7 @@ def ensure_users(db: Session) -> None:
     for uid, username, password, role in [
         (IDS["admin"], settings.bootstrap_admin_username, settings.bootstrap_admin_password, UserRole.admin),
         (IDS["viewer"], settings.bootstrap_viewer_username, settings.bootstrap_viewer_password, UserRole.viewer),
+        (IDS["guest"], settings.bootstrap_guest_username, settings.bootstrap_guest_password, UserRole.guest),
     ]:
         existing = db.scalar(select(User).where(User.username == username)) or db.get(User, uid)
         if existing:
