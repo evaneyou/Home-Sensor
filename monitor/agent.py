@@ -43,9 +43,9 @@ import synthetic
 
 AGENT_VERSION = "0.5.0"
 # Latency checks wait on the network, so a few of them run at once.
-# File Transfer and the video call stay alone: running them together would slow each other down.
+# File Transfer stays alone: running it beside others would slow them all down.
 PROBE_WORKERS = 6
-HEAVY_KINDS = {"librespeed", "webrtc"}
+HEAVY_KINDS = {"librespeed"}
 CONFIG_PATH = Path(os.environ.get("MONITOR_CONFIG", "/etc/monitor/config.json"))
 PORT = int(os.environ.get("MONITOR_PORT", "80"))
 ENROLL_PORT = 8848
@@ -1015,7 +1015,7 @@ def remember_tests(tests: object) -> None:
     for item in tests:
         if not isinstance(item, dict):
             continue
-        if item.get("kind") not in {"http", "librespeed", "webrtc", "ping", "mtr"}:
+        if item.get("kind") not in {"http", "librespeed", "ping", "mtr"}:
             continue
         if not item.get("slug") or not item.get("target"):
             continue

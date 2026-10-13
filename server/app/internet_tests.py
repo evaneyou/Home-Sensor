@@ -1,4 +1,4 @@
-"""Internet checks assigned to every monitor: path, File Transfer, video call, and web services."""
+"""Internet checks assigned to every monitor: path, File Transfer, and web services."""
 
 from __future__ import annotations
 
@@ -63,7 +63,6 @@ RETIRED_WEB_SLUGS = (
 INTERNET_SLUGS = frozenset(
     {
         "librespeed",
-        "webrtc",
         *(slug for slug, _, _, _, _ in PATH_TESTS),
         *(f"http-{key}" for key, _, _, _ in WEB_SERVICES),
         *(f"icmp-{key}" for key, _, _, _ in WEB_SERVICES),
@@ -203,18 +202,6 @@ def _sync_link_tests(db: Session, monitor: Monitor, network: Network, server_ip:
         max(path.librespeed_interval_seconds, 300),
         path.librespeed_enabled,
     )
-    _ensure_test(
-        monitor,
-        network,
-        existing_rows,
-        rows,
-        "webrtc",
-        "Video call",
-        TestKind.webrtc,
-        server_ip,
-        max(path.webrtc_interval_seconds, 300),
-        path.webrtc_enabled,
-    )
     for slug, name, kind, _target, _interval in PATH_TESTS:
         if kind == TestKind.http:
             target = server_http
@@ -278,7 +265,6 @@ def scheduled_tests(db: Session, monitor: Monitor) -> list[dict]:
         if test.kind not in (
             TestKind.http,
             TestKind.librespeed,
-            TestKind.webrtc,
             TestKind.ping,
             TestKind.mtr,
         ):
@@ -382,43 +368,6 @@ def classify_transfer(db: Session, test: Test, metrics: dict, variance_pct: int)
         ResultStatus.ok,
         f"Download {_mbps(down)} and upload {_mbps(up)}, within {variance_pct}% of the recent normal.",
     )
-
-
-WEBRTC_LOSS_DEGRADED_PCT = 5.0
-WEBRTC_JITTER_DEGRADED_MS = 30.0
-
-
-def classify_webrtc(metrics: dict, loss_limit: float = WEBRTC_LOSS_DEGRADED_PCT) -> tuple[ResultStatus, str]:
-    """Red when either direction sends no video. Amber when loss or jitter is high."""
-    frames_in = _number(metrics.get("frames_in"))
-    frames_out = _number(metrics.get("frames_out"))
-    if frames_in is None or frames_out is None or frames_in <= 0 or frames_out <= 0:
-        return ResultStatus.fail, "The video call did not connect."
-    loss = _number(metrics.get("loss_pct"))
-    jitter = _number(metrics.get("jitter_ms"))
-    rtt = _number(metrics.get("rtt_ms"))
-    notes: list[str] = []
-    if loss is not None and loss > loss_limit:
-        notes.append(f"packet loss {_pct(loss)}")
-    if jitter is not None and jitter > WEBRTC_JITTER_DEGRADED_MS:
-        notes.append(f"jitter {_ms(jitter)}")
-    summary = _webrtc_summary(rtt, jitter, loss)
-    if notes:
-        return ResultStatus.degraded, f"Video arrived in both directions with {' and '.join(notes)}."
-    return ResultStatus.ok, summary
-
-
-def _webrtc_summary(rtt: float | None, jitter: float | None, loss: float | None) -> str:
-    bits: list[str] = []
-    if rtt is not None:
-        bits.append(f"round-trip {_ms(rtt)}")
-    if jitter is not None:
-        bits.append(f"jitter {_ms(jitter)}")
-    if loss is not None:
-        bits.append(f"loss {_pct(loss)}")
-    if not bits:
-        return "Video arrived in both directions."
-    return _sentence(", ".join(bits)) + "."
 
 
 def classify_web_service(
@@ -555,8 +504,6 @@ def explain_result(
             return "The trace got no response."
         if kind == "librespeed":
             return "Neither download nor upload answered."
-        if kind == "webrtc":
-            return "The video call did not connect."
         if kind == "ping":
             return "No ICMP response."
         return "No response."
@@ -595,8 +542,6 @@ def _degraded_fallback(kind: str, metrics: dict, stages: list, message: str | No
             parts.append(f"upload {_mbps(up)}")
         measured = " and ".join(parts) if parts else "throughput"
         return f"{_sentence(measured)} was below the recent normal."
-    if kind == "webrtc":
-        return classify_webrtc(metrics)[1]
     loss = _number(metrics.get("loss_pct"))
     rtt = _number(metrics.get("rtt_ms"))
     label = "Trace" if kind == "mtr" else "ICMP"
@@ -632,8 +577,6 @@ def _ok_fallback(kind: str, metrics: dict, message: str | None) -> str:
         if up is not None:
             parts.append(f"upload {_mbps(up)}")
         return f"{_sentence(' and '.join(parts))}, within the recent normal."
-    if kind == "webrtc":
-        return classify_webrtc(metrics)[1]
     rtt = _number(metrics.get("rtt_ms"))
     label = "Trace" if kind == "mtr" else "ICMP" if kind == "ping" else "Check"
     if rtt is None:
@@ -851,9 +794,6 @@ def load_internet_service(db: Session) -> InternetServiceSetting:
         librespeed_variance_pct=25,
         librespeed_enabled=True,
         librespeed_interval_seconds=HEAVY_INTERVAL_SECONDS,
-        webrtc_variance_pct=5,
-        webrtc_enabled=True,
-        webrtc_interval_seconds=HEAVY_INTERVAL_SECONDS,
     )
     db.add(row)
     db.flush()
@@ -873,9 +813,6 @@ def save_internet_service(db: Session, update: dict) -> InternetServiceSetting:
     row.librespeed_variance_pct = int(update["librespeed_variance_pct"])
     row.librespeed_enabled = bool(update["librespeed_enabled"])
     row.librespeed_interval_seconds = max(int(update["librespeed_interval_seconds"]), 300)
-    row.webrtc_variance_pct = int(update["webrtc_variance_pct"])
-    row.webrtc_enabled = bool(update["webrtc_enabled"])
-    row.webrtc_interval_seconds = max(int(update["webrtc_interval_seconds"]), 300)
     db.flush()
     for monitor in db.scalars(select(Monitor)):
         ensure_internet_tests(db, monitor)

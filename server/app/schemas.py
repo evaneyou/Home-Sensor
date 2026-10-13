@@ -622,9 +622,6 @@ class InternetServiceSettingOut(BaseModel):
     librespeed_enabled: bool
     librespeed_interval_seconds: int
     librespeed_variance_pct: int
-    webrtc_enabled: bool
-    webrtc_interval_seconds: int
-    webrtc_variance_pct: int
 
 
 class InternetServiceSettingIn(BaseModel):
@@ -638,9 +635,6 @@ class InternetServiceSettingIn(BaseModel):
     librespeed_enabled: bool
     librespeed_interval_seconds: int = Field(ge=300, le=86400)
     librespeed_variance_pct: int = Field(ge=0, le=500)
-    webrtc_enabled: bool
-    webrtc_interval_seconds: int = Field(ge=300, le=86400)
-    webrtc_variance_pct: int = Field(ge=0, le=500)
 
 
 class IssueOut(BaseModel):

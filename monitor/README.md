@@ -2,7 +2,7 @@
 
 The agent runs on a Raspberry Pi or other Linux PC inside your home network. It serves a small
 setup page on the LAN, reports device health to the server, and runs the connectivity tests the
-server assigns to it: HTTP, ICMP ping, MTR, File Transfer, and a video call.
+server assigns to it: HTTP, ICMP ping, MTR, and File Transfer.
 
 The agent uses only the Python 3 standard library. Its version is `AGENT_VERSION` in
 [`agent.py`](./agent.py).

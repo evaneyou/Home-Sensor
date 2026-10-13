@@ -206,9 +206,6 @@ def _internet_service_out(row) -> InternetServiceSettingOut:
         librespeed_enabled=row.librespeed_enabled,
         librespeed_interval_seconds=row.librespeed_interval_seconds,
         librespeed_variance_pct=row.librespeed_variance_pct,
-        webrtc_enabled=row.webrtc_enabled,
-        webrtc_interval_seconds=row.webrtc_interval_seconds,
-        webrtc_variance_pct=row.webrtc_variance_pct,
     )
 
 

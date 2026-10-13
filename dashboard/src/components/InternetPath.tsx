@@ -53,7 +53,7 @@ const APPS = [
 type AppKey = (typeof APPS)[number]["key"];
 type DetailKey = "isp" | AppKey;
 /** A built-in check, or one application probe by slug. */
-type CheckKey = "librespeed" | "webrtc" | `rtnp:${string}`;
+type CheckKey = "librespeed" | `rtnp:${string}`;
 
 function probeKinds(_key: AppKey): ("http" | "icmp")[] {
   return ["http", "icmp"];
@@ -183,7 +183,7 @@ function isDetail(value: string | null): value is DetailKey {
 }
 
 function isCheck(value: string | null): value is CheckKey {
-  return value === "librespeed" || value === "webrtc" || Boolean(value?.startsWith("rtnp:"));
+  return value === "librespeed" || Boolean(value?.startsWith("rtnp:"));
 }
 
 export function logProbeForDetail(detail: string | null, check: string | null = null): string | null {
@@ -529,7 +529,7 @@ function InternetDetail({
   const app = APPS.find((item) => item.key === detail);
   const slugs =
     detail === "isp"
-      ? [...ISP_SLUGS, "librespeed", "webrtc"]
+      ? [...ISP_SLUGS, "librespeed"]
       : probeKinds(detail).map((kind) => `${kind}-${detail}`);
   const watched = slugs.flatMap((slug) => {
     const test = bySlug.get(slug);
@@ -608,27 +608,10 @@ function InternetDetail({
     [points],
   );
 
-  const callChart = useMemo(
-    () =>
-      (points.get("webrtc") ?? []).map((point) => ({
-        t: point.t,
-        ts: new Date(point.t).getTime(),
-        rtt: point.rtt_ms,
-        jitter: point.jitter_ms,
-        loss: point.loss_pct,
-      })),
-    [points],
-  );
-
   const latestHops = (points.get(mtrSlug) ?? []).at(-1)?.hops ?? [];
   const latestLibre = (points.get("librespeed") ?? []).at(-1);
-  const latestCall = (points.get("webrtc") ?? []).at(-1);
   const transferStrip = useMemo(
     () => statusStrip(points.get("librespeed") ?? [], range),
-    [points, range],
-  );
-  const callStrip = useMemo(
-    () => statusStrip(points.get("webrtc") ?? [], range),
     [points, range],
   );
   const span = chartWindow(range);
@@ -678,13 +661,6 @@ function InternetDetail({
               empty={transferChart.length === 0}
               onOpen={() => openCheck("librespeed")}
             />
-            <HealthBar
-              title="Video call"
-              detail={`${fmt(latestCall?.rtt_ms)} ms · jitter ${fmt(latestCall?.jitter_ms)} ms · loss ${fmt(latestCall?.loss_pct)}%`}
-              strip={callStrip}
-              empty={callChart.length === 0}
-              onOpen={() => openCheck("webrtc")}
-            />
             {monitorId ? (
               <RealtimeHealth
                 monitorId={monitorId}
@@ -726,30 +702,6 @@ function InternetDetail({
               <PathChart title="Ping" data={transferChart} span={span} dataKey="ping" label="Ping" unit=" ms" />
               <PathChart title="Jitter" data={transferChart} span={span} dataKey="jitter" label="Jitter" unit=" ms" />
             </div>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  if (check === "webrtc") {
-    return (
-      <div className="panel">
-        <h2 style={{ marginTop: 0, fontSize: "1.4rem" }}>
-          {linkLabel} · Video call
-        </h2>
-        <RangeTabs range={range} onChange={setRange} />
-        {loading ? (
-          <div className="muted">Loading internet checks…</div>
-        ) : failed ? (
-          <div className="muted">Could not load internet checks.</div>
-        ) : (
-          <>
-            <div className="chart-pair">
-              <PathChart title="Round-trip" data={callChart} span={span} dataKey="rtt" label="Round-trip" unit=" ms" />
-              <PathChart title="Jitter" data={callChart} span={span} dataKey="jitter" label="Jitter" unit=" ms" />
-            </div>
-            <PathChart title="Packet loss" data={callChart} span={span} dataKey="loss" label="Loss" unit=" %" />
           </>
         )}
       </div>
