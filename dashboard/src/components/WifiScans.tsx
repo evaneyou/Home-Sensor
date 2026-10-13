@@ -16,7 +16,7 @@ import { formatChartHour } from "../chartTime";
 import { useChartZoom } from "../useChartZoom";
 import type { WifiObservation } from "../types";
 
-const RANGES = ["24h", "7d"] as const;
+const RANGES = ["1h", "24h", "7d"] as const;
 const COLORS = CHART_COLORS;
 
 function seriesKey(row: WifiObservation): string {
@@ -24,7 +24,7 @@ function seriesKey(row: WifiObservation): string {
 }
 
 export default function WifiScans({ monitorId }: { monitorId: string }) {
-  const [range, setRange] = useState<(typeof RANGES)[number]>("24h");
+  const [range, setRange] = useState<(typeof RANGES)[number]>("1h");
   const q = useQuery({
     queryKey: ["wifi-scans", monitorId, range],
     queryFn: () => api.wifiScans(monitorId, range) as Promise<WifiObservation[]>,

@@ -257,7 +257,7 @@ def health(
     link: str,
     db: Annotated[Session, Depends(get_db)],
     _user: Annotated[User, Depends(get_current_user)],
-    range: str = "24h",
+    range: str = "1h",
 ) -> dict[str, Any]:
     if link not in {"wired", "wireless"}:
         raise HTTPException(status_code=400, detail="Choose Wired or Wi-Fi")

@@ -270,12 +270,12 @@ def hill_points(ap: dict) -> list[dict]:
 
 
 def bucket_seconds(range_key: str) -> int:
-    return {"1h": 300, "6h": 900, "24h": 3600, "7d": 6 * 3600}.get(range_key, 3600)
+    return {"1h": 300, "6h": 900, "24h": 3600, "7d": 6 * 3600}.get(range_key, 300)
 
 
 def range_start(range_key: str, now: datetime | None = None) -> datetime:
     now = now or datetime.now(timezone.utc)
-    hours = {"1h": 1, "6h": 6, "24h": 24, "7d": 24 * 7}.get(range_key, 24)
+    hours = {"1h": 1, "6h": 6, "24h": 24, "7d": 24 * 7}.get(range_key, 1)
     return now - timedelta(hours=hours)
 
 

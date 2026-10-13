@@ -42,7 +42,7 @@ const RANGE_HOURS: Record<string, number> = {
 
 /** Start and end of the selected chart window, in epoch milliseconds. */
 export function chartWindow(range: string, now = Date.now()): [number, number] {
-  const hours = RANGE_HOURS[range] ?? 24;
+  const hours = RANGE_HOURS[range] ?? 1;
   return [now - hours * 60 * 60 * 1000, now];
 }
 
