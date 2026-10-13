@@ -830,10 +830,10 @@ def check_librespeed(test: dict) -> dict:
             "id": 1,
             "name": "Home Sensor",
             "server": f"http://{host}:{LIBRESPEED_PORT}/",
-            "dlURL": "garbage.php",
-            "ulURL": "empty.php",
-            "pingURL": "empty.php",
-            "getIpURL": "getIP.php",
+            "dlURL": "backend/garbage",
+            "ulURL": "backend/empty",
+            "pingURL": "backend/empty",
+            "getIpURL": "backend/getIP",
         }
     ]
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:

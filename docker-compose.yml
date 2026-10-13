@@ -60,10 +60,8 @@ services:
              --ssl-keyfile /var/lib/hns-tls/key.pem --ssl-certfile /var/lib/hns-tls/cert.pem"
 
   librespeed:
-    image: ghcr.io/librespeed/speedtest:latest
-    environment:
-      MODE: backend
-      DISABLE_IPINFO: "true"
+    build:
+      context: ./librespeed
     restart: unless-stopped
 
   wireguard:

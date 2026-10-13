@@ -39,6 +39,7 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
 
 ### Changed
 
+- The File Transfer server is the Rust LibreSpeed backend (`librespeed-rs` 1.4.0) instead of the PHP image. The Pi agent calls `/backend/garbage` and `/backend/empty`.
 - Rewrote the root `README.md` and replaced the Vite template `dashboard/README.md`.
 - The API now reports the installed package version instead of a hard-coded string, and its
   title is "HomeNetWatch".
