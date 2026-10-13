@@ -421,32 +421,54 @@
   min-width: 0;
 }
 
+/* The input itself is the visible box (it picks up the shared compact input
+   style); the unit sits inside it on the right. */
 .app-health-input {
+  position: relative;
   display: flex;
   align-items: center;
   min-width: 0;
-  min-height: 44px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: var(--bg);
 }
 
 .app-health-input input {
   width: 100%;
   min-width: 0;
   min-height: 44px;
-  border: 0;
-  background: transparent;
+  padding: 0 36px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-inset, var(--bg));
   color: var(--ink);
-  padding: 0;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.app-health-input input::-webkit-inner-spin-button,
+.app-health-input input::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.app-health-input input:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.app-health-input input[aria-invalid="true"] {
+  border-color: var(--fail, #ff8f85);
 }
 
 .app-health-input i {
-  flex: none;
+  position: absolute;
+  right: 12px;
   font-style: normal;
   font-size: 12px;
   font-weight: 800;
   color: var(--muted);
+  pointer-events: none;
 }
 
 .app-health-actions {
