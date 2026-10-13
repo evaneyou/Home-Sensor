@@ -185,6 +185,7 @@ function isCheck(value: string | null): value is CheckKey {
 }
 
 export function logProbeForDetail(detail: string | null, check: string | null = null): string | null {
+  if (check?.startsWith("rtnp:")) return check;
   if (detail === "isp" && isCheck(check)) return `slug:${check}`;
   if (detail === "isp") return "internet";
   if (APPS.some((app) => app.key === detail)) return `svc:${detail}`;

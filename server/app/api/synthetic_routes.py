@@ -378,7 +378,8 @@ def post_sample(
     if body.link not in run.links:
         raise HTTPException(status_code=400, detail="This run does not include that link")
     extracted = metrics_from_interval(body.metrics)
-    key = str(body.interval_index)
+    # A restarted sender begins its interval count again. The time keeps each report.
+    key = f"{body.interval_index}:{int(body.recorded_at.timestamp())}"
     existing = db.scalar(
         select(SyntheticSample).where(
             SyntheticSample.run_id == run.id,

@@ -116,6 +116,19 @@ def test_agent_module_matches_the_path_rule():
         raise AssertionError("agent accepted a tunnel target")
     assert module.route_is_physical("203.0.113.10 dev end0 src 192.0.2.10", "end0")
     assert not module.route_is_physical("10.7.0.1 dev wg0 src 10.7.0.2", "end0")
+    original_is_file = module.Path.is_file
+
+    def deny_wireguard_config(self, *args, **kwargs):
+        if "wireguard" in str(self):
+            raise PermissionError(13, "Permission denied", str(self))
+        return original_is_file(self, *args, **kwargs)
+
+    module.Path.is_file = deny_wireguard_config
+    try:
+        assert module.tunnel_warning() == ""
+        assert "Permission denied" not in module._endpoint_text()
+    finally:
+        module.Path.is_file = original_is_file
     module._tunnel_text = lambda: "AllowedIPs = 0.0.0.0/0"
     assert "0.0.0.0/0" in module.tunnel_warning()
     module._tunnel_text = lambda: "AllowedIPs = 10.7.0.1/32"
@@ -130,6 +143,7 @@ def test_agent_module_matches_the_path_rule():
 
     def get_json(*_args):
         return {
+            "target_host": "203.0.113.50",
             "jobs": [
                 {"run_id": "1", "link": "wired", "options": {}},
                 {"run_id": "2", "link": "wireless", "options": {}},
@@ -141,7 +155,25 @@ def test_agent_module_matches_the_path_rule():
         get_json,
         lambda *_args: None,
     )
-    assert len(started) == 1
+    assert len(started) == 2
+    assert {item[1][1] for item in started} == {"wired", "wireless"}
+    assert {item[3] for item in started} == {"203.0.113.50"}
+    chosen = module.jobs_for_links(
+        [
+            {"run_id": "manual", "link": "wired", "mode": "manual"},
+            {"run_id": "continuous", "link": "wired", "mode": "continuous"},
+            {"run_id": "wifi", "link": "wireless", "mode": "continuous"},
+        ]
+    )
+    assert set(chosen) == {("continuous", "wired"), ("wifi", "wireless")}
+    assert module.route_get_args("203.0.113.10", "192.0.2.10") == [
+        "ip",
+        "route",
+        "get",
+        "203.0.113.10",
+        "from",
+        "192.0.2.10",
+    ]
 
 
 def test_recommended_profiles_and_comparison_report(client, db, monitor_token):
@@ -242,6 +274,47 @@ def test_recommended_profiles_and_comparison_report(client, db, monitor_token):
     assert wired_report.status_code == 200, wired_report.text
     assert [item["label"] for item in wired_report.json()["links"]] == ["Wired"]
     assert wired_report.json()["links"][0]["verdict"] == "pass"
+
+    detail = client.get(f"/api/v1/monitors/{monitor.id}")
+    assert detail.status_code == 200, detail.text
+    assert [item["slug"] for item in detail.json()["probes"]] == ["voip-g711a", "fortnite"]
+    voice_log = client.get(f"/api/v1/monitors/{monitor.id}/log?probe=rtnp:voip-g711a")
+    assert voice_log.status_code == 200, voice_log.text
+    assert voice_log.json()["total"] == 2
+    repeated = client.post(
+        "/api/v1/synthetic/samples",
+        headers=_headers(monitor_token),
+        json={
+            "run_id": run_id,
+            "link": "wireless",
+            "interval_index": 1,
+            "recorded_at": datetime(2026, 10, 13, 15, 5, tzinfo=timezone.utc).isoformat(),
+            "metrics": {
+                "type": "interval",
+                "index": 1,
+                "flows": [
+                    {
+                        "rtt": {"avg_ms": 40, "jitter_ms": 2},
+                        "loss_pct": 0,
+                        "verdict": {"pass": True},
+                    }
+                ],
+            },
+        },
+    )
+    assert repeated.status_code == 200, repeated.text
+    voice_again = client.get(f"/api/v1/monitors/{monitor.id}/log?probe=rtnp:voip-g711a")
+    assert voice_again.json()["total"] == 3
+    by_network = {item["network_slug"]: item for item in voice_log.json()["items"]}
+    assert set(by_network) == {"wired", "wifi"}
+    assert by_network["wifi"]["test_name"] == "Voice G.711 A-law"
+    assert by_network["wifi"]["status"] == "fail"
+    assert by_network["wifi"]["metrics"]["rtt_ms"] == 400
+    assert by_network["wired"]["status"] == "ok"
+    combined = client.get(f"/api/v1/monitors/{monitor.id}/log?probe=rtnp")
+    assert combined.status_code == 200, combined.text
+    assert combined.json()["total"] == 4
+    assert client.get(f"/api/v1/monitors/{monitor.id}/log?probe=rtnp:not-a-probe").status_code == 400
 
 
 def test_guest_cannot_start_a_check_or_see_the_home_address(client, db, monitor_token):
