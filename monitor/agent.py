@@ -39,8 +39,9 @@ from kismet_view import (
     with_busy,
 )
 import rf_spool
+import synthetic
 
-AGENT_VERSION = "0.4.0"
+AGENT_VERSION = "0.5.0"
 # Latency checks wait on the network, so a few of them run at once.
 # File Transfer and the video call stay alone: running them together would slow each other down.
 PROBE_WORKERS = 6
@@ -69,6 +70,7 @@ _enroll_started = False
 _tests_started = False
 _scan_started = False
 _kismet_started = False
+_synthetic_started = False
 _last_link_scan = 0.0
 _trusted_bssids: set[str] = set()
 _airwave_mode = "off"
@@ -549,6 +551,18 @@ def remember_approval(config: dict, poll: dict, wired_private: str, wireless_pri
         updated["server_url"] = f"http://{TUNNEL_SERVER_IP}:8847"
     elif wrote:
         updated["server_url"] = f"http://{WIRELESS_SERVER_IP}:8847"
+    for item in tunnels:
+        endpoint = str(item.get("endpoint") or "")
+        host = endpoint.split(":")[0]
+        if host.startswith("[") or ":" in host:
+            continue
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            continue
+        if address.version == 4 and not synthetic.is_tunnel_target(host):
+            updated["measurement_host"] = host
+            break
     if updated.get("token") and str(updated.get("server_url") or "").startswith("http://10.7."):
         updated.pop("installer_code", None)
         updated.setdefault("health_interval_seconds", 60)
@@ -830,7 +844,7 @@ def sample(config: dict) -> dict:
         "airwave_mode": airwave_mode(),
         "link_ssid": ssid,
         "link_bssid": bssid,
-        "last_error": _last_error,
+        "last_error": synthetic.tunnel_warning() or _last_error,
     }
 
 
@@ -1270,17 +1284,32 @@ def scan_loop() -> None:
         _stop.wait(max(interval, 15))
 
 
+def synthetic_loop() -> None:
+    global _last_error
+    while not _stop.is_set():
+        with _lock:
+            config = load_config()
+        if config.get("token") and config.get("name") and config.get("server_url"):
+            try:
+                synthetic.sync(dict(config), get_json, post_json)
+            except (OSError, urllib.error.URLError, TimeoutError, ValueError, KeyError) as exc:
+                _last_error = str(exc)
+        _stop.wait(15)
+
+
 def ensure_health_loop() -> None:
-    global _health_started, _tests_started, _scan_started, _kismet_started
+    global _health_started, _tests_started, _scan_started, _kismet_started, _synthetic_started
     with _lock:
         start_health = not _health_started
         start_tests = not _tests_started
         start_scan = not _scan_started
         start_kismet = not _kismet_started
+        start_synthetic = not _synthetic_started
         _health_started = True
         _tests_started = True
         _scan_started = True
         _kismet_started = True
+        _synthetic_started = True
     if start_health:
         threading.Thread(target=health_loop, name="health", daemon=True).start()
     if start_tests:
@@ -1289,6 +1318,8 @@ def ensure_health_loop() -> None:
         threading.Thread(target=scan_loop, name="wifi-scan", daemon=True).start()
     if start_kismet:
         threading.Thread(target=kismet_loop, name="kismet", daemon=True).start()
+    if start_synthetic:
+        threading.Thread(target=synthetic_loop, name="synthetic", daemon=True).start()
 
 
 PAGE = """<!DOCTYPE html>
