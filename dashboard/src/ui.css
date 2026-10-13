@@ -149,26 +149,29 @@
 
 .app-shell.ui-compact .main .tab,
 .app-shell.ui-compact .range-row .tab {
-  border-radius: var(--r-pill);
+  border-radius: 999px;
   font-size: 14px;
   font-weight: 700;
   background: transparent;
   color: var(--muted);
-  border: 1px solid var(--line);
+  border: 0;
 }
 
 .app-shell.ui-compact .main .tab:hover,
 .app-shell.ui-compact .range-row .tab:hover {
   color: var(--ink);
-  background: var(--bg-soft);
-  border-color: var(--line);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
 }
 
-.app-shell.ui-compact .main .tab.active,
+.app-shell.ui-compact .main .tabs .tab.active {
+  color: var(--bg);
+  background: var(--accent);
+}
+
+.app-shell.ui-compact .main .range-row .tab.active,
 .app-shell.ui-compact .range-row .tab.active {
   color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 18%, var(--bg-elevated));
-  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-soft));
 }
 
 .app-shell.ui-compact .main input:not([type="checkbox"]):not([type="radio"]),

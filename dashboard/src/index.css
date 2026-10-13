@@ -804,26 +804,54 @@ button:hover,
   margin-bottom: 1rem;
 }
 
-.tabs {
-  display: flex;
-  gap: 0.35rem;
+/* Tabs and time ranges are segmented controls: one track holding its choices,
+   rather than a row of separately bordered pills. */
+.tabs,
+.range-row {
+  display: inline-flex;
+  gap: 2px;
   flex-wrap: wrap;
-  margin-bottom: 1rem;
+  /* Shrink to the choices even inside a flex or grid parent, which would
+     otherwise stretch the track across the page. */
+  align-self: flex-start;
+  justify-self: start;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 0.6rem;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+}
+
+/* The strip range heads the table, so it sits over the table's right edge. */
+.service-compare > .range-row {
+  align-self: flex-end;
 }
 
 .tab {
-  border: 1px solid var(--line);
+  border: 0;
   background: transparent;
   color: var(--muted);
   border-radius: 999px;
-  padding: 0.35rem 0.8rem;
+  padding: 0.35rem 0.95rem;
+  min-height: 38px;
   cursor: pointer;
 }
 
-.tab.active {
+.tab:hover {
   color: var(--ink);
-  background: var(--bg-soft);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+
+/* The page's own tabs carry the stronger mark; a time range stays secondary. */
+.tabs .tab.active {
+  color: var(--bg);
+  background: var(--accent);
+}
+
+.range-row .tab.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-soft));
 }
 
 .wifi-heading {
@@ -1102,12 +1130,6 @@ button:hover,
   margin-bottom: 0.75rem;
 }
 
-.range-row {
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
 
 .passfail {
   display: flex;
@@ -1643,6 +1665,9 @@ h3.settings-block {
   flex: 1 1 auto;
   width: auto;
   margin: 0;
+  /* The base strip stretches, which pins it to the top of the row while the
+     status mark stays centred. */
+  align-self: center;
 }
 
 .svc-cell:hover .isp-strip {
