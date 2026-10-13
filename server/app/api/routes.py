@@ -24,6 +24,7 @@ from app.config import Settings, get_settings
 from app.db import get_db
 from app.enrollment import CONNECTED_WITHIN, is_token_hash, token_hash
 from app.link_trust import remember_association
+from app.synthetic import PRESETS
 from app.internet_tests import (
     ensure_internet_tests,
     explain_result,
@@ -939,7 +940,7 @@ def _synthetic_slug(probe: str) -> Optional[str]:
     if not probe.startswith("rtnp:"):
         return None
     slug = probe[5:]
-    if re.fullmatch(r"[a-z0-9-]{1,64}", slug) is None:
+    if slug not in PRESETS:
         raise ValueError("Invalid probe filter")
     return slug
 
