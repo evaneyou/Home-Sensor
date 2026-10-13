@@ -51,7 +51,6 @@ class TestKind(str, enum.Enum):
     ping = "ping"
     wifi = "wifi"
     mtr = "mtr"
-    iperf3 = "iperf3"
     librespeed = "librespeed"
     webrtc = "webrtc"
 
@@ -446,7 +445,7 @@ class WebServiceSetting(Base):
 
 
 class InternetServiceSetting(Base):
-    """Singleton path and iperf3 schedule for the Internet Service card."""
+    """Singleton path, File Transfer, and video-call schedule for the Internet Service card."""
 
     __tablename__ = "internet_service_settings"
 
@@ -459,9 +458,6 @@ class InternetServiceSetting(Base):
     http_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
     icmp_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
     mtr_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
-    iperf_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
-    iperf_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    iperf_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=900)
     librespeed_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
     librespeed_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     librespeed_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=900)

@@ -62,7 +62,6 @@ STAGE_TEMPLATES = {
     TestKind.ping: ["icmp"],
     TestKind.wifi: ["associate", "dhcp", "dns", "http"],
     TestKind.mtr: ["trace"],
-    TestKind.iperf3: ["transfer"],
 }
 
 
@@ -154,17 +153,6 @@ def _gen_metrics(
     elif status == ResultStatus.fail and kind != TestKind.mtr:
         loss = rng.uniform(20, 100)
     metrics: dict = {"rtt_ms": round(rtt, 2), "loss_pct": round(loss, 2), "total_ms": round(total, 1)}
-    if kind == TestKind.iperf3:
-        down = rng.uniform(90, 280)
-        up = rng.uniform(12, 45)
-        if status == ResultStatus.degraded:
-            down *= rng.uniform(0.35, 0.6)
-            up *= rng.uniform(0.4, 0.7)
-        elif status == ResultStatus.fail:
-            down *= rng.uniform(0.02, 0.1)
-            up *= rng.uniform(0.02, 0.1)
-        metrics["down_mbps"] = round(down, 1)
-        metrics["up_mbps"] = round(up, 1)
     if kind == TestKind.mtr:
         hops = _gen_hops(target or "1.1.1.1", status, rng)
         metrics["hops"] = hops
@@ -404,7 +392,6 @@ def seed(db: Session) -> None:
                 (monitor, networks[0], "http-path", "HTTP", TestKind.http, "https://1.1.1.1"),
                 (monitor, networks[0], "icmp-path", "ICMP", TestKind.ping, "1.1.1.1"),
                 (monitor, networks[0], "mtr-path", "MTR", TestKind.mtr, "1.1.1.1"),
-                (monitor, networks[0], "iperf3", "iperf3", TestKind.iperf3, "iperf3"),
                 (monitor, networks[1], "ping-nas", "Ping NAS", TestKind.ping, "192.168.1.50"),
                 (monitor, networks[2], "wifi-assoc", "Wi-Fi Association", TestKind.wifi, "HomeMain"),
                 (monitor, networks[2], "http-local", "HTTP Router UI", TestKind.http, "http://192.168.1.1"),
@@ -451,7 +438,6 @@ def seed(db: Session) -> None:
         # Still in progress, so the latest Office / Internet cell stays degraded.
         (24 * 27, 10**9, ResultStatus.degraded, "icmp-path", "pi-office", "wan"),
         # Closed bursts in the last day so the living-room ISP strip shows amber and red.
-        (days * 24 - 20, days * 24 - 16, ResultStatus.degraded, "iperf3", "pi-living-room", "wan"),
         (days * 24 - 5.45, days * 24 - 5.05, ResultStatus.fail, "mtr-path", "pi-living-room", "wan"),
         (days * 24 - 2.65, days * 24 - 2.25, ResultStatus.degraded, "icmp-path", "pi-living-room", "wan"),
         (days * 24 - 0.85, days * 24 - 0.55, ResultStatus.fail, "http-path", "pi-living-room", "wan"),

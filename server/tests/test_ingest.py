@@ -144,7 +144,7 @@ def test_legacy_key_still_works(client: TestClient, monitor_token: str):
     assert posted.status_code == 200, posted.text
 
 
-def test_health_assigns_iperf_and_web_services(client: TestClient, db):
+def test_health_assigns_transfer_and_web_services(client: TestClient, db):
     login(client)
     name = f"Internet {uuid.uuid4().hex[:6]}"
     monitor, token = _make_monitor(db, name)
@@ -153,7 +153,7 @@ def test_health_assigns_iperf_and_web_services(client: TestClient, db):
     assert posted.status_code == 200, posted.text
     tests = posted.json()["tests"]
     slugs = {item["slug"] for item in tests}
-    assert "iperf3" in slugs
+    assert "iperf3" not in slugs
     assert "http-youtube" in slugs
     assert "http-google" in slugs
     assert "http-netflix" in slugs
@@ -164,16 +164,12 @@ def test_health_assigns_iperf_and_web_services(client: TestClient, db):
     assert "webrtc" in slugs
     assert "icmp-youtube" in slugs
     assert "mtr-youtube" in slugs
-    iperf = next(item for item in tests if item["slug"] == "iperf3")
-    assert iperf["kind"] == "iperf3"
-    assert iperf["target"] == "10.7.0.1"
-    assert iperf["network_slug"] == "wired"
-    stored_iperf = db.scalar(text("SELECT iperf_interval_seconds FROM internet_service_settings WHERE id = 1"))
-    assert iperf["interval_seconds"] == max(stored_iperf, 300)
+    stored_transfer = db.scalar(text("SELECT librespeed_interval_seconds FROM internet_service_settings WHERE id = 1"))
     transfer = next(item for item in tests if item["slug"] == "librespeed")
     assert transfer["kind"] == "librespeed"
     assert transfer["target"] == "10.7.0.1"
-    assert transfer["interval_seconds"] == max(stored_iperf, 300)
+    assert transfer["network_slug"] == "wired"
+    assert transfer["interval_seconds"] == max(stored_transfer, 300)
     call = next(item for item in tests if item["slug"] == "webrtc")
     assert call["kind"] == "webrtc"
     assert call["target"] == "10.7.0.1"

@@ -7,7 +7,7 @@ import { checkLabel, networkLabel } from "../labels";
 import type { MonitorDetail, Result, ResultPage } from "../types";
 
 const PAGE = 100;
-const INTERNET_SLUGS = ["http-path", "icmp-path", "mtr-path", "iperf3"];
+const INTERNET_SLUGS = ["http-path", "icmp-path", "mtr-path"];
 
 type ProbeOption = { value: string; label: string };
 type ProbeGroup = { label: string; options: ProbeOption[] };

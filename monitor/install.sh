@@ -29,7 +29,6 @@ else
   echo "Avahi is not installed. The page is still available at this Pi's IP address on port 80."
 fi
 need=""
-command -v iperf3 >/dev/null 2>&1 || need="$need iperf3"
 command -v ping >/dev/null 2>&1 || need="$need iputils-ping"
 command -v mtr >/dev/null 2>&1 || need="$need mtr-tiny"
 command -v iw >/dev/null 2>&1 || need="$need iw"

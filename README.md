@@ -5,8 +5,7 @@
 <h1 align="center">HomeNetWatch</h1>
 
 <p align="center">
-  Monitor the wired and wireless performance of your home network with a Raspberry Pi,<br />
-  in the style of Aruba UXI and Ubiquiti WiFiman.
+  Monitor the wired and wireless performance of your home network with a Raspberry Pi.
 </p>
 
 <p align="center">
@@ -23,7 +22,7 @@ degraded, and at which stage a problem starts: DNS, TCP, TLS, or the server's fi
 ## Features
 
 - **Staged tests.** HTTP checks broken into DNS, TCP, TLS and time-to-first-byte stages, plus ICMP
-  ping, MTR path traces, and iperf3 throughput to the server.
+  ping, MTR path traces, and File Transfer throughput to the server.
 - **Wired and wireless views.** Test over Ethernet and Wi-Fi separately and compare them.
 - **Health at a glance.** Green, amber and red status for every remote agent and network, with an
   issue list that records the stage where each failure began.
@@ -85,8 +84,7 @@ Open the dashboard at <http://127.0.0.1:3847>.
 
 ### Deploy to a server
 
-A production overlay adds automatic HTTPS and closes internal ports. The step-by-step guide for
-The step-by-step guide is in [`docs/deploy.md`](./docs/deploy.md).
+A production overlay adds automatic HTTPS and closes internal ports. The step-by-step guide is in [`docs/deploy.md`](./docs/deploy.md).
 
 ### Ports
 
@@ -169,7 +167,7 @@ VERSION        Current project version
 |-------|-------|--------|
 | 0 | Dashboard-first slice: server, seed, core UI | Done |
 | 1 | Server hardening: enrollment, config ETag, issue engine | In progress |
-| 2 | Pi agent: enrollment, device health, HTTP, ping, MTR, iperf3 | In progress |
+| 2 | Pi agent: enrollment, device health, HTTP, ping, MTR, File Transfer | In progress |
 | 3 | Airwaves: a second radio adapter scans (iw, or Kismet with `--kismet`); the link adapter scans only when it is the only radio, at most every 15 minutes, and never during a test | In progress |
 | 4 | Cloud deployment of the same Compose stack with TLS (see docs/deploy.md) | In progress |
 

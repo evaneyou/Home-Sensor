@@ -13,7 +13,7 @@ RUN sed -i 's/\r$//' generate-media.sh \
 FROM debian:bookworm-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        wireguard-tools wireguard-go iproute2 iptables socat iperf3 \
+        wireguard-tools wireguard-go iproute2 iptables socat \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=webrtc-build /src/target/release/webrtc-call /webrtc-call

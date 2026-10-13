@@ -614,9 +614,6 @@ class InternetServiceSettingOut(BaseModel):
     http_variance_pct: int
     icmp_variance_pct: int
     mtr_variance_pct: int
-    iperf_enabled: bool
-    iperf_interval_seconds: int
-    iperf_variance_pct: int
     librespeed_enabled: bool
     librespeed_interval_seconds: int
     librespeed_variance_pct: int
@@ -633,9 +630,6 @@ class InternetServiceSettingIn(BaseModel):
     http_variance_pct: int = Field(ge=0, le=500)
     icmp_variance_pct: int = Field(ge=0, le=500)
     mtr_variance_pct: int = Field(ge=0, le=500)
-    iperf_enabled: bool
-    iperf_interval_seconds: int = Field(ge=300, le=86400)
-    iperf_variance_pct: int = Field(ge=0, le=500)
     librespeed_enabled: bool
     librespeed_interval_seconds: int = Field(ge=300, le=86400)
     librespeed_variance_pct: int = Field(ge=0, le=500)

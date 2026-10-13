@@ -1,0 +1,145 @@
+# Deploy on a server
+
+This guide runs the stack on a Linux server with automatic HTTPS. Any small cloud VM or VPS is enough. You need a domain name you can point at the server, and an SSH key pair.
+
+## What gets exposed
+
+| Port | Protocol | Purpose | Public |
+|------|----------|---------|--------|
+| 22 | TCP | SSH | Yes (restrict to your IP if you can) |
+| 80, 443 | TCP | HTTPS dashboard and API through Caddy | Yes |
+| 443 | UDP | HTTP/3 (optional) | Yes |
+| 8848 | TCP | Agent enrollment, TLS with a pinned key | Yes |
+| 51820 | UDP | WireGuard tunnels from your Pis | Yes |
+| 55432, 8847, 3847 | TCP | Postgres, API, dashboard | **No**, internal only |
+
+[`docker-compose.prod.yml`](../docker-compose.prod.yml) closes the last row and adds Caddy.
+
+Open those public ports in the server's firewall. Docker publishes container ports through its own rules. If a port is still unreachable, check the host firewall and allow each port:
+
+```bash
+sudo iptables -L INPUT -n --line-numbers
+sudo iptables -I INPUT 6 -p tcp --dport 80 -j ACCEPT
+sudo apt-get install -y iptables-persistent && sudo netfilter-persistent save
+```
+
+Repeat the insert for 443/tcp, 443/udp, 8848/tcp, and 51820/udp.
+
+## 1. Point your domain at the server
+
+Create an **A record** for the name you want (for example `hns.example.com`) pointing at the public IP. If you use Cloudflare, set it to **DNS only** (grey cloud), because Caddy needs to reach Let's Encrypt directly and the agent ports can't go through the proxy.
+
+Wait until `dig +short hns.example.com` returns your IP.
+
+## 2. Install Docker
+
+```bash
+ssh <user>@<public-ip>
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker "$USER"
+exit            # log back in so the group applies
+docker compose version      # must be 2.24 or newer
+```
+
+## 3. Get the code and configure it
+
+```bash
+git clone https://github.com/evaneyou/Home-Sensor.git
+cd Home-Sensor
+cp .env.example .env
+```
+
+Generate secrets with `openssl rand -hex 32` and edit `.env`:
+
+| Variable | Set it to |
+|----------|-----------|
+| `DOMAIN` | `hns.example.com` (your name) |
+| `COMPOSE_FILE` | `docker-compose.yml:docker-compose.prod.yml` (uncomment it) |
+| `SECRET_KEY` | a long random value |
+| `POSTGRES_PASSWORD` | a long random value |
+| `BOOTSTRAP_ADMIN_PASSWORD` | your admin password |
+| `BOOTSTRAP_VIEWER_PASSWORD` | your viewer password |
+| `CORS_ORIGINS` | `https://hns.example.com` |
+| `COOKIE_SECURE` | `true` |
+| `WIREGUARD_ENDPOINT` | `<public-ip>:51820` |
+
+`DATABASE_URL` in the file is ignored in Compose, which builds it from the `POSTGRES_*` values.
+
+Because `COMPOSE_FILE` is set, plain `docker compose` commands in this directory use the production stack. Lock the file down: `chmod 600 .env`.
+
+## 4. Start it
+
+```bash
+docker compose up --build -d
+docker compose exec server python -m app.seed --users-only
+```
+
+The first build compiles the dashboard and takes a few minutes. Migrations run automatically on start. `--users-only` creates the admin and viewer accounts **without demo data**, and refuses to run with the default passwords. Do not run the plain seed on this server.
+
+Check it:
+
+```bash
+docker compose ps
+curl https://hns.example.com/api/v1/healthz
+```
+
+Then open `https://hns.example.com` and sign in as `admin`. Caddy needs a minute to get its certificate on first start; `docker compose logs caddy` shows progress.
+
+## 5. Connect a Raspberry Pi
+
+1. In the dashboard open **Settings → Remote Agent Onboarding** and add the device.
+2. Install the agent on the Pi as described in [`monitor/README.md`](../monitor/README.md).
+3. On the Pi's setup page enter the server address `https://hns.example.com`, the device name and key.
+4. When you issue tunnels, the Pi connects to `<public-ip>:51820`. After the tunnel is up the agent uses the tunnel address (`http://10.7.0.1:8847`) for its tests.
+
+Print the agent API's TLS key pins and keep them:
+
+```bash
+docker compose exec agent-api python -m app.tls pins
+```
+
+## 6. Back up
+
+```bash
+./scripts/backup.sh
+```
+
+This writes a database dump plus the WireGuard and TLS state to `backups/`, keeping the newest 14 of each. Run it daily from cron and copy `backups/` somewhere else:
+
+```bash
+crontab -e
+# 15 3 * * * cd /home/ubuntu/Home-Sensor && ./scripts/backup.sh
+```
+
+The TLS and WireGuard archives matter as much as the database: they hold the keys your Pis trust. Without them every Pi has to be re-enrolled.
+
+**Restore** on a fresh server after the stack is up:
+
+```bash
+gunzip -c backups/db-<stamp>.sql.gz | docker compose exec -T db psql -U hns -d hns
+docker compose cp backups/tls-<stamp>.tar.gz agent-api:/tmp/tls.tar.gz
+docker compose exec agent-api tar -C /var/lib/hns-tls -xzf /tmp/tls.tar.gz
+docker compose cp backups/wireguard-<stamp>.tar.gz server:/tmp/wg.tar.gz
+docker compose exec server tar -C /var/lib/hns-wireguard -xzf /tmp/wg.tar.gz
+docker compose restart
+```
+
+## Updating
+
+```bash
+cd Home-Sensor
+git pull
+docker compose up --build -d
+```
+
+## Troubleshooting
+
+| Symptom | Check |
+|---------|-------|
+| Browser can't connect | Cloud firewall and `sudo iptables -L INPUT -n` |
+| Certificate error or Caddy loops | DNS A record resolves to this IP; ports 80 and 443 reachable; Cloudflare set to DNS only; `docker compose logs caddy` |
+| Login works but you are signed out immediately | `COOKIE_SECURE=true` requires HTTPS; open the `https://` address, and `CORS_ORIGINS` must match it exactly |
+| Dashboard loads but shows API errors | Rebuild after changing `DOMAIN`: `docker compose up --build -d dashboard` |
+| Pi can't enroll | Port 8848/TCP open; Pi can reach `https://<domain>`; `WIREGUARD_ENDPOINT` is the public IP and port |
+| Pi tunnel never connects | Port 51820/UDP open; `WIREGUARD_ENDPOINT` correct, then re-issue the tunnel |
+| Build is killed or very slow | The machine needs more memory, or build on another machine |

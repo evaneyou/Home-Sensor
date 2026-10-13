@@ -8,64 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The repository version lives in [`VERSION`](./VERSION). The Pi agent in `monitor/`
 reports its own `AGENT_VERSION` so it can be updated independently of the server.
 
-## [Unreleased]
+## [0.1.0] - 2026-10-13
 
-### Fixed
-
-- Checks stayed "slow" forever after the path changed (for example the server moving from the
-  LAN to another network). The recent normal only used OK results, and a slower path never produced any. When
-  the latest 12 results have no loss and are close together, that level is now the new normal.
-- Home screen showed Wired, Wi-Fi and Internet as "Not connected" while pings and web checks passed.
-  The path trace (MTR) failed whenever the last hop dropped probe packets, and that alone turned the
-  tiles red. The agent now confirms a silent last hop with a ping, and the server no longer lets the
-  path trace set the tile status.
-- Pi agent iperf3 check: the download test was often cut off by the server ("Connection reset by
-  peer") right after the upload test, so it reported 0 Mbps. The agent now pauses between the two
-  directions and retries a direction that fails this way, and the result message shows iperf3's
-  real error instead of the last line of its JSON output.
+First release.
 
 ### Added
 
-- Open-source project files: `LICENSE` (MIT), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
-  `SECURITY.md`, issue and pull request templates, and Dependabot configuration.
-- GitHub Actions CI for the server tests and the dashboard build.
-- `VERSION` file and `scripts/bump-version.sh` to keep the server and dashboard versions in step.
-- `monitor/README.md` with Pi agent install and enrollment steps.
-- `.editorconfig` and `.gitattributes` (shell scripts always use LF line endings).
-
-- Production deployment: `docker-compose.prod.yml` (Caddy with automatic HTTPS, internal ports closed),
-  `deploy/Caddyfile`, `scripts/backup.sh`, and `docs/deploy.md`.
-- `python -m app.seed --users-only` creates only the admin and viewer accounts, and refuses default passwords.
-
-### Changed
-
-- Rewrote the root `README.md` and replaced the Vite template `dashboard/README.md`.
-- The API now reports the installed package version instead of a hard-coded string, and its
-  title is "HomeNetWatch".
-- Added package metadata (license, URLs, classifiers) to `server/pyproject.toml` and `dashboard/package.json`.
-- Corrected `SPEC.md`: iperf3 runs against the server over the tunnel, not a public host.
+- **Server:** FastAPI and Postgres, cookie auth for admin and viewer, enrollment with a pinned TLS key, WireGuard tunnels, and retention of raw results.
+- **Dashboard:** overview, remote-agent detail, internet path with public traceroute hops and AS numbers, airwaves, issues, and settings. Every page except Home uses the compact layout.
+- **Pi agent:** LAN setup page, device health, and HTTP, ping, MTR, File Transfer, and video-call checks.
+- **File Transfer:** Rust LibreSpeed backend. The agent calls `/backend/garbage` and `/backend/empty`.
+- **Airwaves:** Wi-Fi scans and Kismet capture, with trusted access points and nearby clients.
 
 ### Fixed
 
-- `server/uv.lock` was missing the `cryptography` dependency; regenerated.
-- `test_health_assigns_iperf_and_web_services` expected the `wan` network, but link tests are
-  assigned to `wired`.
+- The recent normal adapts when a path stays slower and the latest samples agree, so a moved server does not stay "slow" forever.
+- A silent last hop on the path trace no longer turns the home tiles red by itself.
 
-## [0.1.0] - 2026-10-09
+### Removed
 
-First tagged baseline of the project.
+- iperf3 bandwidth checks. File Transfer is the throughput check.
 
-### Added
-
-- **Server:** FastAPI + Postgres API with cookie-session auth (admin and viewer roles),
-  Alembic migrations, idempotent demo seed, ingest endpoint, issue tracking, and
-  data retention (raw, hourly, then daily rollups).
-- **Enrollment:** signed remote-agent check-in with a pinned TLS key on port 8848,
-  installer codes, admin approval, and WireGuard tunnel provisioning.
-- **Dashboard:** React + Vite + TypeScript UI with overview matrix, remote-agent detail,
-  test detail with stage waterfall, issues, Wi-Fi scans, internet path view, and settings.
-- **Pi agent:** LAN setup page, device-health reporting, and HTTP, ping, MTR, and iperf3 checks.
-- Docker Compose stack: Postgres, server, agent API, WireGuard hub, and dashboard.
-
-[Unreleased]: https://github.com/evaneyou/Home-Sensor/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/evaneyou/Home-Sensor/releases/tag/v0.1.0
