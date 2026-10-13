@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session, joinedload
 from app.internet_tests import (
     classify_transfer,
     classify_web_service,
-    classify_webrtc,
     is_web_check,
     load_internet_service,
     load_web_services,
@@ -64,8 +63,6 @@ def ingest_results(
         if test.slug == "librespeed":
             pct = variance[0] if variance is not None else internet.librespeed_variance_pct
             status, reason = classify_transfer(db, test, item.metrics, pct)
-        elif test.slug == "webrtc":
-            status, reason = classify_webrtc(item.metrics, internet.webrtc_variance_pct)
         elif variance is not None:
             if test.kind.value == "http":
                 abs_floor, jitter_floor = stability.abs_floor_http_ms, 0

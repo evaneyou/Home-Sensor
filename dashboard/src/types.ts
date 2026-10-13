@@ -400,9 +400,6 @@ export type InternetServiceSetting = {
   librespeed_enabled: boolean;
   librespeed_interval_seconds: number;
   librespeed_variance_pct: number;
-  webrtc_enabled: boolean;
-  webrtc_interval_seconds: number;
-  webrtc_variance_pct: number;
 };
 
 export type TestDetail = {

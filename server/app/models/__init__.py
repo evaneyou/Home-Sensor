@@ -53,7 +53,6 @@ class TestKind(str, enum.Enum):
     wifi = "wifi"
     mtr = "mtr"
     librespeed = "librespeed"
-    webrtc = "webrtc"
 
 
 class ResultStatus(str, enum.Enum):
@@ -462,9 +461,6 @@ class InternetServiceSetting(Base):
     librespeed_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=25)
     librespeed_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     librespeed_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=900)
-    webrtc_variance_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
-    webrtc_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    webrtc_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=900)
 
 
 class WebStabilitySetting(Base):

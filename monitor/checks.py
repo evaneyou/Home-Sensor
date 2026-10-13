@@ -1,4 +1,4 @@
-"""File Transfer, video call, and web-service HTTP checks for the remote agent."""
+"""File Transfer and web-service HTTP checks for the remote agent."""
 
 from __future__ import annotations
 
@@ -19,10 +19,6 @@ from urllib.parse import urlsplit
 TUNNEL_HOST = "10.7.0.1"
 LIBRESPEED_PORT = 8080
 LIBRESPEED_SECONDS = 8
-WEBRTC_PORT = 8090
-WEBRTC_SECONDS = 10
-WEBRTC_LOSS_DEGRADED_PCT = 5.0
-WEBRTC_JITTER_DEGRADED_MS = 30.0
 HTTP_SLOW_MS = 3000
 DOWNLOAD_LIMIT = 65536
 # Ping's default gap is one second, so five probes take about four seconds of waiting.
@@ -641,8 +637,6 @@ def run_check(test: dict) -> dict | None:
     kind = test.get("kind")
     if kind == "librespeed":
         return check_librespeed(test)
-    if kind == "webrtc":
-        return check_webrtc(test)
     if kind == "http":
         return check_http(test)
     if kind == "ping":
@@ -754,95 +748,3 @@ def _float_value(value: object) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
     return None
-
-
-def check_webrtc(test: dict) -> dict:
-    started_at = _now()
-    started = time.perf_counter()
-    host = _host_only(str(test.get("target") or TUNNEL_HOST))
-    empty = {"rtt_ms": None, "jitter_ms": None, "loss_pct": None, "frames_in": 0, "frames_out": 0, "total_ms": 0.0}
-    if _tool("webrtc-call") is None:
-        return _result(test, started_at, "fail", [_stage("call", started, "fail")], empty, "webrtc-call is not installed")
-    if not _valid_host(host):
-        return _result(test, started_at, "fail", [_stage("call", started, "fail")], empty, "Video call target is not a host")
-    source = _route_source(host)
-    if source is None:
-        return _result(test, started_at, "fail", [_stage("call", started, "fail")], empty, f"No route to {host}")
-    try:
-        proc = subprocess.run(
-            [
-                "webrtc-call",
-                "call",
-                "--host",
-                host,
-                "--source",
-                source,
-                "--port",
-                str(WEBRTC_PORT),
-                "--seconds",
-                str(WEBRTC_SECONDS),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=WEBRTC_SECONDS + 35,
-        )
-    except subprocess.TimeoutExpired:
-        return _result(test, started_at, "fail", [_stage("call", started, "fail")], empty, "Video call timed out")
-    sample = parse_webrtc_report(proc.stdout)
-    total = round((time.perf_counter() - started) * 1000, 1)
-    if sample is None:
-        detail = (proc.stderr or proc.stdout or "Video call failed").strip().splitlines()
-        return _result(test, started_at, "fail", [_stage("call", started, "fail")], empty, (detail[-1] if detail else "Video call failed")[:240])
-    sample["total_ms"] = total
-    status = _webrtc_status(sample)
-    return _result(test, started_at, status, [_stage("call", started, status)], sample, f"{host}:{WEBRTC_PORT}")
-
-
-def parse_webrtc_report(stdout: str) -> dict | None:
-    text = stdout.strip()
-    if not text:
-        return None
-    try:
-        body = json.loads(text)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(body, dict):
-        return None
-    return {
-        "rtt_ms": _float_value(body.get("rtt_ms")),
-        "jitter_ms": _float_value(body.get("jitter_ms")),
-        "loss_pct": _float_value(body.get("loss_pct")),
-        "frames_in": _count_value(body.get("frames_in")),
-        "frames_out": _count_value(body.get("frames_out")),
-        "total_ms": _float_value(body.get("total_ms")) or 0.0,
-    }
-
-
-def _count_value(value: object) -> int:
-    number = _float_value(value)
-    if number is None or number < 0:
-        return 0
-    return int(number)
-
-
-def _route_source(host: str) -> str | None:
-    try:
-        proc = subprocess.run(["ip", "-4", "route", "get", host], capture_output=True, text=True, timeout=3)
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    match = re.search(r"\bsrc\s+(\d+\.\d+\.\d+\.\d+)", proc.stdout)
-    return match.group(1) if match else None
-
-
-def _webrtc_status(sample: dict) -> str:
-    frames_in = sample.get("frames_in") or 0
-    frames_out = sample.get("frames_out") or 0
-    if frames_in <= 0 or frames_out <= 0:
-        return "fail"
-    loss = sample.get("loss_pct")
-    jitter = sample.get("jitter_ms")
-    if (isinstance(loss, (int, float)) and loss > WEBRTC_LOSS_DEGRADED_PCT) or (
-        isinstance(jitter, (int, float)) and jitter > WEBRTC_JITTER_DEGRADED_MS
-    ):
-        return "degraded"
-    return "ok"

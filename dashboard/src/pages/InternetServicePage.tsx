@@ -16,19 +16,16 @@ const EMPTY: InternetServiceSetting = {
   librespeed_enabled: true,
   librespeed_interval_seconds: 900,
   librespeed_variance_pct: 25,
-  webrtc_enabled: true,
-  webrtc_interval_seconds: 900,
-  webrtc_variance_pct: 5,
 };
 
-type EnabledField = "http_enabled" | "icmp_enabled" | "mtr_enabled" | "librespeed_enabled" | "webrtc_enabled";
+type EnabledField = "http_enabled" | "icmp_enabled" | "mtr_enabled" | "librespeed_enabled";
 type VarianceField =
   | "http_variance_pct"
   | "icmp_variance_pct"
   | "mtr_variance_pct"
   | "librespeed_variance_pct"
-  | "webrtc_variance_pct";
-type IntervalField = "interval_seconds" | "librespeed_interval_seconds" | "webrtc_interval_seconds";
+;
+type IntervalField = "interval_seconds" | "librespeed_interval_seconds";
 
 const SIGNATURE_FIELDS = [
   "interval_seconds",
@@ -41,9 +38,6 @@ const SIGNATURE_FIELDS = [
   "librespeed_enabled",
   "librespeed_interval_seconds",
   "librespeed_variance_pct",
-  "webrtc_enabled",
-  "webrtc_interval_seconds",
-  "webrtc_variance_pct",
 ] as const;
 
 function signatureOf(row: InternetServiceSetting): string {
@@ -187,10 +181,8 @@ export default function InternetServicePage() {
       <p className="page-sub">
         Each check has its own variance. A response more than that percent off the recent normal is amber, as is an
         error status or packet loss. Red means an active check got no response. HTTP, ICMP, and MTR share one poll
-        interval. MTR runs at least every 2 minutes. File Transfer and Video call each run at least every
-        5 minutes. File Transfer turns amber when download or upload falls more than its percent below
-        the recent normal. Video call variance is the packet-loss percent that turns the check amber. Jitter above 30
-        ms does the same, and red means the call did not connect.
+        interval. MTR runs at least every 2 minutes. File Transfer runs at least every 5 minutes, and turns
+        amber when download or upload falls more than its percent below the recent normal.
       </p>
       <div className="panel table-scroll">
         <table className="table web-service-table">
@@ -306,19 +298,6 @@ export default function InternetServicePage() {
               onNumber={setNumber}
               onToggle={setToggle}
             />
-            <ToolRow
-              label="Video call"
-              intervalLabel="Video call interval"
-              intervalField="webrtc_interval_seconds"
-              enabledLabel="Video call"
-              enabledField="webrtc_enabled"
-              varianceLabel="Video call variance"
-              varianceField="webrtc_variance_pct"
-              row={row}
-              locked={locked}
-              onNumber={setNumber}
-              onToggle={setToggle}
-            />
           </tbody>
         </table>
       </div>
@@ -345,7 +324,7 @@ export default function InternetServicePage() {
           onConfirm={() => save.mutate()}
           onCancel={() => setConfirming(false)}
         >
-          Save path checks, File Transfer, Video call, and variance? Agents pick up the schedule on the next health report.
+          Save path checks, File Transfer, and variance? Agents pick up the schedule on the next health report.
         </ConfirmDialog>
       ) : null}
     </div>

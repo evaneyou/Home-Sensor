@@ -49,14 +49,6 @@ socat TCP-LISTEN:8847,bind=10.7.0.1,fork,reuseaddr TCP:${SERVER_PROXY:-server:88
 socat TCP-LISTEN:8847,bind=10.7.1.1,fork,reuseaddr TCP:${SERVER_PROXY:-server:8847} &
 socat TCP-LISTEN:8080,bind=10.7.0.1,fork,reuseaddr TCP:${LIBRESPEED_PROXY:-librespeed:8080} &
 socat TCP-LISTEN:8080,bind=10.7.1.1,fork,reuseaddr TCP:${LIBRESPEED_PROXY:-librespeed:8080} &
-# A crashed answerer should come back for the next call.
-start_call() {
-  while true; do
-    /webrtc-call answer --bind 10.7.0.1:8090 --bind 10.7.1.1:8090 || true
-    sleep 1
-  done
-}
-start_call &
 
 stamp=""
 while true; do
