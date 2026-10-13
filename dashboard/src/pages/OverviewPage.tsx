@@ -8,9 +8,9 @@ type CheckState = "ok" | "slow" | "down" | "unknown";
 type Mood = "happy" | "curious" | "slow" | "down";
 
 const CHECKS: { key: "wired" | "wifi" | "web"; label: string; icon: string; column: string }[] = [
+  { key: "web", label: "Web", icon: "cloud", column: "web" },
   { key: "wired", label: "Wired", icon: "plug", column: "lan" },
   { key: "wifi", label: "Wi-Fi", icon: "wifi", column: "wifi-main" },
-  { key: "web", label: "Web", icon: "cloud", column: "web" },
 ];
 
 const DEFAULT_DETAIL: Record<string, Record<CheckState, string>> = {
