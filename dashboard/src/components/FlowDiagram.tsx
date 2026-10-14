@@ -303,7 +303,10 @@ function factsFor(id: string, monitor: MonitorDetail | undefined, agent: Monitor
   const add = (label: string, value: string | null | undefined) => {
     if (value) facts.push([label, value]);
   };
-  const lan = agent?.lan_ip ?? monitor?.lan_ip;
+  // The agent works its "LAN IP" out from the route to the server, which now runs through the
+  // tunnel, so it can report the tunnel address. Showing that as a LAN address would be wrong.
+  const reported = agent?.lan_ip ?? monitor?.lan_ip;
+  const lan = reported && reported !== monitor?.tunnel_address && reported !== monitor?.wireless_tunnel_address ? reported : null;
   switch (id) {
     case NODE.piWired:
       add("Status", monitor?.status);
