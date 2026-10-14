@@ -3,18 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Evan You: I built HomeNetWatch in 9 days with AI</title>
+    <title>HomeNetWatch: a production system built in 9 days with AI | Evan You</title>
     <meta
       name="description"
-      content="Hi, I'm Evan You. HomeNetWatch is a live network monitor I built in nine days, working with AI as a teammate. Come and explore it, and read how it came together."
+      content="HomeNetWatch is a network monitor running in production, built in nine days by Evan You with AI as a teammate. The commit history, releases, documentation and a live read-only system are open to check."
     />
     <meta name="theme-color" content="#0b0f1a" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="HomeNetWatch" />
-    <meta property="og:title" content="I built a live network monitor in 9 days, with AI as a teammate" />
+    <meta property="og:title" content="HomeNetWatch: a production system built in 9 days with AI" />
     <meta
       property="og:description"
-      content="Raspberry Pi agents, a cloud server and a live dashboard, built by Evan You. Come and explore the demo."
+      content="A record of work by Evan You: commits, releases, documentation and a live read-only system you can check yourself."
     />
     <meta property="og:image" content="https://live.homenetwatch.com/welcome/homenetwatch.png" />
     <link rel="icon" type="image/png" href="icon.png" />
@@ -35,12 +35,13 @@
           <img src="homenetwatch.png" alt="HomeNetWatch" width="154" height="35" />
         </a>
         <nav aria-label="Sections">
-          <a href="#speed">Speed</a>
+          <a href="#evidence">Evidence</a>
           <a href="#complexity">Under the hood</a>
-          <a href="#docs">Docs</a>
-          <a href="#about">About me</a>
+          <a href="#speed">Build record</a>
+          <a href="#docs">Sources</a>
+          <a href="#about">About</a>
         </nav>
-        <a class="btn btn-primary btn-sm" href="https://live.homenetwatch.com/" data-demo>Open live demo</a>
+        <a class="btn btn-primary btn-sm" href="https://live.homenetwatch.com/" data-demo>Open the live system</a>
       </div>
     </header>
 
@@ -49,16 +50,16 @@
       <section class="hero" id="top">
         <div class="wrap hero-grid">
           <div>
-            <p class="eyebrow">Hi, I'm Evan You</p>
-            <h1>I built an app that shows where your internet breaks. It took 9 days.</h1>
+            <p class="eyebrow">Evan You &middot; A record of work</p>
+            <h1>HomeNetWatch: a production network monitor, built in nine days with AI.</h1>
             <p class="lead">
-              HomeNetWatch watches my home internet from a little Raspberry Pi, sends what it finds to a server in the
-              cloud, and tells the story on a live dashboard. I built it with AI as a teammate, and it's running right
-              now. Come and take a look.
+              A Raspberry Pi measures a home network, a cloud server stores the results, and a live dashboard shows
+              where a connection degrades. It runs in production on my own network. I built it with AI as a teammate,
+              and this page is the record of how, so each claim can be checked.
             </p>
             <div class="cta">
-              <a class="btn btn-primary" href="https://live.homenetwatch.com/" data-demo>Open the live demo</a>
-              <a class="btn btn-ghost" href="#speed">See how it came together</a>
+              <a class="btn btn-primary" href="https://live.homenetwatch.com/" data-demo>Open the live system</a>
+              <a class="btn btn-ghost" href="#evidence">See the evidence</a>
             </div>
             <p class="fine" data-demo-note>
               One click signs you in as a read-only guest on my real home network. No sign-up. Guests can't see my
@@ -88,10 +89,50 @@
         </div>
       </section>
 
+      <!-- Evidence: each claim with a way to check it -->
+      <section id="evidence" class="block evidence">
+        <div class="wrap">
+          <p class="eyebrow">Evidence</p>
+          <h2>Claims you can check</h2>
+          <ul class="proof">
+            <li>
+              <b>Runs in production</b>
+              <span>The live app reads measurements from a Raspberry Pi on my home network.</span>
+              <a href="https://live.homenetwatch.com/" data-demo>Open the live system &rarr;</a>
+            </li>
+            <li>
+              <b>Built in nine days</b>
+              <span>First commit on October 6, release 0.2.0 on October 14.</span>
+              <a href="https://github.com/evaneyou/homenetwatch/commits/main" target="_blank" rel="noopener">Commit history &rarr;</a>
+            </li>
+            <li>
+              <b>Reviewed and tested</b>
+              <span>More than 70 pull requests, with CI running the server tests, the dashboard build and a config check.</span>
+              <a href="https://github.com/evaneyou/homenetwatch/pulls?q=is%3Apr+is%3Amerged" target="_blank" rel="noopener">Merged pull requests &rarr;</a>
+            </li>
+            <li>
+              <b>Versioned releases</b>
+              <span>Releases 0.1.0 and 0.2.0, each with a changelog written for whoever upgrades.</span>
+              <a href="https://github.com/evaneyou/homenetwatch/releases" target="_blank" rel="noopener">Releases &rarr;</a>
+            </li>
+            <li>
+              <b>Specified and documented</b>
+              <span>A written spec, a deployment guide that starts from a blank server, and a README for the Pi agent.</span>
+              <a href="https://github.com/evaneyou/homenetwatch/blob/main/SPEC.md" target="_blank" rel="noopener">The spec &rarr;</a>
+            </li>
+            <li>
+              <b>Secured</b>
+              <span>Signed device enrollment, per-device WireGuard tunnels, roles enforced on the server, HSTS and an enforced CSP.</span>
+              <a href="https://github.com/evaneyou/homenetwatch/blob/main/docs/deploy.md#security-headers" target="_blank" rel="noopener">Security headers &rarr;</a>
+            </li>
+          </ul>
+        </div>
+      </section>
+
       <!-- Under the hood: the best visual, near the top -->
       <section id="complexity" class="under" aria-label="Under the hood">
         <div class="wrap">
-          <p class="eyebrow">A look inside</p>
+          <p class="eyebrow">Under the hood</p>
           <h2>What's under the hood</h2>
           <figure class="figure">
             <a href="path-diagram.png" aria-label="Open the Network Path Diagram at full size">
@@ -136,18 +177,18 @@
       <section class="demo" aria-labelledby="demo-title">
         <div class="wrap demo-card">
           <div>
-            <h2 id="demo-title">Come and have a look around</h2>
+            <h2 id="demo-title">Verify it yourself</h2>
             <p>
-              This is the real app, showing real-time measurements from my Raspberry Pi. Click anything you like. You
-              can't break it.
+              The demo is the production app with read-only guest access, showing real-time measurements from my
+              Raspberry Pi.
             </p>
             <p class="demo-note">
-              I hide private details like IP addresses from guests, and anything that starts tests or changes settings
-              is turned off, so my small server doesn't get overloaded.
+              Private details such as IP addresses are hidden from guests, and anything that starts tests or changes
+              settings is switched off to protect a small server.
             </p>
           </div>
           <div class="demo-act">
-            <a class="btn btn-primary" href="https://live.homenetwatch.com/" data-demo>Enter the demo</a>
+            <a class="btn btn-primary" href="https://live.homenetwatch.com/" data-demo>Open the live system</a>
             <span class="fine" data-demo-status role="status"></span>
           </div>
         </div>
@@ -156,8 +197,9 @@
       <!-- Speed -->
       <section id="speed" class="block">
         <div class="wrap">
-          <p class="eyebrow">How fast it moved</p>
-          <h2>From an empty repository to a live app in nine days</h2>
+          <p class="eyebrow">Build record</p>
+          <h2>Nine days from first commit to production</h2>
+          <p class="sub">Taken from the commit history.</p>
           <ol class="timeline">
             <li>
               <time datetime="2026-10-06">Oct 6</time>
@@ -230,7 +272,7 @@
       <!-- Challenges -->
       <section id="challenges" class="block alt">
         <div class="wrap">
-          <p class="eyebrow">The honest part</p>
+          <p class="eyebrow">Constraints</p>
           <h2>Challenges and limitations</h2>
           <div class="stories">
             <article class="story">
@@ -279,24 +321,24 @@
       <!-- Docs -->
       <section id="docs" class="block">
         <div class="wrap">
-          <p class="eyebrow">Read more</p>
-          <h2>Peek behind the curtain</h2>
+          <p class="eyebrow">Sources</p>
+          <h2>The primary records</h2>
           <div class="docs">
+            <a class="doc" href="https://github.com/evaneyou/homenetwatch/pulls?q=is%3Apr+is%3Amerged">
+              <b>Pull request history</b>
+              <span>The work as it happened.</span>
+            </a>
+            <a class="doc" href="https://github.com/evaneyou/homenetwatch/blob/main/CHANGELOG.md">
+              <b>Changelog</b>
+              <span>Every release.</span>
+            </a>
             <a class="doc" href="https://github.com/evaneyou/homenetwatch/blob/main/SPEC.md">
               <b>Architecture and spec</b>
               <span>Topology, data model, API, phases.</span>
             </a>
-            <a class="doc" href="https://github.com/evaneyou/homenetwatch/blob/main/CLAUDE.md">
-              <b>The AI's house rules</b>
-              <span>What the AI works under.</span>
-            </a>
             <a class="doc" href="https://github.com/evaneyou/homenetwatch/blob/main/docs/deploy.md">
               <b>Deployment guide</b>
               <span>Blank server to HTTPS.</span>
-            </a>
-            <a class="doc" href="https://github.com/evaneyou/homenetwatch/pulls?q=is%3Apr+is%3Amerged">
-              <b>Pull request history</b>
-              <span>The work as it happened.</span>
             </a>
             <a class="doc" href="https://github.com/evaneyou/homenetwatch#readme">
               <b>README</b>
@@ -306,13 +348,13 @@
               <b>Raspberry Pi agent</b>
               <span>Setup, enrollment, checks.</span>
             </a>
-            <a class="doc" href="https://github.com/evaneyou/homenetwatch/blob/main/CHANGELOG.md">
-              <b>Changelog</b>
-              <span>Every release.</span>
-            </a>
             <a class="doc" href="https://github.com/evaneyou/homenetwatch/blob/main/SECURITY.md">
               <b>Security policy</b>
               <span>How to report a vulnerability.</span>
+            </a>
+            <a class="doc" href="https://github.com/evaneyou/homenetwatch/blob/main/CLAUDE.md">
+              <b>The AI's house rules</b>
+              <span>What the AI works under.</span>
             </a>
           </div>
           <div class="stack" aria-label="Technology">
@@ -327,8 +369,8 @@
       <section id="about" class="block alt">
         <div class="wrap about">
           <div>
-            <p class="eyebrow">About me</p>
-            <h2>Hi, I'm Evan</h2>
+            <p class="eyebrow">About the author</p>
+            <h2>Evan You</h2>
             <div class="about-text">
               <p class="lead small">
                 At heart, I am a technologist, a problem solver, and a builder. I love figuring out how complex systems
@@ -357,7 +399,7 @@
               </p>
             </div>
             <div class="cta">
-              <a class="btn btn-primary" href="https://live.homenetwatch.com/" data-demo>Open the live demo</a>
+              <a class="btn btn-primary" href="https://live.homenetwatch.com/" data-demo>Open the live system</a>
               <a class="btn btn-ghost" href="https://www.linkedin.com/in/evan-you-9509603" target="_blank" rel="noopener">My LinkedIn</a>
               <a class="btn btn-ghost" href="https://github.com/evaneyou">My GitHub</a>
               <a class="btn btn-ghost" href="https://open.spotify.com/show/0AJatn9IzYBylJqaAYOXNC" target="_blank" rel="noopener">Listen to the podcast</a>
@@ -373,7 +415,7 @@
         <span>
           <a href="https://github.com/evaneyou/homenetwatch">Source</a>
           <a href="https://www.linkedin.com/in/evan-you-9509603" target="_blank" rel="noopener">LinkedIn</a>
-          <a href="https://live.homenetwatch.com/">Live demo</a>
+          <a href="https://live.homenetwatch.com/">Live system</a>
         </span>
       </div>
     </footer>
