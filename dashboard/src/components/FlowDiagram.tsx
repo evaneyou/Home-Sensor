@@ -194,27 +194,27 @@ function specs(monitor: MonitorDetail | undefined): Spec[] {
         monitor?.wireless_tunnel_address,
       ]),
     },
-    { id: NODE.router, x: 290, y: 120, tone: "neutral", title: "Home router", lines: ["LAN switch and Wi-Fi access point"] },
+    { id: NODE.router, x: 250, y: 120, tone: "neutral", title: "Home router", lines: ["LAN switch and Wi-Fi access point"] },
     {
       id: NODE.internet,
-      x: 580,
+      x: 500,
       y: 120,
       tone: "neutral",
       title: "Internet",
       lines: clean([monitor?.isp ?? "ISP", monitor?.public_ip]),
     },
-    { id: NODE.web, x: 880, y: -20, tone: "neutral", title: "Web services", lines: ["Public sites", "Not through a tunnel"] },
+    { id: NODE.web, x: 750, y: -20, tone: "neutral", title: "Web services", lines: ["Public sites", "Not through a tunnel"] },
     {
       id: NODE.serverDirect,
-      x: 880,
+      x: 750,
       y: 105,
       tone: "neutral",
       title: "Server · public address",
       lines: ["Application flows and traces"],
     },
-    { id: NODE.tunnelWired, x: 880, y: 235, tone: "wired", title: "WireGuard · wired", lines: ["10.7.0.1 · UDP 51820"] },
-    { id: NODE.tunnelWifi, x: 880, y: 345, tone: "wifi", title: "WireGuard · Wi-Fi", lines: ["10.7.1.1 · UDP 51821"] },
-    { id: NODE.services, x: 1170, y: 290, tone: "neutral", title: "Server services", lines: ["API and File Transfer", "Inside the tunnel"] },
+    { id: NODE.tunnelWired, x: 750, y: 235, tone: "wired", title: "WireGuard · wired", lines: ["10.7.0.1 · UDP 51820"] },
+    { id: NODE.tunnelWifi, x: 750, y: 345, tone: "wifi", title: "WireGuard · Wi-Fi", lines: ["10.7.1.1 · UDP 51821"] },
+    { id: NODE.services, x: 1000, y: 290, tone: "neutral", title: "Server services", lines: ["API and File Transfer", "Inside the tunnel"] },
   ];
 }
 
@@ -239,7 +239,7 @@ export default function FlowDiagram({ test, monitor }: { test: FlowTest | null; 
       draggable: false,
       connectable: false,
       selectable: false,
-      style: { width: 210 },
+      style: { width: 190 },
     }));
     const wires: RouteEdgeType[] = EDGE_IDS.map((id) => {
       const [source, target] = id.split(">");

@@ -82,9 +82,9 @@ export default function FlowSection({ monitorId, monitor }: { monitorId: string;
         <div className="flow-stage">
           <FlowDiagram test={selected} monitor={monitor} />
           <div className="flow-legend" aria-hidden="true">
-            <span><i className="dot-out" /> out to the destination</span>
-            <span><i className="dot-back" /> back to the Pi</span>
-            <span><i className="dash" /> control channel</span>
+            <span><i className="flow-key-out" /> out to the destination</span>
+            <span><i className="flow-key-back" /> back to the Pi</span>
+            <span><i className="flow-key-dash" /> control channel</span>
           </div>
         </div>
       </div>

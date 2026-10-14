@@ -127,7 +127,12 @@ export function buildFlowTests(
       });
     }
   }
-  return rows;
+  return rows.sort(
+    (a, b) =>
+      Number(b.application) - Number(a.application) ||
+      a.name.localeCompare(b.name) ||
+      Number(a.link === "wifi") - Number(b.link === "wifi"),
+  );
 }
 
 export type FlowPath = { nodes: string[]; role: "data" | "control" };

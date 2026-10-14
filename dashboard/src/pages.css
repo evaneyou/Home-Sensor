@@ -1011,17 +1011,17 @@
   margin-right: 6px;
 }
 
-.flow-legend .dot-out,
-.flow-legend .dot-back {
+.flow-key-out,
+.flow-key-back {
   width: 9px;
   height: 9px;
   border-radius: 50%;
 }
 
-.flow-legend .dot-out { background: #4fd1b5; }
-.flow-legend .dot-back { background: #e8ecf8; }
+.flow-key-out { background: #4fd1b5; }
+.flow-key-back { background: #e8ecf8; }
 
-.flow-legend .dash {
+.flow-key-dash {
   width: 18px;
   border-top: 2px dashed var(--muted);
 }
