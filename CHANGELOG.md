@@ -16,8 +16,8 @@ First release.
 
 - **Server:** FastAPI and Postgres, cookie auth for admin and viewer, enrollment with a pinned TLS key, WireGuard tunnels, and retention of raw results.
 - **Dashboard:** overview, remote-agent detail, internet path with public traceroute hops and AS numbers, airwaves, issues, and settings. Every page except Home uses the compact layout.
-- **Pi agent:** LAN setup page, device health, and HTTP, ping, MTR, File Transfer, and video-call checks.
-- **File Transfer:** Rust LibreSpeed backend. The agent calls `/backend/garbage` and `/backend/empty`.
+- **Pi agent:** LAN setup page, device health, and HTTP, ping, MTR, Bandwidth Test, and video-call checks.
+- **Bandwidth Test:** Rust LibreSpeed backend. The agent calls `/backend/garbage` and `/backend/empty`.
 - **Airwaves:** Wi-Fi scans and Kismet capture, with trusted access points and nearby clients.
 
 ### Fixed
@@ -27,6 +27,6 @@ First release.
 
 ### Removed
 
-- iperf3 bandwidth checks. File Transfer is the throughput check.
+- iperf3 bandwidth checks. Bandwidth Test is the throughput check.
 
 [0.1.0]: https://github.com/evaneyou/homenetwatch/releases/tag/v0.1.0

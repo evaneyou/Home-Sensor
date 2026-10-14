@@ -37,11 +37,18 @@ function useDarkTheme() {
 }
 
 function Login({ onSuccess }: { onSuccess: () => void }) {
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("admin-change-me");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const mutation = useMutation({
-    mutationFn: () => api.login(username, password) as Promise<User>,
+    mutationFn: async () => {
+      await api.login(username, password);
+      try {
+        return (await api.me()) as User;
+      } catch {
+        throw new Error("The password was accepted, but the browser did not keep the session. Refresh and try again.");
+      }
+    },
     onSuccess: () => onSuccess(),
     onError: (e: Error) => setError(e.message || "Login failed"),
   });

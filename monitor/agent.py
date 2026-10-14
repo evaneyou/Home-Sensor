@@ -52,7 +52,7 @@ import synthetic
 
 AGENT_VERSION = "0.5.0"
 # Latency checks wait on the network, so a few of them run at once.
-# File Transfer stays alone: running it beside others would slow them all down.
+# Bandwidth Test stays alone: running it beside others would slow them all down.
 PROBE_WORKERS = 6
 HEAVY_KINDS = {"librespeed"}
 CONFIG_PATH = Path(os.environ.get("MONITOR_CONFIG", "/etc/monitor/config.json"))

@@ -181,7 +181,7 @@ export default function InternetServicePage() {
       <p className="page-sub">
         Each check has its own variance. A response more than that percent off the recent normal is amber, as is an
         error status or packet loss. Red means an active check got no response. HTTP, ICMP, and MTR share one poll
-        interval. MTR runs at least every 2 minutes. File Transfer runs at least every 5 minutes, and turns
+        interval. MTR runs at least every 2 minutes. Bandwidth Test runs at least every 5 minutes, and turns
         amber when download or upload falls more than its percent below the recent normal.
       </p>
       <div className="panel table-scroll">
@@ -286,12 +286,12 @@ export default function InternetServicePage() {
               </td>
             </tr>
             <ToolRow
-              label="File Transfer"
-              intervalLabel="File Transfer interval"
+              label="Bandwidth Test"
+              intervalLabel="Bandwidth Test interval"
               intervalField="librespeed_interval_seconds"
-              enabledLabel="File Transfer"
+              enabledLabel="Bandwidth Test"
               enabledField="librespeed_enabled"
-              varianceLabel="File Transfer variance"
+              varianceLabel="Bandwidth Test variance"
               varianceField="librespeed_variance_pct"
               row={row}
               locked={locked}
@@ -324,7 +324,7 @@ export default function InternetServicePage() {
           onConfirm={() => save.mutate()}
           onCancel={() => setConfirming(false)}
         >
-          Save path checks, File Transfer, and variance? Agents pick up the schedule on the next health report.
+          Save path checks, Bandwidth Test, and variance? Agents pick up the schedule on the next health report.
         </ConfirmDialog>
       ) : null}
     </div>

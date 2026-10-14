@@ -7,7 +7,7 @@ export function networkLabel(network: { slug: string; name: string }): string {
 }
 
 export function checkLabel(check: { slug?: string | null; name?: string | null }): string {
-  if (check.slug === "librespeed" || check.name === "LibreSpeed") return "File Transfer";
+  if (check.slug === "librespeed" || check.name === "LibreSpeed") return "Bandwidth Test";
   return check.name || check.slug || "";
 }
 

@@ -1,4 +1,4 @@
-"""Internet checks assigned to every monitor: path, File Transfer, and web services."""
+"""Internet checks assigned to every monitor: path, Bandwidth Test, and web services."""
 
 from __future__ import annotations
 
@@ -196,7 +196,7 @@ def _sync_link_tests(db: Session, monitor: Monitor, network: Network, server_ip:
         existing_rows,
         rows,
         "librespeed",
-        "File Transfer",
+        "Bandwidth Test",
         TestKind.librespeed,
         server_ip,
         max(path.librespeed_interval_seconds, 300),

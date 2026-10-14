@@ -448,7 +448,7 @@ class WebServiceSetting(Base):
 
 
 class InternetServiceSetting(Base):
-    """Singleton path, File Transfer, and video-call schedule for the Internet Service card."""
+    """Singleton path, Bandwidth Test, and video-call schedule for the Internet Service card."""
 
     __tablename__ = "internet_service_settings"
 

@@ -647,23 +647,125 @@
 
 .connection-diagram-link {
   display: block;
-  margin: 0 0 12px;
+  margin: 0 0 14px;
+  padding: 16px 12px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 14px;
   overflow: hidden;
-  background: #101620;
+  background: #0e1320;
 }
 
-.connection-diagram-link img {
-  display: block;
-  width: 100%;
-  height: auto;
-  max-height: 180px;
-  object-fit: contain;
-  object-position: center;
+.connection-diagram-link:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
 }
 
-.connection-live {
+/* The overview is a picture inside a link: let the link take every click. */
+.connection-mini {
+  height: 230px;
+  pointer-events: none;
+}
+
+.connection-mini .react-flow {
+  background: transparent;
+}
+
+.connection-mini .react-flow__handle {
+  opacity: 0;
+}
+
+.mini-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 10px 12px;
+  border: 1.25px solid #2a3550;
+  border-radius: 14px;
+  background: #161d2f;
+  box-shadow: 0 2px 10px rgb(5 7 13 / 55%);
+  color: #e8ecf8;
+  font-family: var(--font-ui);
+  line-height: 1.3;
+}
+
+.mini-card.tone-wired { border-color: #2f6b5d; background: #13262b; }
+.mini-card.tone-wifi { border-color: #6b5420; background: #2b2414; }
+
+.mini-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 6%);
+  color: #9aa6c4;
+}
+
+.mini-card.tone-wired .mini-icon { color: #4fd1b5; background: rgb(79 209 181 / 14%); }
+.mini-card.tone-wifi .mini-icon { color: #ffc24d; background: rgb(255 194 77 / 14%); }
+
+.mini-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mini-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mini-text strong {
+  font-size: 13px;
+}
+
+.mini-text span {
+  color: #9aa6c4;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.mini-status {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.mini-status.s-ok { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.mini-status.s-degraded { background: var(--degraded); }
+.mini-status.s-fail { background: var(--fail); box-shadow: 0 0 8px var(--fail); }
+
+@media (prefers-reduced-motion: reduce) {
+  .connection-mini .react-flow__edge.animated path {
+    animation: none;
+  }
+}
+
+/* The network path diagram: the connection drawn with React Flow, with the flows of one service animated. */
+.flow-compare {
+  margin-top: 12px;
+}
+
+.flow-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+}
+
+.flow-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
@@ -671,114 +773,454 @@
   margin-top: 12px;
 }
 
-/* Side by side only where the diagram still gets most of the width. */
 @media (min-width: 1100px) {
-  .connection-live {
-    grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem);
+  .flow-layout {
+    grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr);
   }
 }
 
-.connection-live-stage {
-  position: relative;
-  display: flex;
-  flex-direction: column;
+.flow-list {
+  max-height: 560px;
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg-elevated);
 }
 
-.connection-live-canvas {
-  display: block;
+.flow-group + .flow-group {
+  margin-top: 14px;
+}
+
+.flow-group h3 {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.flow-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 8px;
   width: 100%;
-  height: auto;
-  min-height: min(56vh, 460px);
-  max-height: min(78vh, 900px);
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.flow-item:hover {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+.flow-item.is-selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elevated));
+}
+
+.flow-item-name {
+  overflow: hidden;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flow-item-detail {
+  grid-column: 2 / 4;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.flow-count {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.flow-link {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.flow-link.link-wired {
+  background: color-mix(in srgb, #4fd1b5 18%, transparent);
+  color: #4fd1b5;
+}
+
+.flow-link.link-wifi {
+  background: color-mix(in srgb, #ffc24d 18%, transparent);
+  color: #ffc24d;
+}
+
+.flow-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.flow-dot.status-ok { background: var(--ok); }
+.flow-dot.status-degraded { background: var(--degraded); }
+.flow-dot.status-fail { background: var(--fail); }
+.flow-dot.status-idle { background: transparent; border: 1.5px solid var(--muted); }
+
+.flow-stage {
+  min-width: 0;
+}
+
+.flow-canvas {
+  height: min(62vh, 560px);
+  min-height: 380px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: #0e1320;
-  touch-action: none;
-  cursor: grab;
-  user-select: none;
+  overflow: hidden;
 }
 
-/* The diagram is part of the product, so it reads in the product's typeface. */
-.connection-live-canvas text {
+.flow-canvas .react-flow {
+  background: transparent;
+}
+
+.flow-canvas .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.flow-node {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1.25px solid #2a3550;
+  border-radius: 12px;
+  background: #161d2f;
+  box-shadow: 0 2px 8px rgb(5 7 13 / 55%);
+  color: #e8ecf8;
   font-family: var(--font-ui);
-  letter-spacing: 0.005em;
+  font-size: 11px;
+  line-height: 1.35;
+  transition: opacity 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.connection-live-canvas [data-cell] rect,
-.connection-live-canvas [data-cell] ellipse,
-.connection-live-canvas [data-cell] line {
-  transition: stroke 0.12s ease, stroke-width 0.12s ease;
+.flow-node strong {
+  font-size: 13px;
 }
 
-.connection-live-canvas [data-cell]:hover rect,
-.connection-live-canvas [data-cell]:hover ellipse {
-  stroke: color-mix(in srgb, var(--accent) 65%, #ffffff);
+.flow-node span {
+  color: #9aa6c4;
 }
 
-.connection-live-canvas [data-cell]:hover line {
-  stroke-width: 3;
+.flow-node.tone-wired { border-color: #2f6b5d; background: #13262b; }
+.flow-node.tone-wifi { border-color: #6b5420; background: #2b2414; }
+
+.flow-node.is-dim {
+  opacity: 0.4;
 }
 
-.connection-live-canvas:active {
+.flow-node.is-active.tone-wired,
+.flow-node.is-active.tone-neutral {
+  border-color: #4fd1b5;
+  box-shadow: 0 0 0 1px #4fd1b5, 0 0 18px rgb(79 209 181 / 28%);
+}
+
+.flow-node.is-active.tone-wifi {
+  border-color: #ffc24d;
+  box-shadow: 0 0 0 1px #ffc24d, 0 0 18px rgb(255 194 77 / 26%);
+}
+
+.flow-edge-label {
+  position: absolute;
+  padding: 1px 8px;
+  border: 1px solid #2a3550;
+  border-radius: 999px;
+  background: #0e1320;
+  color: #6d7895;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.flow-edge-label.is-active {
+  color: #e8ecf8;
+  border-color: #4a5a82;
+}
+
+.flow-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.flow-legend i {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+.flow-key-out,
+.flow-key-back {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.flow-key-out { background: #4fd1b5; }
+.flow-key-back { background: #e8ecf8; }
+
+.flow-key-dash {
+  width: 18px;
+  border-top: 2px dashed var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-canvas animateMotion,
+  .flow-canvas circle {
+    display: none;
+  }
+}
+
+/* One chip per flow of the selected service, under the diagram. */
+.flow-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flow-chip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1px 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.flow-chip.link-wired { border-left-color: #4fd1b5; }
+.flow-chip.link-wifi { border-left-color: #ffc24d; }
+
+.flow-chip:hover,
+.flow-chip.is-only {
+  background: color-mix(in srgb, var(--ink) 7%, var(--bg-elevated));
+}
+
+.flow-chip span:not(.flow-dot) {
+  grid-column: 2;
+  color: var(--muted);
+}
+
+.flow-chip-detail {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The card that opens over a box. It never takes the pointer, so it cannot make the box flicker. */
+.flow-tip {
+  width: max-content;
+  min-width: 14rem;
+  max-width: 22rem;
+  padding: 12px 14px;
+  border: 1px solid #3a4666;
+  border-radius: 12px;
+  background: #0b0f1a;
+  box-shadow: 0 10px 28px rgb(2 4 10 / 70%);
+  color: #e8ecf8;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.flow-tip h4 {
+  margin: 0 0 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #232d49;
+  font-size: 13px;
+}
+
+.flow-tip h5 {
+  margin: 10px 0 6px;
+  color: #9aa6c4;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.flow-tip dl {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.flow-tip dl div {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 8px;
+}
+
+.flow-tip dt {
+  color: #9aa6c4;
+}
+
+.flow-tip dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-tip ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flow-tip li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1px 8px;
+  align-items: center;
+}
+
+.flow-tip li span:not(.flow-dot),
+.flow-tip li em {
+  grid-column: 2;
+  color: #9aa6c4;
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
+.flow-tip li em {
+  color: #ffc24d;
+}
+
+.flow-tip p {
+  margin: 8px 0 0;
+  color: #9aa6c4;
+}
+
+/* The boxes can now take the keyboard, so show where it is. */
+.flow-node:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.flow-canvas .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid #2a3550;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgb(5 7 13 / 55%);
+}
+
+.flow-canvas .react-flow__controls-button {
+  width: 30px;
+  height: 30px;
+  border-bottom: 1px solid #232d49;
+  background: #161d2f;
+  fill: #e8ecf8;
+}
+
+.flow-canvas .react-flow__controls-button:hover {
+  background: #1f2942;
+}
+
+.flow-canvas .react-flow__pane {
+  cursor: grab;
+}
+
+.flow-canvas .react-flow__pane.dragging {
   cursor: grabbing;
 }
 
-.connection-live-canvas [data-cell] {
-  cursor: pointer;
+/* The outlines drawn round boxes: the Pi as one device, and everything inside the house. */
+.flow-canvas .react-flow__node-frame {
+  pointer-events: none !important;
 }
 
-/* One track, like the page tabs, rather than three loose buttons. */
-.connection-live-zoom {
-  display: inline-flex;
-  align-self: flex-end;
-  gap: 2px;
-  margin: 0 0 8px auto;
-  padding: 3px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--bg-elevated);
+.flow-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border-radius: 22px;
 }
 
-.connection-live-zoom button {
-  min-width: 2.4rem;
-  min-height: 32px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  font-weight: 700;
-  cursor: pointer;
+.flow-frame span {
+  position: absolute;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
 }
 
-.connection-live-zoom button:hover {
+.flow-frame.kind-agent {
+  border: 1.5px solid #2f6b5d;
+  background: rgb(79 209 181 / 5%);
+}
+
+.flow-frame.kind-agent span {
+  top: 14px;
+  left: 18px;
+  color: #4fd1b5;
+}
+
+/* Dotted: it is a boundary, not a device. The label sits on the line like a map legend. */
+.flow-frame.kind-zone {
+  border: 2px dashed #3a4666;
+}
+
+.flow-frame.kind-zone span {
+  top: -8px;
+  left: 24px;
+  padding: 0 8px;
+  background: #0e1320;
+  color: #8fa3d1;
+}
+
+/* The radio and the networks it hears are part of the picture but on no flow's path. */
+.flow-node.is-passive {
+  border-style: dashed;
+  border-color: #4a5578;
+  background: #141a29;
+}
+
+/* An application flow's chip says what its payload and its signalling each do. */
+.flow-chip-line {
+  line-height: 1.35;
+}
+
+.flow-chip-line b {
+  margin-right: 4px;
   color: var(--ink);
-  background: color-mix(in srgb, var(--ink) 8%, transparent);
-}
-
-.connection-live-detail {
-  position: sticky;
-  top: 12px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--bg-elevated);
-  padding: 16px;
-}
-
-.connection-live-detail h2 {
-  margin: 0 0 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--line);
-  font-size: 1.05rem;
-}
-
-.connection-live-detail p {
-  margin: 0 0 8px;
-}
-
-@media (max-width: 800px) {
-  .connection-live-canvas {
-    min-height: 40vh;
-    max-height: 60vh;
-  }
+  font-weight: 800;
 }
