@@ -17,20 +17,6 @@ import {
 import type { MonitorAdmin, MonitorDetail, RfOverview } from "../types";
 import FlowDiagram from "./FlowDiagram";
 
-/**
- * The same four tabs as the monitor page, applied to the flows. Web and Internet Connection split
- * the flows by what they measure (public websites, or the connection to the server); Wired and
- * Wi-Fi split them by the link they use.
- */
-type View = "web" | "wired" | "wifi" | "connection";
-
-const VIEWS: { id: View; label: string; keep: (flow: FlowTest) => boolean }[] = [
-  { id: "web", label: "Web", keep: (flow) => flow.category === "web" },
-  { id: "wired", label: "Wired", keep: (flow) => flow.link === "wired" },
-  { id: "wifi", label: "Wi-Fi", keep: (flow) => flow.link === "wifi" },
-  { id: "connection", label: "Internet Connection", keep: (flow) => flow.category !== "web" },
-];
-
 const STATUS_LABEL: Record<FlowTest["status"], string> = {
   ok: "Passing",
   degraded: "Degraded",
@@ -70,15 +56,13 @@ export default function FlowSection({
   // The newest figures for each application flow, which the checks table does not hold.
   const healthWired = useHealth(monitorId, "wired");
   const healthWifi = useHealth(monitorId, "wireless");
-  const [view, setView] = useState<View>("connection");
   const [chosen, setChosen] = useState<string | null>(null);
   const [only, setOnly] = useState<string | null>(null);
 
   const health = useMemo<FlowHealth>(() => ({ wired: healthWired, wifi: healthWifi }), [healthWired, healthWifi]);
-  const keep = (VIEWS.find((item) => item.id === view) ?? VIEWS[3]).keep;
   const groups = useMemo(
-    () => groupFlows(buildFlowTests(monitor?.tests, profilesQ.data?.profiles, health).filter(keep)),
-    [monitor?.tests, profilesQ.data, health, keep],
+    () => groupFlows(buildFlowTests(monitor?.tests, profilesQ.data?.profiles, health)),
+    [monitor?.tests, profilesQ.data, health],
   );
   const selected = groups.find((item) => item.key === chosen) ?? groups[0] ?? null;
   // Hovering a chip isolates one flow of the group; leaving it brings the rest back.
@@ -95,27 +79,10 @@ export default function FlowSection({
         internet, and its signalling, drawn dashed, through the tunnel. Hover a box for its live details, or a flow under the diagram to follow just
         that one. Zoom with the buttons, Ctrl or ⌘ and scroll, pinch or a double-click, and drag to pan.
       </p>
-      <div className="tabs flow-tabs" role="group" aria-label="Which flows to show">
-        {VIEWS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={`tab${view === item.id ? " active" : ""}`}
-            aria-pressed={view === item.id}
-            onClick={() => {
-              setView(item.id);
-              setChosen(null);
-              setOnly(null);
-            }}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
       <div className="flow-layout">
         <nav className="flow-list" aria-label="Services running on this agent">
           {groups.length === 0 ? (
-            <p className="muted">Nothing is running here for this view.</p>
+            <p className="muted">No check is switched on for this agent.</p>
           ) : (
             CATEGORY_ORDER.map((category) => {
               const inCategory = groups.filter((group) => group.category === category);
