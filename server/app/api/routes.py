@@ -608,6 +608,9 @@ def post_device_health(
             isp=body.isp,
             config_version=body.config_version,
             airwave_mode=body.airwave_mode if body.airwave_mode in {"kismet", "scan", "off"} else None,
+            wired_iface=body.wired_iface,
+            wifi_link_iface=body.wifi_link_iface,
+            wifi_radio_iface=body.wifi_radio_iface,
             last_error=(body.last_error or "").strip()[:600] or None,
         )
     )
@@ -1370,6 +1373,12 @@ def get_monitor(
         ).all()
         if r.test_id in {t.id for t in tests}
     }
+    latest_health = db.scalar(
+        select(MonitorHealth)
+        .where(MonitorHealth.monitor_id == monitor_id)
+        .order_by(desc(MonitorHealth.reported_at))
+        .limit(1)
+    )
 
     return {
         "id": str(monitor.id),
@@ -1380,8 +1389,15 @@ def get_monitor(
         "latitude": monitor.latitude,
         "longitude": monitor.longitude,
         "location_label": monitor.location_label,
+        "lan_ip": monitor.lan_ip,
+        "tunnel_address": monitor.wg_address,
+        "wireless_tunnel_address": monitor.wg_wireless_address,
         "public_ip": None if _user.role == UserRole.guest else monitor.public_ip,
         "isp": monitor.isp,
+        "wired_iface": latest_health.wired_iface if latest_health else None,
+        "wifi_link_iface": latest_health.wifi_link_iface if latest_health else None,
+        "wifi_radio_iface": latest_health.wifi_radio_iface if latest_health else None,
+        "airwave_mode": latest_health.airwave_mode if latest_health else None,
         "probes": _monitor_probes(db, monitor_id),
         "tests": [
             {

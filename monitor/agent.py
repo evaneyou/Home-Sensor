@@ -28,7 +28,16 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from checks import link_is_busy, link_lock, parse_link_bssid, parse_link_ssid, run_check, scan_may_run, wifi_roles
+from checks import (
+    interface_roles,
+    link_is_busy,
+    link_lock,
+    parse_link_bssid,
+    parse_link_ssid,
+    run_check,
+    scan_may_run,
+    wifi_roles,
+)
 from kismet_view import (
     DEVICE_FIELDS,
     iw_scan_skipped,
@@ -826,6 +835,10 @@ def sample(config: dict) -> dict:
     disk_used, disk_total = disk_mb()
     public_ip, isp = public_network()
     ssid, bssid = joined_link()
+    try:
+        ifaces = interface_roles()
+    except OSError:
+        ifaces = {"wired": None, "link": None, "radio": None}
     return {
         "hostname": socket.gethostname(),
         "agent_version": AGENT_VERSION,
@@ -842,6 +855,9 @@ def sample(config: dict) -> dict:
         "isp": isp,
         "config_version": int(config.get("config_version") or 0),
         "airwave_mode": airwave_mode(),
+        "wired_iface": ifaces["wired"],
+        "wifi_link_iface": ifaces["link"],
+        "wifi_radio_iface": ifaces["radio"],
         "link_ssid": ssid,
         "link_bssid": bssid,
         "last_error": synthetic.tunnel_warning() or synthetic.last_failure() or _last_error,
