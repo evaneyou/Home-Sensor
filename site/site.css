@@ -1629,3 +1629,57 @@ h3 {
     padding-left: 34px;
   }
 }
+
+/* Evidence: each claim sits with the place to check it. */
+.evidence {
+  padding: 36px 0 12px;
+}
+
+.proof {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proof li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--mint);
+  border-radius: 14px;
+}
+
+.proof b {
+  font-size: 16px;
+}
+
+.proof span {
+  flex: 1;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.proof a {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+@media (max-width: 960px) {
+  .proof {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .proof {
+    grid-template-columns: 1fr;
+  }
+}
