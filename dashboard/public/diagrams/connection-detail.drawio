@@ -1,0 +1,88 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram id="connection-detail" name="Connection detail">
+    <mxGraphModel dx="1280" dy="820" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1280" pageHeight="860" math="0" shadow="0" background="#101620">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="home" value="HOME NETWORK" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#2f6f86;fontColor=#9ec9d8;fontSize=13;fontStyle=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="24" y="24" width="640" height="560" as="geometry" />
+        </mxCell>
+        <mxCell id="router" value="Home router&#xa;Built-in Wi-Fi and LAN switch&#xa;LAN assigned by DHCP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a2436;strokeColor=#3a4a63;fontColor=#e8eefc;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="48" y="64" width="280" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="pi" value="Remote agent&#xa;Wired LAN, Wi-Fi client, and monitor radio" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#152033;strokeColor=#3ddc97;fontColor=#e8eefc;fontSize=13;verticalAlign=top;spacingTop=8;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="48" y="190" width="380" height="360" as="geometry" />
+        </mxCell>
+        <mxCell id="wired-nic" value="Wired LAN&#xa;DHCP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a2744;strokeColor=#5b8def;fontColor=#e8eefc;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="68" y="250" width="100" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="wifi-nic" value="Wi-Fi client&#xa;uplink and tests" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3a2e12;strokeColor=#f5b942;fontColor=#e8eefc;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="184" y="250" width="110" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="radio" value="Monitor mode&#xa;Wi-Fi scans" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a2436;strokeColor=#8b93a7;fontColor=#e8eefc;fontSize=12;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="308" y="250" width="100" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="nearby" value="Nearby Wi-Fi networks&#xa;scanned, never joined" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a2436;strokeColor=#8b93a7;fontColor=#c5cbe0;fontSize=12;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="460" y="250" width="170" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="wg0" value="WireGuard (wired)&#xa;rides the wired LAN&#xa;UDP 51820" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#12352c;strokeColor=#3ddc97;fontColor=#e8eefc;fontSize=12;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="68" y="360" width="300" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="wg1" value="WireGuard (Wi-Fi)&#xa;rides the Wi-Fi client&#xa;UDP 51821" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3a2e12;strokeColor=#f5b942;fontColor=#e8eefc;fontSize=12;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="68" y="446" width="300" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="cloud" value="Internet" style="ellipse;whiteSpace=wrap;html=1;fillColor=#243044;strokeColor=#8b93a7;fontColor=#e8eefc;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="690" y="70" width="130" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="web" value="Web services&#xa;Public sites&#xa;Not through the tunnels" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a2436;strokeColor=#8b93a7;fontColor=#e8eefc;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="688" y="152" width="150" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="server" value="SERVER" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#3ddc97;fontColor=#9ee8c8;fontSize=13;fontStyle=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="850" y="24" width="400" height="560" as="geometry" />
+        </mxCell>
+        <mxCell id="srv" value="HomeNetWatch server" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#152033;strokeColor=#3a4a63;fontColor=#e8eefc;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="874" y="64" width="352" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="swg0" value="WireGuard (wired)&#xa;10.7.0.1 · UDP 51820" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#12352c;strokeColor=#3ddc97;fontColor=#e8eefc;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="874" y="150" width="352" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="swg1" value="WireGuard (Wi-Fi)&#xa;10.7.1.1 · UDP 51821" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3a2e12;strokeColor=#f5b942;fontColor=#e8eefc;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="874" y="230" width="352" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="enroll" value="Agent enrollment&#xa;TCP 8848, pinned TLS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a2436;strokeColor=#3a4a63;fontColor=#e8eefc;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="874" y="330" width="352" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="https" value="HTTPS&#xa;TCP 443" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a2436;strokeColor=#3a4a63;fontColor=#e8eefc;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="874" y="410" width="352" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="api" value="API, dashboard, database&#xa;Internal only" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a2436;strokeColor=#3a4a63;fontColor=#e8eefc;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="874" y="490" width="352" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="coax" value="Coax" style="endArrow=none;html=1;strokeColor=#8b93a7;strokeWidth=2;" edge="1" parent="1" source="router" target="cloud">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eth" value="Ethernet" style="endArrow=none;html=1;strokeColor=#5b8def;strokeWidth=2;" edge="1" parent="1" source="router" target="wired-nic">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wlan" value="Wi-Fi" style="endArrow=none;html=1;strokeColor=#f5b942;strokeWidth=2;dashed=1;" edge="1" parent="1" source="router" target="wifi-nic">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="scan" value="" style="endArrow=classic;html=1;strokeColor=#8b93a7;strokeWidth=2;dashed=1;dashPattern=1 4;" edge="1" parent="1" source="radio" target="nearby">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tun0" value="Tunnel 1: wired" style="endArrow=none;html=1;strokeColor=#3ddc97;strokeWidth=2;dashed=1;" edge="1" parent="1" source="wg0" target="swg0">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tun1" value="Tunnel 2: Wi-Fi" style="endArrow=none;html=1;strokeColor=#f5b942;strokeWidth=2;dashed=1;" edge="1" parent="1" source="wg1" target="swg1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wan" value="" style="endArrow=none;html=1;strokeColor=#8b93a7;strokeWidth=2;" edge="1" parent="1" source="cloud" target="srv">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="webs" value="" style="endArrow=none;html=1;strokeColor=#c5cbe0;strokeWidth=2;" edge="1" parent="1" source="cloud" target="web">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -79,7 +79,7 @@ input {
 }
 
 .brand img {
-  height: 57px;
+  height: 68.4px;
   width: auto;
   display: block;
 }
@@ -126,7 +126,7 @@ input {
   position: absolute;
   top: calc(100% + 0.4rem);
   right: 0;
-  min-width: 168px;
+  min-width: 11.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
@@ -140,7 +140,9 @@ input {
 
 .menu-panel a,
 .menu-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
   width: 100%;
   text-align: left;
   background: transparent;
@@ -149,6 +151,34 @@ input {
   padding: 0.5rem 0.65rem;
   cursor: pointer;
   font: inherit;
+}
+
+.menu-icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: #fff;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.menu-icon circle {
+  fill: none;
+  stroke: #fff;
+}
+
+.menu-icon .menu-icon-dot {
+  fill: #fff;
+  stroke: none;
+}
+
+.menu-rule {
+  height: 1px;
+  margin: 0.3rem 0.5rem;
+  background: var(--line);
 }
 
 .menu-panel a.active {
@@ -366,12 +396,21 @@ button:hover,
   font-size: 0.95rem;
 }
 
+.about-list {
+  margin: 0.35rem 0 0.85rem;
+  padding-left: 1.15rem;
+}
+
+.about-list li + li {
+  margin-top: 0.35rem;
+}
+
 .monitor-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  margin: 0 0 1.25rem;
+  gap: 0.75rem;
+  margin: 0 0 0.85rem;
 }
 
 .monitor-head .page-title {
@@ -393,34 +432,65 @@ button:hover,
 }
 
 .monitor-status-box {
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.2rem 0.55rem;
+  gap: 0.35rem;
   margin-left: auto;
   border: 1px solid var(--line);
   background: var(--bg-elevated);
   color: var(--ink);
-  border-radius: 8px;
-  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  padding: 0.15rem 0.85rem 0.15rem 0.4rem;
+  min-height: 38px;
   cursor: pointer;
   font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
   text-align: left;
 }
 
-.monitor-status-box:hover {
+.monitor-status-box:hover,
+.monitor-status-box:focus-visible {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
 }
 
+.monitor-status-box .status-mark-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.monitor-status-box .status-mark-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
 .monitor-status-label {
-  font-size: 0.85rem;
+  font-size: 14px;
   font-weight: 700;
 }
 
 .monitor-status-seen {
-  color: var(--muted);
-  font-size: 0.8rem;
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 30;
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.94);
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.2;
   white-space: nowrap;
+  pointer-events: none;
+}
+
+.monitor-status-box:hover .monitor-status-seen,
+.monitor-status-box:focus-visible .monitor-status-seen {
+  display: block;
 }
 
 .monitor-dialog-backdrop {
@@ -824,9 +894,18 @@ button:hover,
   background: var(--bg-elevated);
 }
 
-/* The strip range heads the table, so it sits over the table's right edge. */
-.service-compare > .range-row {
-  align-self: flex-end;
+.page-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.page-tabs .tabs,
+.page-tabs .range-row {
+  margin-bottom: 0;
 }
 
 .tab {
@@ -837,6 +916,12 @@ button:hover,
   padding: 0.35rem 0.95rem;
   min-height: 38px;
   cursor: pointer;
+  white-space: nowrap;
+}
+
+.range-row .tab {
+  padding-left: 0.475rem;
+  padding-right: 0.475rem;
 }
 
 .tab:hover {
@@ -1190,6 +1275,12 @@ button:hover,
   text-decoration: underline;
 }
 
+.connection-summary-label {
+  display: block;
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+}
+
 .health-bar {
   height: 18px;
   min-height: 18px;
@@ -1237,17 +1328,8 @@ button:hover,
     grid-template-columns: 1fr;
   }
 
-  /* Stack the title and the probe status instead of squeezing them side by side. */
-  .monitor-head,
-  .app-shell.ui-compact .monitor-head {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-
   .monitor-status-box {
     margin-left: 0;
-    width: 100%;
   }
 
   .isp-stats {
@@ -1284,10 +1366,73 @@ button:hover,
     grid-template-columns: minmax(110px, 140px) repeat(var(--cols), minmax(0, 1fr));
   }
   .brand img {
-    height: 49px;
+    height: 58.8px;
   }
   .main {
     padding: 1rem;
+  }
+}
+
+/* Phone width: keep the time choices on the same line as Web, Wired, and Wi-Fi. */
+@media (max-width: 560px) {
+  .page-tabs {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .page-tabs:has(> .tabs > .tab:nth-child(4)) {
+    flex-wrap: wrap;
+  }
+
+  .page-tabs .tabs,
+  .page-tabs .range-row {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+  }
+
+  .page-tabs .range-row {
+    margin-left: auto;
+  }
+
+  .page-tabs .tabs .tab {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .app-shell.ui-compact .page-tabs .range-row .tab {
+    padding-left: 0.18rem;
+    padding-right: 0.18rem;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 400px) {
+  .main {
+    padding-left: 0.7rem;
+    padding-right: 0.7rem;
+  }
+
+  .page-tabs {
+    gap: 4px;
+  }
+
+  .page-tabs .tabs .tab {
+    padding-left: 0.32rem;
+    padding-right: 0.32rem;
+  }
+
+  .range-row {
+    flex-wrap: nowrap;
+  }
+
+  .app-shell.ui-compact .page-tabs .range-row .tab {
+    padding-left: 0.1rem;
+    padding-right: 0.1rem;
+  }
+
+  .app-shell.ui-compact .range-row .tab {
+    padding-left: 0.28rem;
+    padding-right: 0.28rem;
   }
 }
 
@@ -3413,7 +3558,7 @@ button.npv-select {
     width: auto;
     height: auto;
     max-width: 100%;
-    max-height: 38px;
+    max-height: 45.6px;
   }
 
   .app-shell:not(.dash-shell) .main:has(.airwaves) {

@@ -41,19 +41,6 @@ function join(labels: string[]): string {
   return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
 }
 
-function checkedIn(iso: string | null): string {
-  if (!iso) return "not yet";
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (mins < 1) return "just now";
-  if (mins === 1) return "a minute ago";
-  if (mins < 60) return `${mins} minutes ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs === 1) return "an hour ago";
-  if (hrs < 48) return `${hrs} hours ago`;
-  const days = Math.floor(hrs / 24);
-  return days === 1 ? "a day ago" : `${days} days ago`;
-}
-
 function hasResult(cell: HealthCell): boolean {
   return cell.status !== "unknown" || cell.last_test_at !== null;
 }
@@ -186,18 +173,10 @@ function viewOf(data: Summary, regionById: Map<string, string | null>) {
       mood,
       moodLabel: MOOD_LABEL[mood],
       blurb,
-      seen: monitor.last_seen_at,
     };
   });
   locations.sort((a, b) => MOOD_RANK[a.mood] - MOOD_RANK[b.mood] || a.name.localeCompare(b.name));
-  const newest = locations
-    .map((location) => location.seen)
-    .filter((seen): seen is string => !!seen)
-    .sort()
-    .at(-1) ?? null;
-  const n = locations.length;
-  const subline = `${n} location${n === 1 ? "" : "s"} checked in ${checkedIn(newest)}.`;
-  return { locations, subline };
+  return { locations };
 }
 
 export default function OverviewPage() {
@@ -233,9 +212,6 @@ export default function OverviewPage() {
   return (
     <div className="dash">
       <header className="dash-head">
-        <div>
-          <p>{view.subline}</p>
-        </div>
         <ul className="legend" aria-label="What the colors mean">
           <li><span className="dot ok" />Happy</li>
           <li><span className="dot slow" />Slow</li>

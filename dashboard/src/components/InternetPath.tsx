@@ -17,25 +17,30 @@ import { CHART_COLORS } from "../chartTheme";
 import { formatChartTick, chartTicks, chartWindow, zoomedDomain } from "../chartTime";
 import type { MetricsResponse, MonitorDetail } from "../types";
 import { useChartZoom } from "../useChartZoom";
+import ConnectionDiagramLink from "./ConnectionDiagramLink";
 import RealtimeHealth from "./RealtimeHealth";
 import StatusMark, { statusLabel } from "./StatusMark";
 
-const RANGES = ["1h", "6h", "12h", "24h", "7d"] as const;
+const RANGES = ["1h", "6h", "12h", "24h", "7d", "30d"] as const;
 const RANGE_HOURS: Record<(typeof RANGES)[number], number> = {
   "1h": 1,
   "6h": 6,
   "12h": 12,
   "24h": 24,
   "7d": 24 * 7,
+  "30d": 24 * 30,
 };
+export type ChartRange = (typeof RANGES)[number];
 const STRIP_RANGES = [
   { id: "1h", label: "1h", hours: 1 },
   { id: "3h", label: "3h", hours: 3 },
   { id: "6h", label: "6h", hours: 6 },
   { id: "24h", label: "24h", hours: 24 },
+  { id: "7d", label: "7d", hours: 24 * 7 },
+  { id: "30d", label: "30d", hours: 24 * 30 },
 ] as const;
 
-type StripRange = (typeof STRIP_RANGES)[number]["id"];
+export type StripRange = (typeof STRIP_RANGES)[number]["id"];
 const COLORS = CHART_COLORS;
 const ISP_SLUGS = ["http-path", "icmp-path", "mtr-path"] as const;
 
@@ -220,10 +225,16 @@ export default function InternetPath({
   tests,
   isp,
   monitorId,
+  stripRange = "1h",
+  chartRange,
+  onChartRangeChange,
 }: {
   tests: MonitorDetail["tests"];
   isp: string | null;
   monitorId?: string;
+  stripRange?: StripRange;
+  chartRange?: ChartRange;
+  onChartRangeChange?: (range: ChartRange) => void;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const requested = searchParams.get("detail");
@@ -254,6 +265,30 @@ export default function InternetPath({
     setSearchParams(next);
   }
 
+  function openCharts(linkName: "wired" | "wireless") {
+    const next = new URLSearchParams(searchParams);
+    next.set("detail", "isp");
+    next.set("link", linkName);
+    next.set("check", "librespeed");
+    next.delete("view");
+    const id = (linkName === "wireless" ? wireless : wired)[0]?.network_id;
+    if (id) next.set("network", id);
+    setSearchParams(next);
+  }
+
+  if (requested === "connection") {
+    return (
+      <InternetConnection
+        wired={wired}
+        wireless={wireless}
+        onOpen={openCharts}
+        range={chartRange}
+        onRangeChange={onChartRangeChange}
+        monitorId={monitorId}
+      />
+    );
+  }
+
   if (detail) {
     const networkId = searchParams.get("network");
     const selectedSlug = tests.find((test) => test.network_id === networkId)?.network_slug ?? "";
@@ -277,6 +312,8 @@ export default function InternetPath({
           isp={isp}
           monitorId={monitorId}
           linkLabel={resolved === "wired" ? "Wired" : resolved === "wireless" ? "Wi-Fi" : null}
+          range={chartRange}
+          onRangeChange={onChartRangeChange}
         />
       </>
     );
@@ -286,6 +323,7 @@ export default function InternetPath({
       <ServiceCompare
         wired={wired}
         wireless={wireless}
+        stripRange={stripRange}
         onOpen={(key, linkName) => openDetail(key, linkName)}
       />
     );
@@ -356,7 +394,7 @@ function probeEvent(test: TestRow): string {
   return lines.join("\n");
 }
 
-function StripRangeTabs({ range, onChange }: { range: StripRange; onChange: (range: StripRange) => void }) {
+export function StripRangeTabs({ range, onChange }: { range: StripRange; onChange: (range: StripRange) => void }) {
   return (
     <div className="range-row">
       {STRIP_RANGES.map((item) => (
@@ -402,19 +440,19 @@ function ServiceSide({
 function ServiceCompare({
   wired,
   wireless,
+  stripRange,
   onOpen,
 }: {
   wired: TestRow[];
   wireless: TestRow[];
+  stripRange: StripRange;
   onOpen: (key: DetailKey, link: "wired" | "wireless") => void;
 }) {
-  const [stripRange, setStripRange] = useState<StripRange>("1h");
   const wiredView = useAppStrips(wired, stripRange);
   const wirelessView = useAppStrips(wireless, stripRange);
 
   return (
     <div className="service-compare">
-      <StripRangeTabs range={stripRange} onChange={setStripRange} />
       <div className="svc-table">
         <div className="svc-head" aria-hidden="true">
           <span>Service</span>
@@ -516,15 +554,21 @@ function InternetDetail({
   isp,
   linkLabel,
   monitorId,
+  range: rangeProp,
+  onRangeChange,
 }: {
   tests: TestRow[];
   detail: DetailKey;
   isp: string | null;
   linkLabel?: string | null;
   monitorId?: string;
+  range?: ChartRange;
+  onRangeChange?: (range: ChartRange) => void;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [range, setRange] = useState<(typeof RANGES)[number]>("1h");
+  const [localRange, setLocalRange] = useState<ChartRange>("1h");
+  const range = rangeProp ?? localRange;
+  const setRange = onRangeChange ?? setLocalRange;
   const bySlug = useMemo(() => new Map(tests.map((test) => [test.slug, test])), [tests]);
   const app = APPS.find((item) => item.key === detail);
   const slugs =
@@ -627,6 +671,14 @@ function InternetDetail({
     setSearchParams(next);
   }
 
+  function openConnection() {
+    const next = new URLSearchParams(searchParams);
+    next.set("detail", "connection");
+    next.delete("check");
+    next.delete("view");
+    setSearchParams(next);
+  }
+
   if (linkHealth && rtnpSlug && monitorId) {
     return (
       <>
@@ -647,7 +699,7 @@ function InternetDetail({
     return (
       <section className="panel network-health">
         <h2 style={{ marginTop: 0, fontSize: "1rem" }}>{linkLabel} Network Health</h2>
-        <RangeTabs range={range} onChange={setRange} />
+        {onRangeChange ? null : <RangeTabs range={range} onChange={setRange} />}
         {loading ? (
           <div className="muted">Loading internet checks…</div>
         ) : failed ? (
@@ -655,11 +707,11 @@ function InternetDetail({
         ) : (
           <div className="health-stack">
             <HealthBar
-              title="Transfer Speed"
+              title="Internet Connection"
               detail={`${fmt(speed(latestLibre).down)} Mbps down · ${fmt(speed(latestLibre).up)} Mbps up · ping ${fmt(latestLibre?.rtt_ms)} ms · jitter ${fmt(latestLibre?.jitter_ms)} ms`}
               strip={transferStrip}
               empty={transferChart.length === 0}
-              onOpen={() => openCheck("librespeed")}
+              onOpen={openConnection}
             />
             {monitorId ? (
               <RealtimeHealth
@@ -679,7 +731,7 @@ function InternetDetail({
     return (
       <div className="panel">
         <h2 style={{ marginTop: 0, fontSize: "1.4rem" }}>
-          {linkLabel} · File Transfer
+          {linkLabel} · Internet Connection
         </h2>
         <RangeTabs range={range} onChange={setRange} />
         {loading ? (
@@ -791,7 +843,7 @@ function statusStrip(samples: Point[], range: (typeof RANGES)[number]): string[]
   return ispStrip(series, RANGE_HOURS[range]);
 }
 
-function RangeTabs({
+export function RangeTabs({
   range,
   onChange,
 }: {
@@ -810,6 +862,78 @@ function RangeTabs({
           {item}
         </button>
       ))}
+    </div>
+  );
+}
+
+function InternetConnection({
+  wired,
+  wireless,
+  onOpen,
+  range: rangeProp,
+  onRangeChange,
+  monitorId,
+}: {
+  wired: TestRow[];
+  wireless: TestRow[];
+  onOpen: (link: "wired" | "wireless") => void;
+  range?: ChartRange;
+  onRangeChange?: (range: ChartRange) => void;
+  monitorId?: string;
+}) {
+  const [localRange, setLocalRange] = useState<ChartRange>("1h");
+  const range = rangeProp ?? localRange;
+  const setRange = onRangeChange ?? setLocalRange;
+  const wiredSpeed = useSeries(
+    wired.filter((test) => test.slug === "librespeed"),
+    range,
+  );
+  const wirelessSpeed = useSeries(
+    wireless.filter((test) => test.slug === "librespeed"),
+    range,
+  );
+  return (
+    <section className="panel network-health">
+      <h2 style={{ marginTop: 0, fontSize: "1rem" }}>Internet Connection</h2>
+      <ConnectionDiagramLink monitorId={monitorId} />
+      {onRangeChange ? null : <RangeTabs range={range} onChange={setRange} />}
+      <div className="health-stack">
+        <SpeedSummary label="Wired Internet Connection" query={wiredSpeed} range={range} onOpen={() => onOpen("wired")} />
+        <SpeedSummary label="Wireless Internet Connection" query={wirelessSpeed} range={range} onOpen={() => onOpen("wireless")} />
+      </div>
+    </section>
+  );
+}
+
+function SpeedSummary({
+  label,
+  query,
+  range,
+  onOpen,
+}: {
+  label: string;
+  query: ReturnType<typeof useSeries>;
+  range: (typeof RANGES)[number];
+  onOpen: () => void;
+}) {
+  const series = query.points.get("librespeed") ?? [];
+  const latest = series.at(-1);
+  const strip = statusStrip(series, range);
+  return (
+    <div className="connection-summary">
+      {query.loading ? (
+        <div className="muted">Loading internet checks…</div>
+      ) : query.failed ? (
+        <div className="muted">Could not load internet checks.</div>
+      ) : (
+        <HealthBar
+          title={label}
+          detail={`${fmt(speed(latest).down)} Mbps down · ${fmt(speed(latest).up)} Mbps up · ping ${fmt(latest?.rtt_ms)} ms · jitter ${fmt(latest?.jitter_ms)} ms`}
+          strip={strip}
+          empty={series.length === 0}
+          onOpen={onOpen}
+        />
+      )}
     </div>
   );
 }

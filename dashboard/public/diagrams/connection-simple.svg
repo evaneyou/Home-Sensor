@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 150" role="img">
+  <rect width="980" height="150" rx="12" fill="#101620"/>
+  <line x1="190" y1="62" x2="280" y2="40" stroke="#3ddc97" stroke-width="2"/>
+  <line x1="190" y1="88" x2="280" y2="110" stroke="#f5b942" stroke-width="2" stroke-dasharray="6 4"/>
+  <line x1="430" y1="40" x2="520" y2="68" stroke="#3ddc97" stroke-width="2" stroke-dasharray="6 4"/>
+  <line x1="430" y1="110" x2="520" y2="82" stroke="#f5b942" stroke-width="2" stroke-dasharray="6 4"/>
+  <line x1="670" y1="75" x2="760" y2="75" stroke="#8b93a7" stroke-width="2"/>
+  <rect x="40" y="40" width="150" height="70" rx="12" fill="#1a2436" stroke="#5b8def" stroke-width="2"/>
+  <text x="115" y="81" text-anchor="middle" fill="#e8eefc" font-family="Nunito, sans-serif" font-size="18" font-weight="700">Home</text>
+  <rect x="280" y="16" width="150" height="48" rx="10" fill="#12352c" stroke="#3ddc97" stroke-width="2"/>
+  <text x="355" y="46" text-anchor="middle" fill="#e8eefc" font-family="Nunito, sans-serif" font-size="16" font-weight="700">Wired</text>
+  <rect x="280" y="86" width="150" height="48" rx="10" fill="#3a2e12" stroke="#f5b942" stroke-width="2"/>
+  <text x="355" y="116" text-anchor="middle" fill="#e8eefc" font-family="Nunito, sans-serif" font-size="16" font-weight="700">Wi-Fi</text>
+  <ellipse cx="595" cy="75" rx="75" ry="39" fill="#243044" stroke="#8b93a7" stroke-width="2"/>
+  <text x="595" y="80" text-anchor="middle" fill="#e8eefc" font-family="Nunito, sans-serif" font-size="16" font-weight="700">Internet</text>
+  <rect x="760" y="40" width="170" height="70" rx="12" fill="#12352c" stroke="#3ddc97" stroke-width="2"/>
+  <text x="845" y="81" text-anchor="middle" fill="#e8eefc" font-family="Nunito, sans-serif" font-size="18" font-weight="700">Server</text>
+</svg>

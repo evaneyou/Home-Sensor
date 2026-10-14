@@ -8,6 +8,7 @@ import IssueDetailPage from "./pages/IssueDetailPage";
 import IssuesPage from "./pages/IssuesPage";
 import MonitorOnboardingPage from "./pages/MonitorOnboardingPage";
 import RemoteAgentPage from "./pages/RemoteAgentPage";
+import AboutPage, { VersionHistoryPage } from "./pages/AboutPage";
 import OverviewPage from "./pages/OverviewPage";
 import MonitorLogPage from "./pages/MonitorLogPage";
 import MonitorPage from "./pages/MonitorPage";
@@ -22,7 +23,9 @@ import GuestVisitsPage from "./pages/GuestVisitsPage";
 import InternetServicePage from "./pages/InternetServicePage";
 import SyntheticPage from "./pages/SyntheticPage";
 import WebServicesPage from "./pages/WebServicesPage";
+import ConnectionDiagramPage from "./pages/ConnectionDiagramPage";
 import TestPage from "./pages/TestPage";
+import UnderConstructionPage from "./pages/UnderConstructionPage";
 import type { User } from "./types";
 
 function useDarkTheme() {
@@ -85,6 +88,71 @@ function LegacyMonitorRedirect({ log = false }: { log?: boolean }) {
   return <Navigate to={query ? `${path}?${query}` : path} replace />;
 }
 
+function MenuIcon({ name }: { name: "airwaves" | "issues" | "settings" | "path" | "speed" | "network" | "about" | "logout" }) {
+  return (
+    <svg className="menu-icon" viewBox="0 0 24 24" aria-hidden="true">
+      {name === "airwaves" ? (
+        <>
+          <path d="M4.5 16a7.5 7.5 0 0 1 15 0" />
+          <path d="M8 16a4 4 0 0 1 8 0" />
+          <circle className="menu-icon-dot" cx="12" cy="16" r="1.15" />
+        </>
+      ) : null}
+      {name === "issues" ? (
+        <>
+          <circle cx="12" cy="12" r="7.5" />
+          <path d="M12 8v5" />
+          <circle className="menu-icon-dot" cx="12" cy="16" r="0.9" />
+        </>
+      ) : null}
+      {name === "settings" ? (
+        <>
+          <path d="M4 7h16M4 12h16M4 17h16" />
+          <circle cx="9" cy="7" r="2" />
+          <circle cx="15" cy="12" r="2" />
+          <circle cx="8" cy="17" r="2" />
+        </>
+      ) : null}
+      {name === "path" ? (
+        <>
+          <circle cx="6" cy="16.5" r="2" />
+          <circle cx="12" cy="7.5" r="2" />
+          <circle cx="18" cy="14.5" r="2" />
+          <path d="M7.6 15.2 10.4 9M13.6 8.6 16.5 13.2" />
+        </>
+      ) : null}
+      {name === "speed" ? (
+        <>
+          <path d="M6 16.5a6 6 0 1 1 12 0" />
+          <path d="M12 16.5 16.2 11" />
+          <circle className="menu-icon-dot" cx="12" cy="16.5" r="1" />
+        </>
+      ) : null}
+      {name === "network" ? (
+        <>
+          <circle cx="12" cy="12" r="7.5" />
+          <path d="M4.5 12h15" />
+          <path d="M12 4.5c2.4 2 3.6 4.6 3.6 7.5s-1.2 5.5-3.6 7.5c-2.4-2-3.6-4.6-3.6-7.5s1.2-5.5 3.6-7.5" />
+        </>
+      ) : null}
+      {name === "about" ? (
+        <>
+          <circle cx="12" cy="12" r="7.5" />
+          <path d="M12 11v5" />
+          <circle className="menu-icon-dot" cx="12" cy="8" r="0.9" />
+        </>
+      ) : null}
+      {name === "logout" ? (
+        <>
+          <path d="M9 7V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-1" />
+          <path d="M4 12h10" />
+          <path d="m11 8 4 4-4 4" />
+        </>
+      ) : null}
+    </svg>
+  );
+}
+
 function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void }) {
   const loc = useLocation();
   const navigate = useNavigate();
@@ -94,10 +162,11 @@ function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void })
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const links = [
-    { to: "/", label: "Overview" },
-    { to: "/airwaves", label: "Airwaves" },
-    { to: "/issues", label: "Issues" },
-    ...(role === "admin" || role === "guest" ? [{ to: "/settings/onboarding", label: "Settings" }] : []),
+    { to: "/airwaves", label: "Airwaves", icon: "airwaves" as const },
+    { to: "/issues", label: "Issues", icon: "issues" as const },
+    ...(role === "admin" || role === "guest"
+      ? [{ to: "/settings/onboarding", label: "Settings", icon: "settings" as const }]
+      : []),
   ];
 
   useEffect(() => {
@@ -141,9 +210,9 @@ function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void })
     <GuestGate role={role}>
       <div className={loc.pathname === "/" ? "app-shell dash-shell" : "app-shell ui-compact"}>
       <header className="topbar">
-        <Link to="/" className="brand" aria-label="HomeNetWatch">
+        <div className="brand">
           <img src="/homenetwatch.png" alt="HomeNetWatch" />
-        </Link>
+        </div>
         <div className="topbar-actions">
           {showBack ? (
             <button className="btn icon-button" type="button" aria-label="Go back" onClick={goBack}>
@@ -200,23 +269,50 @@ function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void })
           </button>
           {menuOpen ? (
             <div className="menu-panel" role="menu">
-              {links.map((l) => {
-                const active =
-                  l.to === "/"
-                    ? loc.pathname === "/"
-                    : l.to.startsWith("/settings")
-                      ? loc.pathname.startsWith("/settings")
-                      : loc.pathname.startsWith(l.to);
-                return (
-                  <Link key={l.to} to={l.to} role="menuitem" className={active ? "active" : ""}>
-                    {l.label}
-                  </Link>
-                );
-              })}
+              {links
+                .filter((l) => l.to === "/airwaves")
+                .map((l) => {
+                  const active = loc.pathname.startsWith(l.to);
+                  return (
+                    <Link key={l.to} to={l.to} role="menuitem" className={active ? "active" : ""}>
+                      <MenuIcon name={l.icon} />
+                      {l.label}
+                    </Link>
+                  );
+                })}
               <Link to={pathTo} role="menuitem" className={loc.pathname === "/path" ? "active" : ""}>
+                <MenuIcon name="path" />
                 Path View
               </Link>
+              <Link to="/speed-test" role="menuitem" className={loc.pathname === "/speed-test" ? "active" : ""}>
+                <MenuIcon name="speed" />
+                Speed Test
+              </Link>
+              <Link to="/network-test" role="menuitem" className={loc.pathname === "/network-test" ? "active" : ""}>
+                <MenuIcon name="network" />
+                Network Test
+              </Link>
+              <div className="menu-rule" role="separator" />
+              {links
+                .filter((l) => l.to !== "/airwaves")
+                .map((l) => {
+                  const active = l.to.startsWith("/settings")
+                    ? loc.pathname.startsWith("/settings")
+                    : loc.pathname.startsWith(l.to);
+                  return (
+                    <Link key={l.to} to={l.to} role="menuitem" className={active ? "active" : ""}>
+                      <MenuIcon name={l.icon} />
+                      {l.label}
+                    </Link>
+                  );
+                })}
+              <div className="menu-rule" role="separator" />
+              <Link to="/about" role="menuitem" className={loc.pathname.startsWith("/about") ? "active" : ""}>
+                <MenuIcon name="about" />
+                About
+              </Link>
               <button className="menu-item" type="button" role="menuitem" onClick={onLogout}>
+                <MenuIcon name="logout" />
                 Log out
               </button>
             </div>
@@ -228,17 +324,22 @@ function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void })
         <Routes>
           <Route path="/" element={<OverviewPage />} />
           <Route path="/path" element={<PathPage />} />
+          <Route path="/speed-test" element={<UnderConstructionPage title="Speed Test" />} />
+          <Route path="/network-test" element={<UnderConstructionPage title="Network Test" />} />
           <Route path="/airwaves" element={<AirwavesLayout />}>
             <Route index element={<AirwavesOverview />} />
             <Route path="networks" element={<AirwavesNetworks />} />
             <Route path="clients" element={<AirwavesClients />} />
             <Route path="channels" element={<AirwavesChannels />} />
           </Route>
+          <Route path="/monitors/:id/connection" element={<ConnectionDiagramPage />} />
           <Route path="/monitors/:id" element={<MonitorPage />} />
           <Route path="/monitors/:id/log" element={<MonitorLogPage />} />
           <Route path="/sensors/:id/log" element={<LegacyMonitorRedirect log />} />
           <Route path="/sensors/:id" element={<LegacyMonitorRedirect />} />
           <Route path="/tests/:id" element={<TestPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/about/history" element={<VersionHistoryPage />} />
           <Route path="/issues" element={<IssuesPage />} />
           <Route path="/issues/:id" element={<IssueDetailPage />} />
           <Route path="/settings" element={seeSettings ? <SettingsLayout /> : <Navigate to="/" replace />}>

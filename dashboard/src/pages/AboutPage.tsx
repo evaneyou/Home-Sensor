@@ -1,0 +1,88 @@
+import { Link } from "react-router-dom";
+
+export default function AboutPage() {
+  return (
+    <div>
+      <h1 className="page-title">About</h1>
+      <p className="page-sub">HomeNetWatch 0.1.0</p>
+
+      <section className="panel">
+        <h2>Overview</h2>
+        <p>
+          HomeNetWatch monitors the wired and wireless performance of a home network. A remote
+          agent on a Raspberry Pi runs connectivity tests from inside the home and sends the
+          results to a central server. This dashboard reads those results: what is healthy, what
+          is degraded, and where along the path a problem starts.
+        </p>
+        <p>
+          The agent only makes outbound connections. The dashboard talks to the server and never
+          to the Pi. Checks cover DNS, TCP, TLS, ping, path traces, file transfer, web services,
+          and Wi-Fi scans. An admin can change settings and approve devices. A viewer is
+          read-only.
+        </p>
+      </section>
+
+      <section className="panel">
+        <h2>Version history</h2>
+        <p>
+          The current release is <span className="mono">0.1.0</span>, the first release, dated 13
+          October 2026. HomeNetWatch follows semantic versioning and is still pre-1.0.
+        </p>
+        <Link to="/about/history">Open version history</Link>
+      </section>
+
+      <section className="panel">
+        <h2>Copyright and author</h2>
+        <p>Copyright (c) 2026 Evan You.</p>
+        <p>
+          Evan You is the author of HomeNetWatch. The project is released under the MIT License,
+          which allows use, copying, and modification as long as the copyright notice and license
+          stay with the software. It is provided as is, without warranty.
+        </p>
+        <p>
+          <a href="https://github.com/evaneyou/homenetwatch">github.com/evaneyou/homenetwatch</a>
+        </p>
+      </section>
+    </div>
+  );
+}
+
+export function VersionHistoryPage() {
+  return (
+    <div>
+      <h1 className="page-title">Version history</h1>
+      <p className="page-sub">
+        Notable changes to HomeNetWatch. The current version is <span className="mono">0.1.0</span>.
+      </p>
+
+      <section className="panel">
+        <h2>
+          0.1.0 <span className="muted">13 October 2026</span>
+        </h2>
+        <p>First release.</p>
+
+        <h3 className="wifi-heading">Added</h3>
+        <ul className="about-list">
+          <li>Server: FastAPI and Postgres, cookie auth, enrollment with a pinned TLS key, WireGuard tunnels, and retention of raw results.</li>
+          <li>Dashboard: overview, remote-agent detail, internet path, airwaves, issues, and settings.</li>
+          <li>Pi agent: LAN setup page, device health, and HTTP, ping, MTR, and File Transfer checks.</li>
+          <li>File Transfer uses a LibreSpeed backend.</li>
+          <li>Airwaves: Wi-Fi scans and Kismet capture, with trusted access points and nearby clients.</li>
+        </ul>
+
+        <h3 className="wifi-heading">Fixed</h3>
+        <ul className="about-list">
+          <li>A path that stays slower, when the latest samples agree, is treated as the new normal instead of remaining marked slow.</li>
+          <li>A silent last hop on a path trace no longer turns the home tiles red by itself.</li>
+        </ul>
+
+        <h3 className="wifi-heading">Removed</h3>
+        <ul className="about-list">
+          <li>iperf3 bandwidth checks. File Transfer is the throughput check.</li>
+        </ul>
+      </section>
+
+      <Link to="/about">Back to About</Link>
+    </div>
+  );
+}
