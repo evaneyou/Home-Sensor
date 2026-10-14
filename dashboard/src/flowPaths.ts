@@ -33,6 +33,10 @@ export type FlowTest = {
   reason: string | null;
   lossPct: number | null;
   checkedAt: string | null;
+  /** The newest round-trip time, for ranges across several flows. */
+  rttMs: number | null;
+  /** Set when this flow stands for several: the individual flows it was merged from. */
+  members?: FlowTest[];
 };
 
 /** The newest figures the server holds for one application flow on one link. */
@@ -169,6 +173,7 @@ export function buildFlowTests(
       reason: test.latest_reason,
       lossPct: test.latest_loss_pct,
       checkedAt: test.latest_at,
+      rttMs: test.latest_rtt_ms,
     });
   }
   for (const profile of profiles ?? []) {
@@ -200,6 +205,7 @@ export function buildFlowTests(
         reason: null,
         lossPct: latest?.loss_pct ?? null,
         checkedAt: null,
+        rttMs: latest?.rtt_ms ?? null,
       });
     }
   }
@@ -254,6 +260,8 @@ export type FlowGroup = {
   flows: FlowTest[];
   /** The worst state among its flows, so a failing one is not hidden by passing ones. */
   status: FlowTest["status"];
+  /** The sites a merged group stands for, in order; empty when each flow is its own. */
+  sites: string[];
 };
 
 export const CATEGORY_LABEL: Record<FlowCategory, string> = {
@@ -270,7 +278,8 @@ const SEVERITY: Record<FlowTest["status"], number> = { fail: 3, degraded: 2, ok:
  * One group per service, holding every flow it has: Facebook's HTTP and ICMP
  * checks on both links become one group of four, drawn together.
  */
-export function groupFlows(tests: FlowTest[]): FlowGroup[] {
+export function groupFlows(allTests: FlowTest[]): FlowGroup[] {
+  const tests = mergeWeb(allTests);
   const groups = new Map<string, FlowGroup>();
   for (const test of tests) {
     const group = groups.get(test.group);
@@ -283,6 +292,7 @@ export function groupFlows(tests: FlowTest[]): FlowGroup[] {
         category: test.category,
         flows: [test],
         status: "idle",
+        sites: [],
       });
     }
   }
@@ -291,6 +301,9 @@ export function groupFlows(tests: FlowTest[]): FlowGroup[] {
       (a, b) =>
         KIND_ORDER.indexOf(a.kindLabel) - KIND_ORDER.indexOf(b.kindLabel) ||
         Number(a.link === "wifi") - Number(b.link === "wifi"),
+    );
+    group.sites = [...new Set(group.flows.flatMap((flow) => (flow.members ?? []).map((member) => member.groupName)))].sort(
+      (a, b) => a.localeCompare(b),
     );
     group.status = group.flows.reduce<FlowTest["status"]>(
       (worst, flow) => (SEVERITY[flow.status] > SEVERITY[worst] ? flow.status : worst),
@@ -309,4 +322,69 @@ export function hostOf(target: string): string {
   } catch {
     return target;
   }
+}
+
+const WEB_GROUP = "web-services";
+
+function range(values: number[]): string {
+  const shown = (value: number) => (value >= 100 ? value.toFixed(0) : value.toFixed(1));
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  return low === high ? `${shown(low)} ms` : `${shown(low)}–${shown(high)} ms`;
+}
+
+/**
+ * Every public website is reached the same way: out the link, through the router and the ISP, and
+ * straight to the site, never through a tunnel. Their flows differ only by check and link, so one flow
+ * per check and link stands for all of them. It keeps the worst state, so one failing site is not
+ * hidden among passing ones, and shows the range of results.
+ */
+export function mergeWeb(rows: FlowTest[]): FlowTest[] {
+  const web = rows.filter((row) => row.category === "web");
+  if (web.length === 0) return rows;
+  const buckets = new Map<string, FlowTest[]>();
+  for (const row of web) {
+    const key = `${row.kindLabel}|${row.link}`;
+    buckets.set(key, [...(buckets.get(key) ?? []), row]);
+  }
+  const merged = [...buckets.values()].map((members): FlowTest => {
+    const first = members[0];
+    const sites = new Set(members.map((member) => member.groupName)).size;
+    const times = members.map((member) => member.rttMs).filter((value): value is number => value != null);
+    const status = members.reduce<FlowTest["status"]>(
+      (worst, member) => (SEVERITY[member.status] > SEVERITY[worst] ? member.status : worst),
+      "idle",
+    );
+    const affected = [
+      ...new Set(members.filter((member) => member.status === "fail" || member.status === "degraded").map((member) => member.groupName)),
+    ];
+    const losses = members.map((member) => member.lossPct).filter((value): value is number => value != null);
+    return {
+      key: `web:${first.kindLabel}:${first.link}`,
+      name: `Web services ${first.kindLabel}`,
+      group: WEB_GROUP,
+      groupName: "Web services",
+      kindLabel: first.kindLabel,
+      category: "web",
+      link: first.link,
+      route: "web",
+      application: false,
+      status,
+      detail: [`${sites} ${sites === 1 ? "site" : "sites"}`, times.length ? range(times) : ""].filter(Boolean).join(" · "),
+      target: "",
+      reason: affected.length
+        ? `${affected.slice(0, 3).join(", ")}${affected.length > 3 ? ` and ${affected.length - 3} more` : ""} ${status === "fail" ? "failing" : "degraded"}`
+        : null,
+      lossPct: losses.length ? Math.max(...losses) : null,
+      checkedAt: members.map((member) => member.checkedAt).filter(Boolean).sort().at(-1) ?? null,
+      rttMs: times.length ? Math.max(...times) : null,
+      members,
+    };
+  });
+  return [...rows.filter((row) => row.category !== "web"), ...merged];
+}
+
+/** The hosts a flow talks to: those of every flow it was merged from, or its own. */
+export function hostsOf(flow: FlowTest): string[] {
+  return [...new Set((flow.members ?? [flow]).map((member) => hostOf(member.target)).filter(Boolean))].sort();
 }

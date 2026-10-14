@@ -104,7 +104,9 @@ export default function FlowSection({
                       <span className={`flow-dot status-${group.status}`} title={STATUS_LABEL[group.status]} />
                       <span className="flow-item-name">{group.name}</span>
                       <span className="flow-count">
-                        {group.flows.length} {group.flows.length === 1 ? "flow" : "flows"}
+                        {group.sites.length > 0
+                          ? `${group.sites.length} ${group.sites.length === 1 ? "site" : "sites"}`
+                          : `${group.flows.length} ${group.flows.length === 1 ? "flow" : "flows"}`}
                       </span>
                     </button>
                   ))}
@@ -120,6 +122,14 @@ export default function FlowSection({
             <span><i className="flow-key-back" /> back to the Pi</span>
             <span><i className="flow-key-dash" /> signalling, in the tunnel</span>
           </div>
+          {selected && selected.sites.length > 0 ? (
+            <p className="flow-note">
+              <strong>Every web service takes the same path.</strong> Out the wired or Wi-Fi link, through your router and your
+              ISP, and straight to the website itself, never through a tunnel. So one picture covers them all, and
+              there is nothing to pick between them. Examples: {listSites(selected.sites)}. The figures on each flow
+              below are the range across all of them, and its dot shows the worst.
+            </p>
+          ) : null}
           {selected ? (
             <ul className="flow-chips" aria-label={`Flows of ${selected.name}`}>
               {selected.flows.map((flow) => (
@@ -178,4 +188,12 @@ function useHealth(monitorId: string, link: "wired" | "wireless"): FlowLatest[] 
     () => query.data?.types.map((item) => ({ slug: item.slug, latest: item.latest })),
     [query.data],
   );
+}
+
+/** "Facebook, Google and Zoom"; past eight, the first eight and a count of the rest. */
+function listSites(sites: string[]): string {
+  const shown = sites.slice(0, 8);
+  const rest = sites.length - shown.length;
+  const head = shown.length > 1 ? `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)}` : (shown[0] ?? "");
+  return rest > 0 ? `${shown.join(", ")} and ${rest} more` : head;
 }
