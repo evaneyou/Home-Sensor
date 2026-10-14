@@ -679,13 +679,19 @@ function InternetDetail({
           <div className="muted">Could not load internet checks.</div>
         ) : (
           <div className="health-stack">
-            <HealthBar
-              title="Internet Connection"
-              detail={`${fmt(speed(latestLibre).down)} Mbps down · ${fmt(speed(latestLibre).up)} Mbps up · ping ${fmt(latestLibre?.rtt_ms)} ms · jitter ${fmt(latestLibre?.jitter_ms)} ms`}
-              strip={transferStrip}
-              empty={transferChart.length === 0}
-              onOpen={() => openCheck("librespeed")}
-            />
+            <div className="health-row">
+              <div className="health-row-head">
+                <span className="mono">
+                  {`${fmt(speed(latestLibre).down)} Mbps down · ${fmt(speed(latestLibre).up)} Mbps up · ping ${fmt(latestLibre?.rtt_ms)} ms · jitter ${fmt(latestLibre?.jitter_ms)} ms`}
+                </span>
+              </div>
+              <span
+                className="isp-strip health-bar"
+                title={linkLabel ?? "Speed"}
+                style={{ background: stripGradient(transferStrip) }}
+              />
+              {transferChart.length === 0 ? <div className="muted">No samples in this range.</div> : null}
+            </div>
             {monitorId ? (
               <RealtimeHealth
                 monitorId={monitorId}
@@ -703,9 +709,7 @@ function InternetDetail({
   if (check === "librespeed") {
     return (
       <div className="panel">
-        <h2 style={{ marginTop: 0, fontSize: "1.4rem" }}>
-          {linkLabel} · Internet Connection
-        </h2>
+        <h2 style={{ marginTop: 0, fontSize: "1.4rem" }}>Internet Connection</h2>
         <RangeTabs range={range} onChange={setRange} />
         {loading ? (
           <div className="muted">Loading internet checks…</div>
@@ -896,45 +900,16 @@ function SpeedSummary({
       ) : query.failed ? (
         <div className="muted">Could not load internet checks.</div>
       ) : (
-        <HealthBar
-          title="Internet Connection"
-          detail={`${fmt(speed(latest).down)} Mbps down · ${fmt(speed(latest).up)} Mbps up · ping ${fmt(latest?.rtt_ms)} ms · jitter ${fmt(latest?.jitter_ms)} ms`}
-          strip={strip}
-          empty={series.length === 0}
-          onOpen={onOpen}
-        />
+        <div className="health-row">
+          <div className="health-row-head">
+            <span className="mono">
+              {`${fmt(speed(latest).down)} Mbps down · ${fmt(speed(latest).up)} Mbps up · ping ${fmt(latest?.rtt_ms)} ms · jitter ${fmt(latest?.jitter_ms)} ms`}
+            </span>
+          </div>
+          <span className="isp-strip health-bar" title={label} style={{ background: stripGradient(strip) }} />
+          {series.length === 0 ? <div className="muted">No samples in this range.</div> : null}
+        </div>
       )}
-    </div>
-  );
-}
-
-function HealthBar({
-  title,
-  detail,
-  strip,
-  empty,
-  onOpen,
-}: {
-  title: string;
-  detail: string;
-  strip: string[];
-  empty: boolean;
-  onOpen?: () => void;
-}) {
-  return (
-    <div className="health-row">
-      <div className="health-row-head">
-        {onOpen ? (
-          <button className="health-row-title" type="button" onClick={onOpen}>
-            {title}
-          </button>
-        ) : (
-          <strong>{title}</strong>
-        )}
-        <span className="mono">{detail}</span>
-      </div>
-      <span className="isp-strip health-bar" title={title} style={{ background: stripGradient(strip) }} />
-      {empty ? <div className="muted">No samples in this range.</div> : null}
     </div>
   );
 }

@@ -68,12 +68,6 @@ export default function MonitorPage() {
   const link = searchParams.get("link");
   const openLink = (link === "wired" || link === "wireless") && Boolean(searchParams.get("detail"));
   const wanId = networks.find((network) => network.slug === "wan")?.id ?? null;
-  const testsSoFar = monitorQ.data?.tests ?? [];
-  const wiredId = testsSoFar.find((test) => test.network_slug === "wired")?.network_id ?? null;
-  const wirelessId = testsSoFar.find((test) => test.network_slug === "wifi")?.network_id ?? null;
-  const detail = searchParams.get("detail");
-  const onConnection =
-    detail === "connection" || (openLink && detail === "isp");
   const activeTab =
     openLink && wanId
       ? wanId
@@ -131,24 +125,12 @@ export default function MonitorPage() {
             <button
               key={n.id}
               type="button"
-              className={`tab ${!onConnection && activeTab === n.id ? "active" : ""}`}
+              className={`tab ${activeTab === n.id ? "active" : ""}`}
               onClick={() => setSearchParams({ network: n.id })}
             >
               {networkLabel(n)}
             </button>,
           ];
-          if (n.slug === "wan" && (wiredId || wirelessId)) {
-            buttons.push(
-              <button
-                key="connection"
-                type="button"
-                className={`tab ${onConnection ? "active" : ""}`}
-                onClick={() => setSearchParams({ network: n.id, detail: "connection" })}
-              >
-                Internet Connection
-              </button>,
-            );
-          }
           return buttons;
         })}
       </div>
