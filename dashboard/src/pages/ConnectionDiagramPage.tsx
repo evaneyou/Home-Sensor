@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api";
+import FlowSection from "../components/FlowSection";
 import LiveDiagram from "../components/LiveDiagram";
 import type { MonitorAdmin, MonitorDetail } from "../types";
 
@@ -73,6 +74,7 @@ export default function ConnectionDiagramPage() {
           )}
         </aside>
       </div>
+      <FlowSection monitorId={id} monitor={monitor.data} />
     </div>
   );
 }

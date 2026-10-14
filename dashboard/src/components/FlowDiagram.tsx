@@ -1,0 +1,281 @@
+import {
+  Background,
+  BaseEdge,
+  EdgeLabelRenderer,
+  Handle,
+  Position,
+  ReactFlow,
+  getBezierPath,
+  type Edge,
+  type EdgeProps,
+  type Node,
+  type NodeProps,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { useMemo } from "react";
+import { EDGE_IDS, NODE, edgeId, pathsFor, type FlowLink, type FlowTest } from "../flowPaths";
+import type { MonitorDetail } from "../types";
+
+type Tone = "wired" | "wifi" | "neutral";
+type FlowNodeData = { title: string; lines: string[]; tone: Tone; active: boolean; dim: boolean };
+type FlowNodeType = Node<FlowNodeData, "box">;
+
+type Pulse = { hop: number; hops: number; role: "data" | "control" };
+type RouteEdgeData = { label: string; pulses: Pulse[]; color: string; dim: boolean };
+type RouteEdgeType = Edge<RouteEdgeData, "route">;
+
+const COLOR: Record<FlowLink, string> = { wired: "#4fd1b5", wifi: "#ffc24d" };
+const QUIET = "#2a3550";
+const RETURN_COLOR = "#e8ecf8";
+
+/** One hop's pulse crosses its edge in this long; the cycle is out, back, then a rest. */
+const STEP = 0.55;
+const REST = 0.9;
+
+function PathBox({ data }: NodeProps<FlowNodeType>) {
+  const classes = ["flow-node", `tone-${data.tone}`, data.active ? "is-active" : "", data.dim ? "is-dim" : ""]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <div className={classes}>
+      <Handle type="target" position={Position.Left} />
+      <Handle type="source" position={Position.Right} />
+      <strong>{data.title}</strong>
+      {data.lines.map((line) => (
+        <span key={line}>{line}</span>
+      ))}
+    </div>
+  );
+}
+
+function fractions(value: number): string {
+  return value.toFixed(4);
+}
+
+/** A dot that rides the edge during its own slice of the cycle, and is hidden the rest of it. */
+function Dot({
+  path,
+  color,
+  radius,
+  from,
+  to,
+  window,
+  total,
+}: {
+  path: string;
+  color: string;
+  radius: number;
+  from: number;
+  to: number;
+  window: [number, number];
+  total: number;
+}) {
+  const a = window[0] / total;
+  const b = window[1] / total;
+  const times = `0;${fractions(a)};${fractions(b)};1`;
+  return (
+    <circle r={radius} fill={color} opacity={0}>
+      <animateMotion
+        dur={`${total}s`}
+        repeatCount="indefinite"
+        path={path}
+        calcMode="linear"
+        keyPoints={`${from};${from};${to};${to}`}
+        keyTimes={times}
+      />
+      <animate
+        attributeName="opacity"
+        dur={`${total}s`}
+        repeatCount="indefinite"
+        calcMode="discrete"
+        values="0;1;0"
+        keyTimes={`0;${fractions(a)};${fractions(b)}`}
+      />
+    </circle>
+  );
+}
+
+function Pulses({ path, pulses, color }: { path: string; pulses: Pulse[]; color: string }) {
+  return (
+    <>
+      {pulses.map((pulse, index) => {
+        const total = pulse.hops * 2 * STEP + REST;
+        const out = pulse.hop * STEP;
+        const back = (pulse.hops + (pulse.hops - 1 - pulse.hop)) * STEP;
+        const radius = pulse.role === "data" ? 4.5 : 2.75;
+        const tint = pulse.role === "data" ? color : `${color}aa`;
+        return (
+          <g key={index}>
+            <Dot path={path} color={tint} radius={radius} from={0} to={1} window={[out, out + STEP]} total={total} />
+            <Dot
+              path={path}
+              color={pulse.role === "data" ? RETURN_COLOR : `${RETURN_COLOR}88`}
+              radius={radius}
+              from={1}
+              to={0}
+              window={[back, back + STEP]}
+              total={total}
+            />
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
+function RouteEdge(props: EdgeProps<RouteEdgeType>) {
+  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data } = props;
+  const [path, labelX, labelY] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
+  const pulses = data?.pulses ?? [];
+  const active = pulses.length > 0;
+  const controlOnly = active && pulses.every((pulse) => pulse.role === "control");
+  return (
+    <>
+      <BaseEdge
+        id={id}
+        path={path}
+        style={{
+          stroke: active ? data?.color : QUIET,
+          strokeWidth: active ? 2.5 : 1.5,
+          strokeLinecap: "round",
+          strokeDasharray: controlOnly ? "5 5" : undefined,
+          opacity: active || !data?.dim ? 1 : 0.45,
+        }}
+      />
+      {active ? <Pulses path={path} pulses={pulses} color={data?.color ?? QUIET} /> : null}
+      {data?.label ? (
+        <EdgeLabelRenderer>
+          <div
+            className={`flow-edge-label nodrag nopan${active ? " is-active" : ""}`}
+            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+          >
+            {data.label}
+          </div>
+        </EdgeLabelRenderer>
+      ) : null}
+    </>
+  );
+}
+
+const nodeTypes = { box: PathBox };
+const edgeTypes = { route: RouteEdge };
+
+const EDGE_LABEL: Record<string, string> = {
+  [edgeId(NODE.piWired, NODE.router)]: "Ethernet",
+  [edgeId(NODE.piWifi, NODE.router)]: "Wi-Fi",
+  [edgeId(NODE.router, NODE.internet)]: "ISP",
+  [edgeId(NODE.internet, NODE.serverDirect)]: "Public address",
+  [edgeId(NODE.internet, NODE.tunnelWired)]: "Tunnel 1",
+  [edgeId(NODE.internet, NODE.tunnelWifi)]: "Tunnel 2",
+};
+
+type Spec = { id: string; x: number; y: number; tone: Tone; title: string; lines: string[] };
+
+function specs(monitor: MonitorDetail | undefined): Spec[] {
+  const name = monitor?.name || "Pi";
+  const clean = (lines: (string | null | undefined)[]) => lines.filter((line): line is string => Boolean(line));
+  return [
+    {
+      id: NODE.piWired,
+      x: 0,
+      y: 10,
+      tone: "wired",
+      title: `${name} · Wired`,
+      lines: clean([monitor?.wired_iface ? `Ethernet ${monitor.wired_iface}` : "Ethernet", monitor?.tunnel_address]),
+    },
+    {
+      id: NODE.piWifi,
+      x: 0,
+      y: 230,
+      tone: "wifi",
+      title: `${name} · Wi-Fi`,
+      lines: clean([
+        monitor?.wifi_link_iface ? `Wi-Fi client ${monitor.wifi_link_iface}` : "Wi-Fi client",
+        monitor?.wireless_tunnel_address,
+      ]),
+    },
+    { id: NODE.router, x: 290, y: 120, tone: "neutral", title: "Home router", lines: ["LAN switch and Wi-Fi access point"] },
+    {
+      id: NODE.internet,
+      x: 580,
+      y: 120,
+      tone: "neutral",
+      title: "Internet",
+      lines: clean([monitor?.isp ?? "ISP", monitor?.public_ip]),
+    },
+    { id: NODE.web, x: 880, y: -20, tone: "neutral", title: "Web services", lines: ["Public sites", "Not through a tunnel"] },
+    {
+      id: NODE.serverDirect,
+      x: 880,
+      y: 105,
+      tone: "neutral",
+      title: "Server · public address",
+      lines: ["Application flows and traces"],
+    },
+    { id: NODE.tunnelWired, x: 880, y: 235, tone: "wired", title: "WireGuard · wired", lines: ["10.7.0.1 · UDP 51820"] },
+    { id: NODE.tunnelWifi, x: 880, y: 345, tone: "wifi", title: "WireGuard · Wi-Fi", lines: ["10.7.1.1 · UDP 51821"] },
+    { id: NODE.services, x: 1170, y: 290, tone: "neutral", title: "Server services", lines: ["API and File Transfer", "Inside the tunnel"] },
+  ];
+}
+
+export default function FlowDiagram({ test, monitor }: { test: FlowTest | null; monitor?: MonitorDetail }) {
+  const { nodes, edges } = useMemo(() => {
+    const paths = test ? pathsFor(test) : [];
+    const color = test ? COLOR[test.link] : QUIET;
+    const lit = new Set(paths.flatMap((path) => path.nodes));
+    const pulses = new Map<string, Pulse[]>();
+    for (const path of paths) {
+      const hops = path.nodes.length - 1;
+      for (let hop = 0; hop < hops; hop += 1) {
+        const id = edgeId(path.nodes[hop], path.nodes[hop + 1]);
+        pulses.set(id, [...(pulses.get(id) ?? []), { hop, hops, role: path.role }]);
+      }
+    }
+    const built: FlowNodeType[] = specs(monitor).map((spec) => ({
+      id: spec.id,
+      type: "box",
+      position: { x: spec.x, y: spec.y },
+      data: { title: spec.title, lines: spec.lines, tone: spec.tone, active: lit.has(spec.id), dim: Boolean(test) && !lit.has(spec.id) },
+      draggable: false,
+      connectable: false,
+      selectable: false,
+      style: { width: 210 },
+    }));
+    const wires: RouteEdgeType[] = EDGE_IDS.map((id) => {
+      const [source, target] = id.split(">");
+      return {
+        id,
+        type: "route",
+        source,
+        target,
+        selectable: false,
+        data: { label: EDGE_LABEL[id] ?? "", pulses: pulses.get(id) ?? [], color, dim: Boolean(test) },
+      };
+    });
+    return { nodes: built, edges: wires };
+  }, [test, monitor]);
+
+  return (
+    <div className="flow-canvas" aria-label="Animated path of the selected check">
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        fitView
+        fitViewOptions={{ padding: 0.12 }}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        zoomOnScroll={false}
+        zoomOnPinch={false}
+        zoomOnDoubleClick={false}
+        panOnDrag={false}
+        preventScrolling={false}
+        colorMode="dark"
+      >
+        <Background gap={24} size={1} color="#1a2238" />
+      </ReactFlow>
+    </div>
+  );
+}
