@@ -1113,6 +1113,5 @@ code {
 
 /* About: a single column now that the traits list is gone. */
 .about {
-  grid-template-columns: 1fr;
-  max-width: 860px;
+  grid-template-columns: minmax(0, 860px);
 }
