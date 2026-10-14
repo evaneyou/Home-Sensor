@@ -341,7 +341,7 @@ function specs(monitor: MonitorDetail | undefined, rf: RfOverview | null | undef
     },
     { id: NODE.tunnelWired, x: 830, y: 235, tone: "wired", title: "WireGuard · wired", lines: ["10.7.0.1 · UDP 51820"] },
     { id: NODE.tunnelWifi, x: 830, y: 345, tone: "wifi", title: "WireGuard · Wi-Fi", lines: ["10.7.1.1 · UDP 51821"] },
-    { id: NODE.services, x: 1170, y: 290, tone: "neutral", title: "Server services", lines: ["API and File Transfer", "Inside the tunnel"] },
+    { id: NODE.services, x: 1170, y: 290, tone: "neutral", title: "Server services", lines: ["API and Bandwidth Test", "Inside the tunnel"] },
   ];
 }
 
@@ -438,7 +438,7 @@ function factsFor(
       );
       break;
     case NODE.services:
-      add("Serves", "API and File Transfer");
+      add("Serves", "API and Bandwidth Test");
       add("Reached", "Only inside a tunnel");
       break;
   }

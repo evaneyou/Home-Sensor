@@ -65,8 +65,8 @@ export function VersionHistoryPage() {
         <ul className="about-list">
           <li>Server: FastAPI and Postgres, cookie auth, enrollment with a pinned TLS key, WireGuard tunnels, and retention of raw results.</li>
           <li>Dashboard: overview, remote-agent detail, internet path, airwaves, issues, and settings.</li>
-          <li>Pi agent: LAN setup page, device health, and HTTP, ping, MTR, and File Transfer checks.</li>
-          <li>File Transfer uses a LibreSpeed backend.</li>
+          <li>Pi agent: LAN setup page, device health, and HTTP, ping, MTR, and Bandwidth Test checks.</li>
+          <li>Bandwidth Test uses a LibreSpeed backend.</li>
           <li>Airwaves: Wi-Fi scans and Kismet capture, with trusted access points and nearby clients.</li>
         </ul>
 
@@ -78,7 +78,7 @@ export function VersionHistoryPage() {
 
         <h3 className="wifi-heading">Removed</h3>
         <ul className="about-list">
-          <li>iperf3 bandwidth checks. File Transfer is the throughput check.</li>
+          <li>iperf3 bandwidth checks. Bandwidth Test is the throughput check.</li>
         </ul>
       </section>
 

@@ -1,4 +1,4 @@
-"""File Transfer and web-service HTTP checks for the remote agent."""
+"""Bandwidth Test and web-service HTTP checks for the remote agent."""
 
 from __future__ import annotations
 
@@ -659,7 +659,7 @@ def check_librespeed(test: dict) -> dict:
     if _tool("librespeed-cli") is None:
         return _result(test, started_at, "fail", [_stage("transfer", started, "fail")], _speed_metrics(None, None, None, None, 0), "librespeed-cli is not installed")
     if not _valid_host(host):
-        return _result(test, started_at, "fail", [_stage("transfer", started, "fail")], _speed_metrics(None, None, None, None, 0), "File Transfer target is not a host")
+        return _result(test, started_at, "fail", [_stage("transfer", started, "fail")], _speed_metrics(None, None, None, None, 0), "Bandwidth Test target is not a host")
     servers = [
         {
             "id": 1,
@@ -693,14 +693,14 @@ def check_librespeed(test: dict) -> dict:
             timeout=LIBRESPEED_SECONDS * 2 + 25,
         )
     except subprocess.TimeoutExpired:
-        return _result(test, started_at, "fail", [_stage("transfer", started, "fail")], _speed_metrics(None, None, None, None, 0), "File Transfer timed out")
+        return _result(test, started_at, "fail", [_stage("transfer", started, "fail")], _speed_metrics(None, None, None, None, 0), "Bandwidth Test timed out")
     finally:
         Path(listing).unlink(missing_ok=True)
     report = parse_librespeed_report(proc.stdout)
     total = round((time.perf_counter() - started) * 1000, 1)
     if proc.returncode != 0 or report is None:
-        detail = (proc.stderr or proc.stdout or "File Transfer failed").strip().splitlines()
-        return _result(test, started_at, "fail", [_stage("transfer", started, "fail")], _speed_metrics(None, None, None, None, total), detail[-1][:240] if detail else "File Transfer failed")
+        detail = (proc.stderr or proc.stdout or "Bandwidth Test failed").strip().splitlines()
+        return _result(test, started_at, "fail", [_stage("transfer", started, "fail")], _speed_metrics(None, None, None, None, total), detail[-1][:240] if detail else "Bandwidth Test failed")
     down, up, ping, jitter = report
     status = "ok" if down and up else "fail"
     return _result(

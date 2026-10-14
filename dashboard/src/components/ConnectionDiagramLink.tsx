@@ -1,4 +1,5 @@
 import { Link, useSearchParams } from "react-router-dom";
+import ConnectionMini from "./ConnectionMini";
 
 export default function ConnectionDiagramLink({ monitorId }: { monitorId?: string }) {
   const [params] = useSearchParams();
@@ -15,7 +16,7 @@ export default function ConnectionDiagramLink({ monitorId }: { monitorId?: strin
       to={`/monitors/${monitorId}/connection?${next.toString()}`}
       aria-label="Open the detailed connection diagram"
     >
-      <img src="/diagrams/connection-simple.svg" alt="" />
+      <ConnectionMini />
     </Link>
   );
 }

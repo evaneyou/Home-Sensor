@@ -114,8 +114,8 @@ function formatMs(value: number | null): string {
   return value >= 100 ? `${value.toFixed(0)} ms` : `${value.toFixed(1)} ms`;
 }
 
-const KIND_LABEL: Record<string, string> = { http: "HTTP", ping: "ICMP", mtr: "MTR", librespeed: "Transfer" };
-const KIND_ORDER = ["HTTP", "ICMP", "MTR", "Transfer", "Flow"];
+const KIND_LABEL: Record<string, string> = { http: "HTTP", ping: "ICMP", mtr: "MTR", librespeed: "Bandwidth" };
+const KIND_ORDER = ["HTTP", "ICMP", "MTR", "Bandwidth", "Flow"];
 
 /** http-facebook and icmp-facebook are one service; so are the three path checks. */
 function groupOf(slug: string): string {

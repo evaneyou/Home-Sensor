@@ -23,8 +23,8 @@ const STATUS_LABEL: Record<FlowTest["status"], string> = {
 };
 
 /**
- * The same connection as the draw.io page above it, drawn with React Flow, with
- * every flow of one service animated together. The list is built from what the
+ * The network path diagram: the connection drawn with React Flow, with every flow
+ * of one service animated together. The list is built from what the
  * server has switched on and what the Pi is running, so it changes when they do.
  */
 export default function FlowSection({
@@ -69,7 +69,7 @@ export default function FlowSection({
   return (
     <section className="flow-compare" aria-labelledby="flow-heading">
       <h2 id="flow-heading" className="flow-heading">
-        Animated paths <span className="flow-tag">React Flow</span>
+        Network Path Diagram
       </h2>
       <p className="page-sub">
         Pick a service to watch all of its flows at once: each leaves the Pi, reaches its destination and comes
