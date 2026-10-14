@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
 import { api } from "../api";
 import { CHART_COLORS } from "../chartTheme";
-import { chartTicks, chartWindow, formatChartTick } from "../chartTime";
+import { chartWindow, formatChartTick, zoomedDomain } from "../chartTime";
+import { useChartZoom } from "../useChartZoom";
+import { TimeAxis } from "./InternetPath";
 
 const RANGES = ["1h", "6h", "12h", "24h", "7d", "30d"] as const;
 type Range = (typeof RANGES)[number];
@@ -68,17 +70,20 @@ export default function RealtimeHealth({
 
   return (
     <div className="health-stack">
-      <h3 className="wifi-heading">Real-Time Application Health</h3>
+      <h2>Real-Time Application Health</h2>
       {healthQ.isLoading ? <div className="muted">Loading real-time application health…</div> : null}
       {healthQ.isError ? <div className="muted">Could not load real-time application health.</div> : null}
       {!healthQ.isLoading && types.length === 0 ? (
         <div className="muted">No continuous application check is running on this link.</div>
       ) : null}
       {types.map((item) => (
-        <div className="health-row" key={item.slug}>
+        <div className="health-row is-link" key={item.slug} onClick={() => onOpen?.(item.slug)}>
           <div className="health-row-head">
-            <button className="health-row-title" type="button" onClick={() => onOpen?.(item.slug)}>
+            <button className="health-row-title" type="button">
               {item.name}
+              <svg className="row-chevron" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             </button>
             <span className="mono">
               {fmt(item.latest.rtt_ms)} ms · jitter {fmt(item.latest.jitter_ms)} ms · loss {fmt(item.latest.loss_pct)}%
@@ -161,27 +166,31 @@ function MiniChart({
   dataKey: "rtt" | "jitter" | "loss";
   unit: string;
 }) {
+  const zoom = useChartZoom(data);
+  const domain = zoomedDomain(span, data.length, zoom.visible as { ts?: unknown }[]);
   return (
     <div>
       <h3 className="wifi-heading">{title}</h3>
-      <ResponsiveContainer width="100%" height={180}>
-        <LineChart data={data}>
-          <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" />
-          <XAxis
-            dataKey="ts"
-            type="number"
-            domain={span}
-            ticks={chartTicks(span)}
-            tickFormatter={(value) => formatChartTick(value, span[1] - span[0])}
-          />
-          <YAxis />
-          <Tooltip
-            labelFormatter={(value) => formatChartTick(Number(value), span[1] - span[0])}
-            formatter={(value) => `${value ?? ""}${unit}`}
-          />
-          <Line type="monotone" dataKey={dataKey} stroke={CHART_COLORS[0]} dot={false} connectNulls />
-        </LineChart>
-      </ResponsiveContainer>
+      <div className="chart-zoom" ref={zoom.boxRef} style={{ width: "100%", height: 200 }} onDoubleClick={zoom.onDoubleClick}>
+        <ResponsiveContainer>
+          <LineChart
+            data={zoom.visible}
+            margin={{ top: 8, right: 8, left: 0, bottom: 4 }}
+            onMouseDown={zoom.onMouseDown}
+            onMouseMove={zoom.onMouseMove}
+          >
+            <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" />
+            <TimeAxis domain={domain} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip
+              labelFormatter={(value) => formatChartTick(Number(value), domain[1] - domain[0])}
+              formatter={(value) => `${value ?? ""}${unit}`}
+            />
+            {zoom.selection}
+            <Line type="monotone" dataKey={dataKey} stroke={CHART_COLORS[0]} dot={false} connectNulls />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }

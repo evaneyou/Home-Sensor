@@ -1250,3 +1250,560 @@
   overflow: visible;
   pointer-events: none;
 }
+
+/* Path View diagrams (React Flow). */
+.npf {
+  position: relative;
+  width: 100%;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.npf .react-flow {
+  background: transparent;
+}
+
+.npf .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.npf-node {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.npf-step {
+  position: absolute;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--panel, #131a2b);
+  border: 1px solid #4a5878;
+  color: var(--soft, #aab4cc);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.npf-step.is-big {
+  background: #ffc24d;
+  border-color: #ffc24d;
+  color: #0b0f1a;
+}
+
+.npf-as {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 2px solid var(--c);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--c) 14%, #0b0f1a);
+  overflow: hidden;
+}
+
+.npf-as b {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--c);
+}
+
+.npf-as span {
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.npf-tag {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--soft, #aab4cc);
+}
+
+.npf-tag.origin {
+  color: #6ee7a8;
+}
+
+.npf-lane {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--soft, #aab4cc);
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .npv-bars,
+  .npv-xlabels {
+    gap: 2px;
+  }
+
+  .npv-xl {
+    overflow: hidden;
+  }
+
+  .npv-xl b,
+  .npv-xl span,
+  .npv-col .val {
+    font-size: 9px;
+  }
+
+  .npv-xl span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* A network with many hops wraps them onto more rows rather than running off the box. */
+.npf-node .npv-chips {
+  flex-wrap: wrap;
+}
+
+/* A network box on the path is selectable; its hops show their latency as a bar. */
+.npf-node {
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.npf-node:hover {
+  border-color: color-mix(in srgb, var(--c) 80%, transparent);
+}
+
+.npf-node.is-chosen {
+  border-color: var(--c);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 45%, transparent);
+}
+
+.npf-node:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--mint) 55%, transparent);
+  outline-offset: 3px;
+}
+
+.npf-node .npv-chip {
+  justify-content: flex-end;
+}
+
+.npf-bar-slot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 34px;
+  width: 100%;
+}
+
+.npf-bar {
+  display: block;
+  width: 16px;
+  border-radius: 4px 4px 0 0;
+  background: var(--c);
+}
+
+.npf-bar.none {
+  height: 4px;
+  background: transparent;
+  border-top: 2px dashed var(--c);
+  border-radius: 0;
+}
+
+/* The boxes take the pointer even though they cannot be dragged, or they could not be clicked. */
+.npf .react-flow__node {
+  pointer-events: all !important;
+}
+
+/* Tighter boxes: less padding and shorter bars, so the path takes less room. */
+.npf-node {
+  padding: 8px 10px;
+  gap: 6px;
+}
+
+.npf-node .npv-ghead {
+  gap: 3px;
+  padding: 0;
+}
+
+.npf-node .npv-chips {
+  gap: 6px;
+}
+
+.npf-node .npv-chip {
+  width: 52px;
+  padding: 5px 2px;
+  border-radius: 12px;
+  gap: 1px;
+}
+
+.npf-node .npv-chip .v {
+  font-size: 14px;
+}
+
+.npf-bar-slot {
+  height: 26px;
+}
+
+/* Path View, compact: smaller headings and cards, the path across the full width, details below it. */
+.npv {
+  gap: 14px;
+}
+
+.npv-titlebar h1 {
+  font-size: 26px;
+}
+
+.npv-sub {
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+.npv-stats {
+  gap: 10px;
+}
+
+.npv-stat {
+  flex: 1 1 140px;
+  border-radius: 16px;
+  padding: 10px 14px;
+  gap: 2px;
+}
+
+.npv-stat .v {
+  font-size: 22px;
+}
+
+.npv-stat .k,
+.npv-stat .s {
+  font-size: 12px;
+}
+
+.npv-card {
+  border-radius: 20px;
+  padding: 14px 16px;
+  gap: 10px;
+}
+
+.npv-card h2 {
+  font-size: 17px;
+}
+
+.npv-hint {
+  margin-top: 2px;
+  font-size: 13px;
+}
+
+.npv-pathrow {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 14px;
+}
+
+.npv-pathrow > * {
+  flex: none;
+  width: 100%;
+}
+
+.npv-pathrow > .npv-detail {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px 24px;
+  align-items: start;
+}
+
+.npv-sum,
+.npv-hopcol {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .npv-pathrow > .npv-detail {
+    grid-template-columns: minmax(260px, 2fr) 3fr;
+  }
+}
+
+/* The selected hop's facts sit in two columns, with tighter rows. */
+.npv-hopcol .npv-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.npv-hopcol .npv-detail > div:not([class]) {
+  display: grid;
+  grid-template-columns: 1fr;
+  column-gap: 24px;
+}
+
+.npv-kv {
+  padding: 5px 0;
+}
+
+.npv-tile {
+  padding: 6px 10px;
+  border-radius: 12px;
+}
+
+@media (min-width: 1100px) {
+  .npv-hopcol .npv-detail > div:not([class]) {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Path View controls and summary follow the rest of the app: small, lightly rounded, no box per figure. */
+.npv:not(.airwaves) .npv-actions {
+  gap: 8px;
+}
+
+.npv:not(.airwaves) .npv-agent {
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--bg-inset, var(--chip));
+}
+
+.npv:not(.airwaves) .npv-dot {
+  width: 8px;
+  height: 8px;
+  box-shadow: none;
+}
+
+.npv:not(.airwaves) .npv-agent-label {
+  font-size: 11px;
+}
+
+.npv:not(.airwaves) .npv-agent-name,
+.npv:not(.airwaves) .npv-select,
+.npv:not(.airwaves) button.npv-select {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.npv:not(.airwaves) .npv-run {
+  min-height: 40px;
+  padding: 8px 16px;
+  gap: 8px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 28%, var(--bg-elevated));
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--line));
+  color: color-mix(in srgb, var(--accent) 72%, white);
+}
+
+.npv:not(.airwaves) .npv-run:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 40%, var(--bg-elevated));
+}
+
+.npv:not(.airwaves) .npv-run:disabled {
+  background: var(--bg-inset, var(--chip));
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+.npv:not(.airwaves) .npv-stats {
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.npv:not(.airwaves) .npv-stat {
+  flex: 1 1 150px;
+  background: transparent;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  padding: 8px 14px;
+}
+
+.npv:not(.airwaves) .npv-stat:first-child {
+  border-left: 0;
+}
+
+.npv:not(.airwaves) .npv-card {
+  border-radius: 12px;
+}
+
+@media (max-width: 768px) {
+  .npv:not(.airwaves) .npv-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .npv:not(.airwaves) .npv-stat {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .npv:not(.airwaves) .npv-stat:nth-child(-n + 2) {
+    border-top: 0;
+  }
+
+  .npv:not(.airwaves) .npv-stat:nth-child(even) {
+    border-left: 1px solid var(--line);
+  }
+}
+
+/* One row: the summary on the left, the controls on the right. */
+.npv-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.npv:not(.airwaves) .npv-stats {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+
+.npv:not(.airwaves) .npv-stat {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  border-left: 0;
+  background: none;
+}
+
+.npv:not(.airwaves) .npv-stat:first-child {
+  border-left: 0;
+}
+
+.npv:not(.airwaves) .npv-stat .k {
+  font-size: 12px;
+}
+
+.npv:not(.airwaves) .npv-stat .v {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.npv-toolbar .npv-actions {
+  margin-left: auto;
+  flex-wrap: nowrap;
+}
+
+.npv-host {
+  width: 190px;
+  min-height: 40px;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-inset, var(--chip));
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.npv-host::placeholder {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.npv-host:focus {
+  outline: none;
+  border-color: transparent;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+@media (max-width: 900px) {
+  .npv-toolbar .npv-actions {
+    flex-wrap: wrap;
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .npv-host {
+    flex: 1 1 160px;
+    width: auto;
+  }
+}
+
+/* A health row that opens a detail view looks like it: a chevron, a hover highlight, a pointer. */
+.health-row.is-link {
+  margin: -8px -12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.health-row.is-link:hover {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.health-row.is-link .health-row-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.health-row-title .row-chevron {
+  flex: none;
+  color: var(--accent);
+  opacity: 0.7;
+  transition: transform 0.12s, opacity 0.12s;
+}
+
+.health-row.is-link:hover .row-chevron,
+.health-row-title:focus-visible .row-chevron {
+  opacity: 1;
+  transform: translateX(3px);
+}
+
+.health-row.is-link:hover .health-row-title {
+  color: var(--accent);
+}
+
+/* Network Health and Real-Time Application Health are separate boxes, with slightly larger type. */
+.network-health h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1.2rem;
+}
+
+.network-health .health-row-title,
+.network-health .health-row-head strong {
+  font-size: 1.08rem;
+}
+
+.network-health .health-row-head .mono {
+  font-size: 0.95rem;
+}
+
+/* The compact layout sizes panel titles; these keep the two health boxes slightly larger. */
+.app-shell .panel.network-health h2,
+.app-shell.ui-compact .panel.network-health h2 {
+  font-size: 1.2rem;
+}
+
+.app-shell .network-health .health-row-title,
+.app-shell.ui-compact .network-health .health-row-title {
+  font-size: 1.08rem;
+}
+
+.app-shell .network-health .health-row-head .mono,
+.app-shell.ui-compact .network-health .health-row-head .mono {
+  font-size: 0.95rem;
+}

@@ -224,9 +224,20 @@ class DeviceConfigOut(BaseModel):
     trusted_bssids: list[str] = Field(default_factory=list)
 
 
+class TraceRequestIn(BaseModel):
+    link: str = Field(pattern="^(wired|wireless)$")
+    target: str = Field(min_length=1, max_length=300)
+
+
+class TraceResultIn(BaseModel):
+    hops: list[dict[str, Any]] = Field(default_factory=list, max_length=40)
+    error: str = Field(default="", max_length=300)
+
+
 class ProbeCommandOut(BaseModel):
     restart: bool
     scan: bool = False
+    traces: list[dict[str, str]] = Field(default_factory=list)
     trusted_bssids: list[str] = Field(default_factory=list)
 
 

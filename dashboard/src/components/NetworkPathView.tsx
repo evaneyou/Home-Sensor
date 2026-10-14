@@ -1,10 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../api";
+import { useGuestGate } from "../guestGate";
+import type { User } from "../types";
+import BgpFlow from "./BgpFlow";
+import PathFlow from "./PathFlow";
 import SelectMenu from "./SelectMenu";
 import WaitButton from "./WaitButton";
 
-type PathHop = {
+export type PathHop = {
   ttl: number;
   ip: string | null;
   rdns: string | null;
@@ -25,7 +29,7 @@ type PathHop = {
   inferred: boolean;
 };
 
-type PathGroup = {
+export type PathGroup = {
   role: string;
   asn: number | null;
   name: string;
@@ -35,7 +39,7 @@ type PathGroup = {
   delta_in_ms: number | null;
 };
 
-type AsChip = {
+export type AsChip = {
   type: string;
   asn: number | null;
   name: string;
@@ -44,6 +48,9 @@ type AsChip = {
 };
 
 export type PathTrace = {
+  /** Only on an on-demand trace: where the agent has got to with it. */
+  state?: "pending" | "running" | "done" | "failed";
+  error?: string;
   status: string;
   traced_at: string | null;
   probes_per_hop: number;
@@ -90,18 +97,6 @@ function networkLabel(label: string): string {
   return label === "AS ?" ? "Unknown network" : label;
 }
 
-function useNarrow(query = "(max-width: 768px)") {
-  const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches);
-  useEffect(() => {
-    const media = window.matchMedia(query);
-    const apply = () => setNarrow(media.matches);
-    apply();
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, [query]);
-  return narrow;
-}
-
 function tracedWhen(iso: string): string {
   const when = new Date(iso);
   const clock = when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -140,38 +135,105 @@ export default function NetworkPathView({
 }) {
   const [running, setRunning] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
-  const [hopOpen, setHopOpen] = useState(false);
+  const [group, setGroup] = useState<number | null>(null);
   const [bgpOpen, setBgpOpen] = useState(false);
+  // A host someone typed in, traced on demand, instead of one of the usual destinations.
+  const [hostText, setHostText] = useState("");
+  const [custom, setCustom] = useState<{ id: string; target: string } | null>(null);
+  const [traceError, setTraceError] = useState("");
+  const run = useGuestGate();
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api.me() as Promise<User> });
   const pathQ = useQuery({
     queryKey: ["monitor-path", monitorId, link, destination],
     queryFn: () => api.monitorPath(monitorId, link, destination) as Promise<PathTrace>,
-    enabled: Boolean(monitorId),
+    enabled: Boolean(monitorId) && !custom,
   });
+  const customQ = useQuery({
+    queryKey: ["monitor-trace", monitorId, custom?.id],
+    queryFn: () => api.monitorTrace(monitorId, custom?.id ?? "") as Promise<PathTrace>,
+    enabled: Boolean(monitorId && custom),
+    refetchInterval: (query) => (query.state.data && query.state.data.state !== "pending" && query.state.data.state !== "running" ? false : 1500),
+  });
+  const waiting = Boolean(custom) && (!customQ.data || customQ.data.state === "pending" || customQ.data.state === "running");
+  const trace = custom ? (customQ.data && !waiting && customQ.data.state === "done" ? customQ.data : undefined) : pathQ.data;
+
+  // Picking another agent, link or destination goes back to the usual path.
+  useEffect(() => {
+    setCustom(null);
+    setTraceError("");
+  }, [monitorId, link, destination]);
+
+  const groupOf = (data: PathTrace | undefined, ttl: number | null) =>
+    data && ttl != null ? data.groups.findIndex((item) => item.hop_ttls.includes(ttl)) : -1;
 
   useEffect(() => {
-    setSelected(pathQ.data?.focus_ttl ?? null);
-  }, [pathQ.data?.traced_at, pathQ.data?.focus_ttl]);
+    const focus = trace?.focus_ttl ?? null;
+    setSelected(focus);
+    const index = groupOf(trace, focus);
+    setGroup(index >= 0 ? index : null);
+  }, [trace?.traced_at, trace?.focus_ttl, custom?.id]);
 
+  function pickHop(ttl: number) {
+    setSelected(ttl);
+    const index = groupOf(trace, ttl);
+    if (index >= 0) setGroup(index);
+  }
+
+  /** Choosing a network shows it, and its first hop that answered, or failing that its first hop. */
+  function pickGroup(index: number) {
+    const item = trace?.groups[index];
+    if (!item) return;
+    setGroup(index);
+    const answered = item.hop_ttls.find((ttl) => trace?.hops.find((h) => h.ttl === ttl && !h.silent));
+    setSelected(answered ?? item.hop_ttls[0] ?? null);
+  }
+
+  /** With a host typed in, trace to it now; without, refresh the path for the chosen destination. */
   async function runTrace() {
-    if (running) return;
+    if (running || waiting) return;
+    setTraceError("");
+    const typed = hostText.trim();
+    // A guest can look but not start work on the Pi; the gate explains that instead of failing.
+    if (typed && me.data?.role === "guest") {
+      run(() => undefined);
+      return;
+    }
     setRunning(true);
     try {
-      await pathQ.refetch();
+      if (typed) {
+        const csrf = me.data?.csrf_token;
+        if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+        const queued = (await api.requestTrace(monitorId, link, typed, csrf)) as { id: string; target: string };
+        setCustom({ id: queued.id, target: queued.target });
+      } else {
+        setCustom(null);
+        await pathQ.refetch();
+      }
+    } catch (error) {
+      let message = error instanceof Error ? error.message : "Could not start the trace.";
+      try {
+        const detail = (JSON.parse(message) as { detail?: unknown }).detail;
+        if (typeof detail === "string") message = detail;
+      } catch {
+        // not JSON: show it as it is
+      }
+      setTraceError(message);
     } finally {
       setRunning(false);
     }
   }
 
-  const trace = pathQ.data;
   const agentName = agents.find((agent) => agent.id === monitorId)?.name ?? trace?.agent.name ?? "the remote agent";
-  const destinationName = destinations.find((item) => item.id === destination)?.label ?? trace?.target.name ?? "HomeNetWatch server";
+  const destinationName = custom ? custom.target : (destinations.find((item) => item.id === destination)?.label ?? trace?.target.name ?? "HomeNetWatch server");
   const hop = trace?.hops.find((item) => item.ttl === selected) ?? trace?.hops[trace.hops.length - 1];
   const linkName = link === "wired" ? "Wired" : "Wi-Fi";
   const networks = trace?.stats.asn_count || trace?.stats.network_count || 0;
   const ixp = trace?.stats.ixp_count ?? 0;
-  const subtitle = running || pathQ.isLoading
+  const subtitle = running || waiting || (!custom && pathQ.isLoading)
     ? `Tracing from ${agentName} to ${destinationName}.`
-    : pathQ.isError || !trace
+    : custom && customQ.data?.state === "failed"
+      ? `The trace to ${destinationName} did not finish.`
+    : (custom ? customQ.isError : pathQ.isError) || !trace
       ? "Could not load this path."
       : trace.hops.length === 0 || !trace.traced_at
         ? `No traceroute yet from ${agentName} to ${destinationName} on the ${linkName} link.`
@@ -188,6 +250,9 @@ export default function NetworkPathView({
           <h1>Path View</h1>
           <p className="npv-sub">{subtitle}</p>
         </div>
+      </div>
+      <div className="npv-toolbar">
+        {trace && trace.hops.length > 0 ? <StatCards trace={trace} /> : <span />}
         <div className="npv-actions">
           <label className={agentOnline ? "npv-agent" : "npv-agent offline"}>
             <span className="npv-dot" />
@@ -219,8 +284,23 @@ export default function NetworkPathView({
               </SelectMenu>
             </span>
           </label>
+          <input
+            className="npv-host"
+            type="text"
+            value={hostText}
+            placeholder="Trace any host or IP"
+            aria-label="Host name or IP address to trace"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            maxLength={300}
+            onChange={(event) => setHostText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void runTrace();
+            }}
+          />
           <WaitButton
-            busy={running}
+            busy={running || waiting}
             disabled={!agentOnline || !monitorId}
             label="Run trace"
             busyLabel="Tracing…"
@@ -229,10 +309,17 @@ export default function NetworkPathView({
           />
         </div>
       </div>
+      {traceError ? (
+        <div className="npv-notice silent" role="alert">
+          {traceError}
+        </div>
+      ) : null}
 
-      {pathQ.isLoading ? (
-        <div className="state-box">Loading path…</div>
-      ) : pathQ.isError || !trace ? (
+      {waiting || (!custom && pathQ.isLoading) ? (
+        <div className="state-box">{custom ? `Tracing to ${destinationName}…` : "Loading path…"}</div>
+      ) : custom && customQ.data?.state === "failed" ? (
+        <div className="state-box">{customQ.data.error || "The trace did not finish."}</div>
+      ) : (custom ? customQ.isError : pathQ.isError) || !trace ? (
         <div className="state-box">Could not load the path.</div>
       ) : trace.hops.length === 0 ? (
         <section className="npv-card">
@@ -241,19 +328,9 @@ export default function NetworkPathView({
         </section>
       ) : (
         <>
-          <StatCards trace={trace} />
-          <PathStrip trace={trace} selected={hop?.ttl ?? null} onSelect={setSelected} />
-          <div className="npv-row">
-            <LatencyChart trace={trace} selected={hop?.ttl ?? null} onSelect={setSelected} />
-            <FoldCard
-              className="npv-detail"
-              title={hop ? `Hop ${hop.ttl}` : "Selected hop"}
-              hint={hop ? networkLabel(hop.silent ? "Unknown network" : hop.asn_label) : undefined}
-              open={hopOpen}
-              onToggle={() => setHopOpen((open) => !open)}
-            >
-              <HopDetail trace={trace} hop={hop} headless />
-            </FoldCard>
+          <div className="npv-row npv-pathrow">
+            <PathStrip trace={trace} selected={hop?.ttl ?? null} onSelect={pickHop} group={group} onGroup={pickGroup} />
+            <NetworkDetail trace={trace} group={group == null ? undefined : trace.groups[group]} hop={hop} />
           </div>
           <FoldCard
             title="BGP view"
@@ -302,37 +379,33 @@ function FoldCard({
 
 function StatCards({ trace }: { trace: PathTrace }) {
   const stats = trace.stats;
-  const ixp = stats.ixp_count
-    ? `plus ${stats.ixp_count} exchange point${stats.ixp_count === 1 ? "" : "s"}`
-    : "";
-  const cards = [
-    { k: "Hops", v: String(stats.hop_count), s: `${stats.silent_count} not replying` },
+  const ixp = stats.ixp_count ? ` + ${stats.ixp_count} IXP` : "";
+  const cards: { k: string; v: string; title?: string; cls?: string }[] = [
+    { k: "Hops", v: String(stats.hop_count), title: `${stats.silent_count} not replying` },
     {
-      k: "Networks crossed",
-      v: stats.asn_count ? `${stats.asn_count} ASes` : stats.network_count ? String(stats.network_count) : "—",
-      s: stats.network_count || stats.asn_count ? ixp : "home network only",
+      k: "Networks",
+      v: stats.asn_count ? `${stats.asn_count} AS${ixp}` : stats.network_count ? String(stats.network_count) : "—",
     },
-    { k: "End to end", v: `${fmt(stats.end_to_end_ms)} ms`, s: `average over ${trace.probes_per_hop} probes` },
+    { k: "End to end", v: `${fmt(stats.end_to_end_ms)} ms`, title: `average over ${trace.probes_per_hop} probes` },
     {
-      k: "Packet loss",
+      k: "Loss",
       v: stats.loss_pct == null ? "—" : `${fmt(stats.loss_pct, stats.loss_pct % 1 === 0 ? 0 : 1)}%`,
-      s: "at the destination",
+      title: "packet loss at the destination",
       cls: stats.loss_pct === 0 ? "ok" : "warn",
     },
     {
       k: "Biggest step",
       v: stats.biggest_step_ms == null ? "—" : `+${fmt(stats.biggest_step_ms)} ms`,
-      s: stats.biggest_step_name ? `entering ${stats.biggest_step_name}` : "",
+      title: stats.biggest_step_name ? `entering ${stats.biggest_step_name}` : undefined,
       cls: "warn",
     },
   ];
   return (
     <div className="npv-stats">
       {cards.map((card) => (
-        <div key={card.k} className={`npv-stat ${card.cls ?? ""}`}>
-          <div className="k">{card.k}</div>
-          <div className="v">{card.v}</div>
-          <div className="s">{card.s}</div>
+        <div key={card.k} className={`npv-stat ${card.cls ?? ""}`} title={card.title}>
+          <span className="k">{card.k}</span>
+          <span className="v">{card.v}</span>
         </div>
       ))}
     </div>
@@ -343,20 +416,22 @@ function PathStrip({
   trace,
   selected,
   onSelect,
+  group,
+  onGroup,
 }: {
   trace: PathTrace;
   selected: number | null;
   onSelect: (ttl: number) => void;
+  group: number | null;
+  onGroup: (index: number) => void;
 }) {
-  const hops = new Map(trace.hops.map((hop) => [hop.ttl, hop]));
-  const warn = new Set(trace.warn_ttls);
   return (
-    <section className="npv-card">
+    <section className="npv-card npv-chartcard">
       <div className="npv-card-head">
         <div>
           <h2>Network path</h2>
           <p className="npv-hint">
-            Hops grouped by the network that owns them. Pick a hop for details. Pills between networks show the latency change at each handoff, in ms.
+            Hops grouped by the network that owns them, each bar the latency to that hop. Pick a network or a hop for details. Pills show the latency added at each handoff, in ms.
           </p>
         </div>
         <div className="npv-legend">
@@ -370,172 +445,7 @@ function PathStrip({
           </span>
         </div>
       </div>
-      <div className="npv-vpath">
-        {trace.groups.map((group, index) => {
-          const delta = group.delta_in_ms;
-          const big = delta != null && delta >= 15;
-          const silent = group.role === "unknown";
-          return (
-            <div className="npv-vblock" key={`v-${group.role}-${group.hop_ttls[0]}`}>
-              {index > 0 ? (
-                <div className={`npv-vdiv ${big ? "big" : ""}`}>
-                  <span>{delta == null ? "?" : `${delta >= 0 ? "+" : ""}${fmt(delta)} ms`}</span>
-                </div>
-              ) : null}
-              <div className={`npv-vrow ${silent ? "dashed" : ""}`} style={{ ["--c" as string]: `var(--role-${group.role})` }}>
-                {silent ? (
-                  <div className="npv-vmeta">
-                    <div className="npv-gname">Hidden by router, no reply</div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="npv-vmeta">
-                      <span className="npv-asn">{networkLabel(group.asn_label)}</span>
-                      <div className="npv-gname">{group.name}</div>
-                      <div className="npv-grole">{group.role_label}</div>
-                    </div>
-                    <div className="npv-vpills">
-                      {group.hop_ttls.map((ttl) => {
-                        const item = hops.get(ttl);
-                        if (!item) return null;
-                        return (
-                          <button
-                            key={ttl}
-                            type="button"
-                            className={`npv-vpill ${warn.has(ttl) ? "warn" : ""}`}
-                            aria-pressed={selected === ttl}
-                            aria-label={`Hop ${ttl}, ${item.name}, ${item.silent ? "no reply" : `${fmt(item.avg_ms)} milliseconds`}`}
-                            onClick={() => onSelect(ttl)}
-                          >
-                            <b>#{ttl}</b>
-                            <span>{item.silent ? "no reply" : `${fmt(item.avg_ms)} ms`}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="npv-strip-scroll">
-        <div className="npv-strip">
-          {trace.groups.map((group, index) => {
-            const next = trace.groups[index + 1];
-            const big = next?.delta_in_ms != null && next.delta_in_ms >= 15;
-            return (
-              <div className="npv-gwrap" key={`${group.role}-${group.hop_ttls[0]}`}>
-                <div className={`npv-group ${group.role === "unknown" ? "dashed" : ""}`} style={{ ["--c" as string]: `var(--role-${group.role})` }}>
-                  <div className="npv-ghead">
-                    <span className="npv-asn">{networkLabel(group.asn_label)}</span>
-                    <div className="npv-gname">{group.name}</div>
-                    <div className="npv-grole">{group.role_label}</div>
-                  </div>
-                  <div className="npv-chips">
-                    {group.hop_ttls.map((ttl) => {
-                      const item = hops.get(ttl);
-                      if (!item) return null;
-                      const silent = item.silent;
-                      return (
-                        <button
-                          key={ttl}
-                          type="button"
-                          className={`npv-chip ${silent ? "silent" : ""} ${warn.has(ttl) ? "warn" : ""}`}
-                          style={{ ["--c" as string]: `var(--role-${item.role})` }}
-                          aria-pressed={selected === ttl}
-                          aria-label={`Hop ${ttl}, ${item.name}, ${silent ? "no reply" : `${fmt(item.avg_ms)} milliseconds`}`}
-                          onClick={() => onSelect(ttl)}
-                        >
-                          <span className="n">#{ttl}</span>
-                          <span className="v">{silent ? "* * *" : fmt(item.avg_ms)}</span>
-                          <span className="u">{silent ? "no reply" : "ms"}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                {next ? (
-                  <div className={`npv-conn ${big ? "big" : ""}`}>
-                    <span className="npv-delta">
-                      {next.delta_in_ms == null ? "?" : `${next.delta_in_ms >= 0 ? "+" : ""}${fmt(next.delta_in_ms)}`}
-                    </span>
-                    <svg width="48" height="12" viewBox="0 0 48 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M2 6h42M39 1.5L44 6l-5 4.5" />
-                    </svg>
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function LatencyChart({
-  trace,
-  selected,
-  onSelect,
-}: {
-  trace: PathTrace;
-  selected: number | null;
-  onSelect: (ttl: number) => void;
-}) {
-  const narrow = useNarrow();
-  const replying = trace.hops.filter((hop) => !hop.silent && hop.avg_ms != null);
-  const maxAvg = Math.max(0, ...replying.map((hop) => hop.avg_ms ?? 0));
-  const axisMax = Math.max(15, Math.ceil(maxAvg / 15) * 15);
-  const ticks = [axisMax, (axisMax * 2) / 3, axisMax / 3, 0].map((tick) => Math.round(tick));
-  return (
-    <section className="npv-card npv-chartcard">
-      <div>
-        <h2>Latency by hop</h2>
-        <p className="npv-hint">Average round trip in ms. Bars take the color of the network they belong to.</p>
-      </div>
-      <div className="npv-chart">
-        <div className="npv-grid">
-          {ticks.map((tick) => (
-            <div className="npv-gl" key={tick}>
-              <span>{tick}</span>
-              <i />
-            </div>
-          ))}
-        </div>
-        <div className="npv-bars">
-          {trace.hops.map((hop) => {
-            const silent = hop.silent || hop.avg_ms == null;
-            const height = silent ? 0 : Math.max(6, Math.round(((hop.avg_ms ?? 0) / axisMax) * (narrow ? 100 : 190)));
-            return (
-              <button
-                key={hop.ttl}
-                type="button"
-                className="npv-col"
-                style={{ ["--c" as string]: `var(--role-${hop.role})` }}
-                aria-pressed={selected === hop.ttl}
-                aria-label={`Hop ${hop.ttl}, ${silent ? "no reply" : `${fmt(hop.avg_ms)} milliseconds`}`}
-                onClick={() => onSelect(hop.ttl)}
-              >
-                <span className="val">{silent ? "—" : fmt(hop.avg_ms)}</span>
-                {silent ? <div className="npv-stub" /> : <div className="npv-bar" style={{ height }} />}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      <div className="npv-xlabels">
-        {trace.hops.map((hop) => {
-          const short = hop.silent ? "?" : hop.asn ? String(hop.asn) : hop.role === "ixp" ? "IXP" : hop.role === "home" ? "LAN" : "Unknown";
-          return (
-            <div className="npv-xl" key={hop.ttl} style={{ ["--c" as string]: `var(--role-${hop.role})` }}>
-              <b>#{hop.ttl}</b>
-              <span>{short}</span>
-            </div>
-          );
-        })}
-      </div>
+      <PathFlow trace={trace} selected={selected} onSelect={onSelect} group={group} onGroup={onGroup} />
       {trace.insight ? (
         <div className="npv-insight">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--degraded)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -547,6 +457,50 @@ function LatencyChart({
         </div>
       ) : null}
     </section>
+  );
+}
+
+/** The chosen network and, under it, the chosen hop. */
+function NetworkDetail({ trace, group, hop }: { trace: PathTrace; group: PathGroup | undefined; hop: PathHop | undefined }) {
+  if (!group) return <aside className="npv-card npv-detail" />;
+  const members = group.hop_ttls.map((ttl) => trace.hops.find((item) => item.ttl === ttl)).filter((item): item is PathHop => Boolean(item));
+  const times = members.filter((item) => !item.silent && item.avg_ms != null).map((item) => item.avg_ms as number);
+  const lo = Math.min(...times);
+  const hi = Math.max(...times);
+  const range = times.length ? (lo === hi ? `${fmt(lo)} ms` : `${fmt(lo)} to ${fmt(hi)} ms`) : "—";
+  const inGroup = hop && group.hop_ttls.includes(hop.ttl) ? hop : undefined;
+  return (
+    <aside className="npv-card npv-detail" style={{ ["--c" as string]: `var(--role-${group.role})` }}>
+      <div className="npv-sum">
+      <div className="npv-detail-head">
+        <div>
+          <div className="cap">{group.role_label}</div>
+          <div className="ttl">{group.name}</div>
+        </div>
+        <span className="npv-asn">{networkLabel(group.asn_label)}</span>
+      </div>
+      <div className="npv-tiles">
+        <div className="npv-tile">
+          <span className="k">Hops</span>
+          <span className="v">{members.length}</span>
+        </div>
+        <div className="npv-tile">
+          <span className="k">Latency</span>
+          <span className="v">{range}</span>
+        </div>
+        <div className="npv-tile">
+          <span className="k">Added</span>
+          <span className="v">{group.delta_in_ms == null ? "—" : `${group.delta_in_ms >= 0 ? "+" : ""}${fmt(group.delta_in_ms)} ms`}</span>
+        </div>
+      </div>
+      </div>
+      {inGroup ? (
+        <div className="npv-hopcol">
+          <div className="npv-spark-title">Hop {inGroup.ttl}</div>
+          <HopDetail trace={trace} hop={inGroup} headless />
+        </div>
+      ) : null}
+    </aside>
   );
 }
 
@@ -644,27 +598,6 @@ function HopDetail({ trace, hop, headless = false }: { trace: PathTrace; hop: Pa
   );
 }
 
-function AsPath({ items }: { items: AsChip[] }) {
-  if (items.length === 0) return <div className="npv-missing">—</div>;
-  return (
-    <div className="npv-aspath">
-      {items.map((item, index) => (
-        <div className="npv-asitem" key={`${item.label}-${index}`}>
-          <div className="npv-aschip" style={{ ["--c" as string]: `var(--role-${item.role})` }}>
-            <b>{item.label}</b>
-            <span>{item.name}</span>
-          </div>
-          {index < items.length - 1 ? (
-            <svg width="22" height="12" viewBox="0 0 22 12" fill="none" stroke="var(--unknown)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M2 6h16M14 2l4 4-4 4" />
-            </svg>
-          ) : null}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function BgpView({ trace, headless = false }: { trace: PathTrace; headless?: boolean }) {
   const bgp = trace.bgp;
   const rpki = bgp.rpki ? bgp.rpki[0].toUpperCase() + bgp.rpki.slice(1) : "—";
@@ -684,14 +617,7 @@ function BgpView({ trace, headless = false }: { trace: PathTrace; headless?: boo
       )}
       <div className="npv-bgp-grid">
         <div className="npv-bgp-paths">
-          <div>
-            <div className="npv-bgp-label">Observed in traceroute</div>
-            <AsPath items={trace.as_path_observed} />
-          </div>
-          <div>
-            <div className="npv-bgp-label">Announced in BGP</div>
-            <AsPath items={bgp.as_path_announced} />
-          </div>
+          <BgpFlow trace={trace} />
           {bgp.path_match == null ? null : bgp.path_match ? (
             <div className="npv-match yes">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

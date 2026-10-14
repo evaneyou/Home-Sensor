@@ -4,7 +4,7 @@ export default function AboutPage() {
   return (
     <div>
       <h1 className="page-title">About</h1>
-      <p className="page-sub">HomeNetWatch 0.1.0</p>
+      <p className="page-sub">HomeNetWatch 0.2.0</p>
 
       <section className="panel">
         <h2>Overview</h2>
@@ -25,8 +25,9 @@ export default function AboutPage() {
       <section className="panel">
         <h2>Version history</h2>
         <p>
-          The current release is <span className="mono">0.1.0</span>, the first release, dated 13
-          October 2026. HomeNetWatch follows semantic versioning and is still pre-1.0.
+          The current release is <span className="mono">0.2.0</span>, dated 14 October 2026. The
+          first release, 0.1.0, came out the day before. HomeNetWatch follows semantic versioning
+          and is still pre-1.0.
         </p>
         <Link to="/about/history">Open version history</Link>
       </section>
@@ -52,8 +53,34 @@ export function VersionHistoryPage() {
     <div>
       <h1 className="page-title">Version history</h1>
       <p className="page-sub">
-        Notable changes to HomeNetWatch. The current version is <span className="mono">0.1.0</span>.
+        Notable changes to HomeNetWatch. The current version is <span className="mono">0.2.0</span>.
       </p>
+
+      <section className="panel">
+        <h2>
+          0.2.0 <span className="muted">14 October 2026</span>
+        </h2>
+
+        <h3 className="wifi-heading">Added</h3>
+        <ul className="about-list">
+          <li>Network Path Diagram: an animated diagram of the path each test takes, with hover details and zoom.</li>
+          <li>Path View as React Flow diagrams that fit a phone, with the latency chart and hop detail folded into the path.</li>
+          <li>Trace any host or public IP on demand from Path View (admin only).</li>
+          <li>Zoom on the real-time application health charts.</li>
+          <li>The agent reports its network interface names and LAN address.</li>
+        </ul>
+
+        <h3 className="wifi-heading">Changed</h3>
+        <ul className="about-list">
+          <li>A compact layout for Path View and the remote agent pages, with the time range on the tab row.</li>
+          <li>File Transfer is now Bandwidth Test, and Home shows Web first.</li>
+        </ul>
+
+        <h3 className="wifi-heading">Removed</h3>
+        <ul className="about-list">
+          <li>draw.io, the web-service MTR checks, and the Video call check.</li>
+        </ul>
+      </section>
 
       <section className="panel">
         <h2>

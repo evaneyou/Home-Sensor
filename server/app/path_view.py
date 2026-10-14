@@ -7,7 +7,9 @@ so a trace still renders when those lookups are unavailable.
 from __future__ import annotations
 
 import ipaddress
+import re
 from typing import Any
+from urllib.parse import urlsplit
 
 WARN_STEP_MS = 15
 
@@ -17,6 +19,34 @@ _PRIVATE = (
     ipaddress.ip_network("192.168.0.0/16"),
     ipaddress.ip_network("100.64.0.0/10"),
 )
+
+_HOSTNAME = re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
+
+
+def clean_trace_target(raw: str) -> str | None:
+    """A host name or public IP address from what someone typed, or None if it is not one.
+
+    A pasted URL gives its host. Private, loopback and link-local addresses are refused:
+    the agent sits inside the home network, and a trace should not be a way to probe it.
+    """
+    text = raw.strip().lower()
+    if "://" in text:
+        text = urlsplit(text).hostname or ""
+    else:
+        text = text.split("/")[0].split("?")[0]
+        if text.count(":") == 1:
+            text = text.split(":")[0]
+    text = text.strip("[]").rstrip(".")
+    if not text:
+        return None
+    try:
+        address = ipaddress.ip_address(text)
+    except ValueError:
+        return text if _HOSTNAME.fullmatch(text) and text != "localhost" else None
+    if not address.is_global or address.is_multicast:
+        return None
+    return str(address)
+
 
 _SILENT_HOSTS = {"", "?", "???", "*", "***"}
 
