@@ -1189,3 +1189,17 @@ code {
 .about-text .lead {
   max-width: none;
 }
+
+/* Releases still in development */
+.timeline li.next::before {
+  border-style: dashed;
+  border-color: var(--amber);
+}
+
+.timeline li.next time {
+  color: var(--amber);
+}
+
+.timeline p a {
+  font-weight: 700;
+}
