@@ -77,10 +77,13 @@ export default function RealtimeHealth({
         <div className="muted">No continuous application check is running on this link.</div>
       ) : null}
       {types.map((item) => (
-        <div className="health-row" key={item.slug}>
+        <div className="health-row is-link" key={item.slug} onClick={() => onOpen?.(item.slug)}>
           <div className="health-row-head">
-            <button className="health-row-title" type="button" onClick={() => onOpen?.(item.slug)}>
+            <button className="health-row-title" type="button">
               {item.name}
+              <svg className="row-chevron" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             </button>
             <span className="mono">
               {fmt(item.latest.rtt_ms)} ms · jitter {fmt(item.latest.jitter_ms)} ms · loss {fmt(item.latest.loss_pct)}%

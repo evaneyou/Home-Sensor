@@ -1740,3 +1740,39 @@
     width: auto;
   }
 }
+
+/* A health row that opens a detail view looks like it: a chevron, a hover highlight, a pointer. */
+.health-row.is-link {
+  margin: -8px -12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.health-row.is-link:hover {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.health-row.is-link .health-row-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.health-row-title .row-chevron {
+  flex: none;
+  color: var(--accent);
+  opacity: 0.7;
+  transition: transform 0.12s, opacity 0.12s;
+}
+
+.health-row.is-link:hover .row-chevron,
+.health-row-title:focus-visible .row-chevron {
+  opacity: 1;
+  transform: translateX(3px);
+}
+
+.health-row.is-link:hover .health-row-title {
+  color: var(--accent);
+}

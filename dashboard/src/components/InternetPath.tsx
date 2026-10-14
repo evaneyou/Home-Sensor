@@ -984,11 +984,14 @@ function HealthBar({
   onOpen?: () => void;
 }) {
   return (
-    <div className="health-row">
+    <div className={onOpen ? "health-row is-link" : "health-row"} onClick={onOpen}>
       <div className="health-row-head">
         {onOpen ? (
-          <button className="health-row-title" type="button" onClick={onOpen}>
+          <button className="health-row-title" type="button">
             {title}
+            <svg className="row-chevron" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
         ) : (
           <strong>{title}</strong>
