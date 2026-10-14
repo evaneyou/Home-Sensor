@@ -1,6 +1,23 @@
 import type { EnrollmentRegistration, InternetServiceSetting, RfAp, RfChannelSnapshot, RfClient, RfHistoryPoint, RfOverview, WebServiceSetting, WebStability } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8847";
+// The session cookie is stored for the API host only. A page opened at
+// localhost cannot use a cookie set by 127.0.0.1, so keep the API on the
+// same hostname as the page.
+function apiBase(): string {
+  const configured = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8847";
+  if (typeof window === "undefined") return configured;
+  try {
+    const url = new URL(configured);
+    if (window.location.hostname && url.hostname !== window.location.hostname) {
+      url.hostname = window.location.hostname;
+    }
+    return url.origin;
+  } catch {
+    return configured;
+  }
+}
+
+const API_BASE = apiBase();
 
 type JsonInit = Omit<RequestInit, "headers"> & { headers?: Record<string, string> };
 
