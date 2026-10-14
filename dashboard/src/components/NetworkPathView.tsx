@@ -253,7 +253,7 @@ export default function NetworkPathView({
       ) : (
         <>
           <StatCards trace={trace} />
-          <div className="npv-row">
+          <div className="npv-row npv-pathrow">
             <PathStrip trace={trace} selected={hop?.ttl ?? null} onSelect={pickHop} group={group} onGroup={pickGroup} />
             <NetworkDetail trace={trace} group={group == null ? undefined : trace.groups[group]} hop={hop} />
           </div>
@@ -400,6 +400,7 @@ function NetworkDetail({ trace, group, hop }: { trace: PathTrace; group: PathGro
   const inGroup = hop && group.hop_ttls.includes(hop.ttl) ? hop : undefined;
   return (
     <aside className="npv-card npv-detail" style={{ ["--c" as string]: `var(--role-${group.role})` }}>
+      <div className="npv-sum">
       <div className="npv-detail-head">
         <div>
           <div className="cap">{group.role_label}</div>
@@ -421,11 +422,12 @@ function NetworkDetail({ trace, group, hop }: { trace: PathTrace; group: PathGro
           <span className="v">{group.delta_in_ms == null ? "—" : `${group.delta_in_ms >= 0 ? "+" : ""}${fmt(group.delta_in_ms)} ms`}</span>
         </div>
       </div>
+      </div>
       {inGroup ? (
-        <>
+        <div className="npv-hopcol">
           <div className="npv-spark-title">Hop {inGroup.ttl}</div>
           <HopDetail trace={trace} hop={inGroup} headless />
-        </>
+        </div>
       ) : null}
     </aside>
   );

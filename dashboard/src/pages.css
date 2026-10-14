@@ -1447,3 +1447,85 @@
 .npf-bar-slot {
   height: 26px;
 }
+
+/* Path View, compact: smaller headings and cards, the path across the full width, details below it. */
+.npv {
+  gap: 14px;
+}
+
+.npv-titlebar h1 {
+  font-size: 26px;
+}
+
+.npv-sub {
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+.npv-stats {
+  gap: 10px;
+}
+
+.npv-stat {
+  flex: 1 1 140px;
+  border-radius: 16px;
+  padding: 10px 14px;
+  gap: 2px;
+}
+
+.npv-stat .v {
+  font-size: 22px;
+}
+
+.npv-stat .k,
+.npv-stat .s {
+  font-size: 12px;
+}
+
+.npv-card {
+  border-radius: 20px;
+  padding: 14px 16px;
+  gap: 10px;
+}
+
+.npv-card h2 {
+  font-size: 17px;
+}
+
+.npv-hint {
+  margin-top: 2px;
+  font-size: 13px;
+}
+
+.npv-pathrow {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 14px;
+}
+
+.npv-pathrow > * {
+  flex: none;
+  width: 100%;
+}
+
+.npv-pathrow .npv-detail {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px 24px;
+  align-items: start;
+}
+
+.npv-sum,
+.npv-hopcol {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .npv-pathrow .npv-detail {
+    grid-template-columns: minmax(260px, 2fr) 3fr;
+  }
+}
