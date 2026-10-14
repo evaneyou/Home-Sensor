@@ -1553,3 +1553,25 @@ h3 {
     left: 0;
   }
 }
+
+/* Phone: dots and the line sit in a gutter on the left, the date above the title. */
+@media (max-width: 720px) {
+  .timeline li {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding: 8px 0 8px 34px;
+  }
+
+  .timeline::before {
+    left: 7px;
+  }
+
+  .timeline li::before {
+    left: 0;
+    top: 12px;
+  }
+
+  .timeline time {
+    padding-top: 0;
+  }
+}
