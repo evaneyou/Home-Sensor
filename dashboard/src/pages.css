@@ -673,19 +673,42 @@
 
 .connection-live-stage {
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .connection-live-canvas {
   display: block;
   width: 100%;
   height: auto;
-  max-height: min(72vh, 820px);
+  max-height: min(78vh, 900px);
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #101620;
+  border-radius: 14px;
+  background: #0e1320;
   touch-action: none;
   cursor: grab;
   user-select: none;
+}
+
+/* The diagram is part of the product, so it reads in the product's typeface. */
+.connection-live-canvas text {
+  font-family: var(--font-ui);
+  letter-spacing: 0.005em;
+}
+
+.connection-live-canvas [data-cell] rect,
+.connection-live-canvas [data-cell] ellipse,
+.connection-live-canvas [data-cell] line {
+  transition: stroke 0.12s ease, stroke-width 0.12s ease;
+}
+
+.connection-live-canvas [data-cell]:hover rect,
+.connection-live-canvas [data-cell]:hover ellipse {
+  stroke: color-mix(in srgb, var(--accent) 65%, #ffffff);
+}
+
+.connection-live-canvas [data-cell]:hover line {
+  stroke-width: 3;
 }
 
 .connection-live-canvas:active {
@@ -696,32 +719,48 @@
   cursor: pointer;
 }
 
+/* One track, like the page tabs, rather than three loose buttons. */
 .connection-live-zoom {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  margin-bottom: 8px;
+  display: inline-flex;
+  align-self: flex-end;
+  gap: 2px;
+  margin: 0 0 8px auto;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-elevated);
 }
 
 .connection-live-zoom button {
   min-width: 2.4rem;
-  padding: 4px 8px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--bg-elevated);
-  color: inherit;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
   cursor: pointer;
 }
 
+.connection-live-zoom button:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
 .connection-live-detail {
+  position: sticky;
+  top: 12px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--bg-elevated);
-  padding: 14px;
+  padding: 16px;
 }
 
 .connection-live-detail h2 {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
   font-size: 1.05rem;
 }
 
