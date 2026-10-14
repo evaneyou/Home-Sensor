@@ -1509,7 +1509,7 @@
   width: 100%;
 }
 
-.npv-pathrow .npv-detail {
+.npv-pathrow > .npv-detail {
   display: grid;
   grid-template-columns: 1fr;
   gap: 12px 24px;
@@ -1525,7 +1525,35 @@
 }
 
 @media (min-width: 900px) {
-  .npv-pathrow .npv-detail {
+  .npv-pathrow > .npv-detail {
     grid-template-columns: minmax(260px, 2fr) 3fr;
+  }
+}
+
+/* The selected hop's facts sit in two columns, with tighter rows. */
+.npv-hopcol .npv-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.npv-hopcol .npv-detail > div:not([class]) {
+  display: grid;
+  grid-template-columns: 1fr;
+  column-gap: 24px;
+}
+
+.npv-kv {
+  padding: 5px 0;
+}
+
+.npv-tile {
+  padding: 6px 10px;
+  border-radius: 12px;
+}
+
+@media (min-width: 1100px) {
+  .npv-hopcol .npv-detail > div:not([class]) {
+    grid-template-columns: 1fr 1fr;
   }
 }
