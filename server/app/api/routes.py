@@ -42,10 +42,11 @@ from app.internet_tests import (
     stability_config,
 )
 from app.path_enrich import enrich_hops
-from app.path_view import build_trace
+from app.path_view import build_trace, clean_trace_target
 from app.services.stability import cell_quorum, preset_name, service_status
 from app.regions import REGIONS_BY_COUNTRY
 from app.models import (
+    AdhocTrace,
     ApInventory,
     AuditEvent,
     Group,
@@ -68,6 +69,8 @@ from app.models import (
 from app.schemas import (
     DeviceConfigOut,
     ProbeCommandOut,
+    TraceRequestIn,
+    TraceResultIn,
     TunnelIssueOut,
     DeviceHealthIn,
     ScheduledTestOut,
@@ -640,8 +643,32 @@ def probe_command(
     return ProbeCommandOut(
         restart=monitor.restart_requested_at is not None,
         scan=monitor.scan_requested_at is not None,
+        traces=_take_trace_requests(db, monitor),
         trusted_bssids=_trusted_bssids(db, monitor.id),
     )
+
+
+TRACE_WAIT = timedelta(seconds=90)
+
+
+def _take_trace_requests(db: Session, monitor: Monitor) -> list[dict[str, str]]:
+    """Hand the agent the traces waiting for it, once each; a trace it never answers is given up on."""
+    now = datetime.now(timezone.utc)
+    rows = db.scalars(
+        select(AdhocTrace).where(AdhocTrace.monitor_id == monitor.id, AdhocTrace.state.in_(("pending", "running")))
+    ).all()
+    out: list[dict[str, str]] = []
+    for row in rows:
+        if now - row.requested_at > TRACE_WAIT:
+            row.state = "failed"
+            row.error = "The remote agent did not answer in time"
+            row.finished_at = now
+        elif row.state == "pending":
+            row.state = "running"
+            out.append({"id": str(row.id), "target": row.target, "link": row.link})
+    if rows:
+        db.commit()
+    return out
 
 
 @router.post("/monitors/command", response_model=ProbeCommandOut)
@@ -1473,7 +1500,26 @@ def monitor_path(
                 isinstance(loss, (int, float)) and loss >= 100 and (not isinstance(avg, (int, float)) or avg <= 0)
             )
             history.setdefault(str(int(ttl)), []).append(None if silent or not isinstance(avg, (int, float)) else float(avg))
-    enriched, announced, as_names, rpki = enrich_hops(raw_hops if isinstance(raw_hops, list) else [])
+    return _path_body(
+        monitor,
+        raw_hops if isinstance(raw_hops, list) else [],
+        history,
+        target_name=target_name,
+        target_ip=target_ip,
+        traced_at=latest.started_at if latest else None,
+    )
+
+
+def _path_body(
+    monitor: Monitor,
+    raw_hops: list,
+    history: dict[str, list[float | None]],
+    *,
+    target_name: str,
+    target_ip: str,
+    traced_at: datetime | None,
+) -> dict:
+    enriched, announced, as_names, rpki = enrich_hops(raw_hops)
     body = build_trace(
         enriched,
         isp_name=monitor.isp,
@@ -1484,12 +1530,98 @@ def monitor_path(
     if rpki:
         body["bgp"]["rpki"] = rpki
     body["status"] = "complete" if body["hops"] else "empty"
-    body["traced_at"] = latest.started_at.isoformat() if latest else None
+    body["traced_at"] = traced_at.isoformat() if traced_at else None
     body["probes_per_hop"] = 5
     body["agent"] = {"name": monitor.name, "online": monitor.status == MonitorStatus.online}
     body["target"] = {"name": target_name, "ip": target_ip}
     body["history"] = history
     return body
+
+
+@router.post("/monitors/{monitor_id}/traces")
+def request_trace(
+    monitor_id: UUID,
+    body: TraceRequestIn,
+    db: Annotated[Session, Depends(get_db)],
+    admin: Annotated[User, Depends(require_admin_csrf)],
+) -> dict:
+    """Ask the agent to trace the path to a host someone typed in. The result is read back from the trace's id."""
+    monitor = db.get(Monitor, monitor_id)
+    if monitor is None:
+        raise HTTPException(status_code=404, detail="Remote agent not found")
+    target = clean_trace_target(body.target)
+    if target is None:
+        raise HTTPException(status_code=422, detail="Enter a public host name or IP address")
+    now = datetime.now(timezone.utc)
+    busy = db.scalar(
+        select(func.count())
+        .select_from(AdhocTrace)
+        .where(
+            AdhocTrace.monitor_id == monitor.id,
+            AdhocTrace.state.in_(("pending", "running")),
+            AdhocTrace.requested_at > now - TRACE_WAIT,
+        )
+    )
+    if busy:
+        raise HTTPException(status_code=409, detail="A trace is already running on this agent")
+    recent = db.scalar(
+        select(func.count()).select_from(AdhocTrace).where(AdhocTrace.monitor_id == monitor.id, AdhocTrace.requested_at > now - timedelta(hours=1))
+    )
+    if (recent or 0) >= 30:
+        raise HTTPException(status_code=429, detail="Too many traces this hour")
+    db.execute(delete(AdhocTrace).where(AdhocTrace.monitor_id == monitor.id, AdhocTrace.requested_at < now - timedelta(days=7)))
+    row = AdhocTrace(monitor_id=monitor.id, link=body.link, target=target, requested_by=admin.username)
+    db.add(row)
+    db.add(AuditEvent(username=admin.username, action="trace", monitor_id=monitor.id, detail=f"{body.link} {target}"))
+    db.commit()
+    return {"id": str(row.id), "state": row.state, "target": target}
+
+
+@router.get("/monitors/{monitor_id}/traces/{trace_id}")
+def read_trace(
+    monitor_id: UUID,
+    trace_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+    _user: Annotated[User, Depends(get_current_user)],
+) -> dict:
+    monitor = db.get(Monitor, monitor_id)
+    row = db.get(AdhocTrace, trace_id)
+    if monitor is None or row is None or row.monitor_id != monitor.id:
+        raise HTTPException(status_code=404, detail="Trace not found")
+    if row.state in ("pending", "running") and datetime.now(timezone.utc) - row.requested_at > TRACE_WAIT:
+        row.state = "failed"
+        row.error = "The remote agent did not answer in time"
+        row.finished_at = datetime.now(timezone.utc)
+        db.commit()
+    hops = row.hops if isinstance(row.hops, list) else []
+    body = _path_body(monitor, hops, {}, target_name=row.target, target_ip=row.target, traced_at=row.finished_at)
+    body["trace_id"] = str(row.id)
+    body["state"] = row.state
+    body["error"] = row.error
+    return body
+
+
+@router.post("/monitors/traces/{trace_id}/result")
+def submit_trace_result(
+    trace_id: UUID,
+    body: TraceResultIn,
+    db: Annotated[Session, Depends(get_db)],
+    authorization: Annotated[Optional[str], Header()] = None,
+    x_monitor_name: Annotated[Optional[str], Header()] = None,
+) -> dict:
+    """The agent hands back what it measured for a trace it was asked to run."""
+    monitor = _resolve_monitor_identity(db, authorization, x_monitor_name)
+    row = db.get(AdhocTrace, trace_id)
+    if row is None or row.monitor_id != monitor.id:
+        raise HTTPException(status_code=404, detail="Trace not found")
+    if row.state in ("done", "failed"):
+        return {"state": row.state}
+    row.hops = body.hops
+    row.finished_at = datetime.now(timezone.utc)
+    row.state = "done" if body.hops else "failed"
+    row.error = "" if body.hops else (body.error or "The trace returned no hops")
+    db.commit()
+    return {"state": row.state}
 
 
 _HEALTH_RANK = {"ok": 0, "degraded": 1, "fail": 2}

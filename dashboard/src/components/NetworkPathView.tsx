@@ -46,6 +46,9 @@ export type AsChip = {
 };
 
 export type PathTrace = {
+  /** Only on an on-demand trace: where the agent has got to with it. */
+  state?: "pending" | "running" | "done" | "failed";
+  error?: string;
   status: string;
   traced_at: string | null;
   probes_per_hop: number;
@@ -132,57 +135,87 @@ export default function NetworkPathView({
   const [selected, setSelected] = useState<number | null>(null);
   const [group, setGroup] = useState<number | null>(null);
   const [bgpOpen, setBgpOpen] = useState(false);
+  // A host someone typed in, traced on demand, instead of one of the usual destinations.
+  const [hostText, setHostText] = useState("");
+  const [custom, setCustom] = useState<{ id: string; target: string } | null>(null);
+  const [traceError, setTraceError] = useState("");
   const pathQ = useQuery({
     queryKey: ["monitor-path", monitorId, link, destination],
     queryFn: () => api.monitorPath(monitorId, link, destination) as Promise<PathTrace>,
-    enabled: Boolean(monitorId),
+    enabled: Boolean(monitorId) && !custom,
   });
+  const customQ = useQuery({
+    queryKey: ["monitor-trace", monitorId, custom?.id],
+    queryFn: () => api.monitorTrace(monitorId, custom?.id ?? "") as Promise<PathTrace>,
+    enabled: Boolean(monitorId && custom),
+    refetchInterval: (query) => (query.state.data && query.state.data.state !== "pending" && query.state.data.state !== "running" ? false : 1500),
+  });
+  const waiting = Boolean(custom) && (!customQ.data || customQ.data.state === "pending" || customQ.data.state === "running");
+  const trace = custom ? (customQ.data && !waiting && customQ.data.state === "done" ? customQ.data : undefined) : pathQ.data;
+
+  // Picking another agent, link or destination goes back to the usual path.
+  useEffect(() => {
+    setCustom(null);
+    setTraceError("");
+  }, [monitorId, link, destination]);
 
   const groupOf = (data: PathTrace | undefined, ttl: number | null) =>
     data && ttl != null ? data.groups.findIndex((item) => item.hop_ttls.includes(ttl)) : -1;
 
   useEffect(() => {
-    const focus = pathQ.data?.focus_ttl ?? null;
+    const focus = trace?.focus_ttl ?? null;
     setSelected(focus);
-    const index = groupOf(pathQ.data, focus);
+    const index = groupOf(trace, focus);
     setGroup(index >= 0 ? index : null);
-  }, [pathQ.data?.traced_at, pathQ.data?.focus_ttl]);
+  }, [trace?.traced_at, trace?.focus_ttl, custom?.id]);
 
   function pickHop(ttl: number) {
     setSelected(ttl);
-    const index = groupOf(pathQ.data, ttl);
+    const index = groupOf(trace, ttl);
     if (index >= 0) setGroup(index);
   }
 
   /** Choosing a network shows it, and its first hop that answered, or failing that its first hop. */
   function pickGroup(index: number) {
-    const item = pathQ.data?.groups[index];
+    const item = trace?.groups[index];
     if (!item) return;
     setGroup(index);
-    const answered = item.hop_ttls.find((ttl) => pathQ.data?.hops.find((h) => h.ttl === ttl && !h.silent));
+    const answered = item.hop_ttls.find((ttl) => trace?.hops.find((h) => h.ttl === ttl && !h.silent));
     setSelected(answered ?? item.hop_ttls[0] ?? null);
   }
 
+  /** With a host typed in, trace to it now; without, refresh the path for the chosen destination. */
   async function runTrace() {
-    if (running) return;
+    if (running || waiting) return;
+    setTraceError("");
+    const typed = hostText.trim();
     setRunning(true);
     try {
-      await pathQ.refetch();
+      if (typed) {
+        const queued = (await api.requestTrace(monitorId, link, typed)) as { id: string; target: string };
+        setCustom({ id: queued.id, target: queued.target });
+      } else {
+        setCustom(null);
+        await pathQ.refetch();
+      }
+    } catch (error) {
+      setTraceError(error instanceof Error ? error.message : "Could not start the trace.");
     } finally {
       setRunning(false);
     }
   }
 
-  const trace = pathQ.data;
   const agentName = agents.find((agent) => agent.id === monitorId)?.name ?? trace?.agent.name ?? "the remote agent";
-  const destinationName = destinations.find((item) => item.id === destination)?.label ?? trace?.target.name ?? "HomeNetWatch server";
+  const destinationName = custom ? custom.target : (destinations.find((item) => item.id === destination)?.label ?? trace?.target.name ?? "HomeNetWatch server");
   const hop = trace?.hops.find((item) => item.ttl === selected) ?? trace?.hops[trace.hops.length - 1];
   const linkName = link === "wired" ? "Wired" : "Wi-Fi";
   const networks = trace?.stats.asn_count || trace?.stats.network_count || 0;
   const ixp = trace?.stats.ixp_count ?? 0;
-  const subtitle = running || pathQ.isLoading
+  const subtitle = running || waiting || (!custom && pathQ.isLoading)
     ? `Tracing from ${agentName} to ${destinationName}.`
-    : pathQ.isError || !trace
+    : custom && customQ.data?.state === "failed"
+      ? `The trace to ${destinationName} did not finish.`
+    : (custom ? customQ.isError : pathQ.isError) || !trace
       ? "Could not load this path."
       : trace.hops.length === 0 || !trace.traced_at
         ? `No traceroute yet from ${agentName} to ${destinationName} on the ${linkName} link.`
@@ -199,6 +232,9 @@ export default function NetworkPathView({
           <h1>Path View</h1>
           <p className="npv-sub">{subtitle}</p>
         </div>
+      </div>
+      <div className="npv-toolbar">
+        {trace && trace.hops.length > 0 ? <StatCards trace={trace} /> : <span />}
         <div className="npv-actions">
           <label className={agentOnline ? "npv-agent" : "npv-agent offline"}>
             <span className="npv-dot" />
@@ -230,8 +266,23 @@ export default function NetworkPathView({
               </SelectMenu>
             </span>
           </label>
+          <input
+            className="npv-host"
+            type="text"
+            value={hostText}
+            placeholder="Trace any host or IP"
+            aria-label="Host name or IP address to trace"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            maxLength={300}
+            onChange={(event) => setHostText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void runTrace();
+            }}
+          />
           <WaitButton
-            busy={running}
+            busy={running || waiting}
             disabled={!agentOnline || !monitorId}
             label="Run trace"
             busyLabel="Tracing…"
@@ -240,10 +291,17 @@ export default function NetworkPathView({
           />
         </div>
       </div>
+      {traceError ? (
+        <div className="npv-notice silent" role="alert">
+          {traceError}
+        </div>
+      ) : null}
 
-      {pathQ.isLoading ? (
-        <div className="state-box">Loading path…</div>
-      ) : pathQ.isError || !trace ? (
+      {waiting || (!custom && pathQ.isLoading) ? (
+        <div className="state-box">{custom ? `Tracing to ${destinationName}…` : "Loading path…"}</div>
+      ) : custom && customQ.data?.state === "failed" ? (
+        <div className="state-box">{customQ.data.error || "The trace did not finish."}</div>
+      ) : (custom ? customQ.isError : pathQ.isError) || !trace ? (
         <div className="state-box">Could not load the path.</div>
       ) : trace.hops.length === 0 ? (
         <section className="npv-card">
@@ -252,7 +310,6 @@ export default function NetworkPathView({
         </section>
       ) : (
         <>
-          <StatCards trace={trace} />
           <div className="npv-row npv-pathrow">
             <PathStrip trace={trace} selected={hop?.ttl ?? null} onSelect={pickHop} group={group} onGroup={pickGroup} />
             <NetworkDetail trace={trace} group={group == null ? undefined : trace.groups[group]} hop={hop} />
@@ -304,37 +361,33 @@ function FoldCard({
 
 function StatCards({ trace }: { trace: PathTrace }) {
   const stats = trace.stats;
-  const ixp = stats.ixp_count
-    ? `plus ${stats.ixp_count} exchange point${stats.ixp_count === 1 ? "" : "s"}`
-    : "";
-  const cards = [
-    { k: "Hops", v: String(stats.hop_count), s: `${stats.silent_count} not replying` },
+  const ixp = stats.ixp_count ? ` + ${stats.ixp_count} IXP` : "";
+  const cards: { k: string; v: string; title?: string; cls?: string }[] = [
+    { k: "Hops", v: String(stats.hop_count), title: `${stats.silent_count} not replying` },
     {
-      k: "Networks crossed",
-      v: stats.asn_count ? `${stats.asn_count} ASes` : stats.network_count ? String(stats.network_count) : "—",
-      s: stats.network_count || stats.asn_count ? ixp : "home network only",
+      k: "Networks",
+      v: stats.asn_count ? `${stats.asn_count} AS${ixp}` : stats.network_count ? String(stats.network_count) : "—",
     },
-    { k: "End to end", v: `${fmt(stats.end_to_end_ms)} ms`, s: `average over ${trace.probes_per_hop} probes` },
+    { k: "End to end", v: `${fmt(stats.end_to_end_ms)} ms`, title: `average over ${trace.probes_per_hop} probes` },
     {
-      k: "Packet loss",
+      k: "Loss",
       v: stats.loss_pct == null ? "—" : `${fmt(stats.loss_pct, stats.loss_pct % 1 === 0 ? 0 : 1)}%`,
-      s: "at the destination",
+      title: "packet loss at the destination",
       cls: stats.loss_pct === 0 ? "ok" : "warn",
     },
     {
       k: "Biggest step",
       v: stats.biggest_step_ms == null ? "—" : `+${fmt(stats.biggest_step_ms)} ms`,
-      s: stats.biggest_step_name ? `entering ${stats.biggest_step_name}` : "",
+      title: stats.biggest_step_name ? `entering ${stats.biggest_step_name}` : undefined,
       cls: "warn",
     },
   ];
   return (
     <div className="npv-stats">
       {cards.map((card) => (
-        <div key={card.k} className={`npv-stat ${card.cls ?? ""}`}>
-          <div className="k">{card.k}</div>
-          <div className="v">{card.v}</div>
-          <div className="s">{card.s}</div>
+        <div key={card.k} className={`npv-stat ${card.cls ?? ""}`} title={card.title}>
+          <span className="k">{card.k}</span>
+          <span className="v">{card.v}</span>
         </div>
       ))}
     </div>

@@ -833,6 +833,36 @@ def honor_restart(config: dict, restart: bool) -> None:
         raise
 
 
+def run_requested_trace(config: dict, request: dict) -> None:
+    """Trace to a host someone asked for in the dashboard, out the link they chose, and report the hops."""
+    link = request.get("link") if request.get("link") in {"wired", "wireless"} else "wired"
+    test = {
+        "slug": "adhoc-trace",
+        "kind": "mtr",
+        "target": str(request["target"]),
+        "link": link,
+        "network_slug": "wired" if link == "wired" else "wifi",
+    }
+    hops: list = []
+    error = ""
+    try:
+        with link_lock:
+            result = run_check(test) or {}
+        hops = list((result.get("metrics") or {}).get("hops") or [])
+        error = str(result.get("message") or "")
+    except (OSError, ValueError) as exc:
+        error = str(exc)
+    try:
+        post_json(
+            f"{config['server_url'].rstrip('/')}/api/v1/monitors/traces/{request['id']}/result",
+            {"hops": hops, "error": error[:300]},
+            config.get("token"),
+            config.get("name"),
+        )
+    except (OSError, urllib.error.URLError, TimeoutError, ValueError):
+        pass
+
+
 def poll_restart(config: dict) -> None:
     try:
         body = get_json(
@@ -844,6 +874,9 @@ def poll_restart(config: dict) -> None:
         return
     remember_trusted(body)
     honor_restart(config, bool(body.get("restart")))
+    for request in body.get("traces") or []:
+        if isinstance(request, dict) and request.get("id") and request.get("target"):
+            threading.Thread(target=run_requested_trace, args=(config, request), daemon=True).start()
     if body.get("scan"):
         upload_wifi_scan(config, forced=True)
 
