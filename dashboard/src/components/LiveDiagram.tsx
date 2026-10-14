@@ -127,7 +127,12 @@ export default function LiveDiagram({
         onPointerUp={pointerUp}
         onPointerCancel={pointerUp}
       >
-        <rect x={-4000} y={-4000} width={9000} height={9000} fill="#101620" />
+        <defs>
+          <filter id="diagram-card" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#05070d" floodOpacity="0.55" />
+          </filter>
+        </defs>
+        <rect x={-4000} y={-4000} width={9000} height={9000} fill="#0e1320" />
         {frames.map((node) => renderNode(node, selectedId === node.id, notes))}
         {edges.map((edge) => renderEdge(edge, byId, nodes, selectedId))}
         {devices.map((node) => renderNode(node, selectedId === node.id, notes))}
@@ -188,13 +193,34 @@ function renderEdge(
         x2={to.x}
         y2={to.y}
         stroke={edge.stroke}
-        strokeWidth={selected ? 4 : 2}
+        strokeWidth={selected ? 3.5 : 1.75}
+        strokeLinecap="round"
         strokeDasharray={edge.dashed ? edge.dash : undefined}
       />
       {labelAt ? (
-        <text x={labelAt.x} y={labelAt.y} textAnchor="middle" fill={edge.fontColor} fontSize={12}>
-          {edge.label}
-        </text>
+        <>
+          {/* A chip keeps the label legible where it crosses its own line. */}
+          <rect
+            x={labelAt.x - (edge.label.length * 3.3 + 8)}
+            y={labelAt.y - 11}
+            width={edge.label.length * 6.6 + 16}
+            height={18}
+            rx={9}
+            fill="#0e1320"
+            stroke={edge.stroke}
+            strokeOpacity={0.35}
+          />
+          <text
+            x={labelAt.x}
+            y={labelAt.y + 2}
+            textAnchor="middle"
+            fill={edge.fontColor}
+            fontSize={11}
+            fontWeight={600}
+          >
+            {edge.label}
+          </text>
+        </>
       ) : null}
     </g>
   );
@@ -218,8 +244,9 @@ function renderNode(node: Cell, selected: boolean, notes: Record<string, string>
           rx={node.width / 2}
           ry={node.height / 2}
           fill={node.fill}
-          stroke={node.stroke}
-          strokeWidth={selected ? 3 : 1.5}
+          stroke={selected ? "#4fd1b5" : node.stroke}
+          strokeWidth={selected ? 2.5 : 1.25}
+          filter={node.fill === "transparent" ? undefined : "url(#diagram-card)"}
         />
       ) : (
         <rect
@@ -227,11 +254,12 @@ function renderNode(node: Cell, selected: boolean, notes: Record<string, string>
           y={node.y}
           width={node.width}
           height={node.height}
-          rx={node.rx}
+          rx={Math.max(node.rx, 10)}
           fill={node.fill}
-          stroke={node.stroke}
-          strokeWidth={selected ? 3 : 1.5}
+          stroke={selected ? "#4fd1b5" : node.stroke}
+          strokeWidth={selected ? 2.5 : 1.25}
           strokeDasharray={node.dashed ? node.dash : undefined}
+          filter={node.fill === "transparent" ? undefined : "url(#diagram-card)"}
         />
       )}
       <text
@@ -243,7 +271,13 @@ function renderNode(node: Cell, selected: boolean, notes: Record<string, string>
         fontWeight={node.bold ? 700 : 500}
       >
         {lines.map((line, index) => (
-          <tspan key={`${node.id}-${index}`} x={textX} dy={index === 0 ? 0 : lineHeight}>
+          <tspan
+            key={`${node.id}-${index}`}
+            x={textX}
+            dy={index === 0 ? 0 : lineHeight}
+            fontWeight={index === 0 ? 700 : 500}
+            fillOpacity={index === 0 ? 1 : 0.72}
+          >
             {line}
           </tspan>
         ))}
