@@ -1524,3 +1524,32 @@ h3 {
 .experience p + p {
   margin-top: 8px;
 }
+
+/* Room between the timeline dots and the text. */
+.timeline li {
+  gap: 44px;
+}
+
+.timeline::before {
+  left: 71px;
+}
+
+.timeline li::before {
+  left: 64px;
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 720px) {
+  .timeline li {
+    gap: 2px;
+  }
+
+  .timeline::before {
+    left: 7px;
+  }
+
+  .timeline li::before {
+    left: 0;
+  }
+}
