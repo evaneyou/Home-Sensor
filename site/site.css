@@ -1006,3 +1006,10 @@ code {
 .figure figcaption b {
   color: var(--text);
 }
+
+.stories-sub {
+  margin: 8px 0 0;
+  max-width: 70ch;
+  color: var(--muted);
+  font-size: 17px;
+}

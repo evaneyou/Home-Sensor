@@ -250,39 +250,44 @@
             </article>
           </div>
 
-          <h3 class="stories-title">Four problems that were not in a tutorial</h3>
+          <h3 class="stories-title">Challenges and limitations</h3>
+          <p class="stories-sub">
+            Real projects run on real budgets. These constraints shaped the design, and working inside them is part of
+            the skill.
+          </p>
           <div class="stories">
             <article class="story">
-              <h3>A measurement that quietly lied</h3>
+              <h3>AI coding is not cheap</h3>
               <p>
-                Every flow was leaving by the default route, so wired and Wi-Fi looked identical. The pinning shim's
-                own bind failed because the sender had already bound its port. The cause was found, the socket steered
-                with <code>IP_UNICAST_IF</code> instead, and the fix confirmed in the data.
+                Heavy AI-assisted development adds up quickly. I spread the work across several coding agents and used
+                the Git repository as the coordination layer: one source of truth, a branch per task, pull requests as
+                the hand-off, and written rules that every agent follows.
               </p>
             </article>
             <article class="story">
-              <h3>A container that said "Up" and did nothing</h3>
+              <h3>Home hardware is not enterprise grade</h3>
               <p>
-                Rebuilding the VPN container orphaned the flow generator that shares its network namespace. Every flow
-                failed while every status stayed green. It was traced from the symptom, fixed in a deploy script,
-                logged loudly and written into the runbook.
+                A home router and a Raspberry Pi have little CPU, memory and bandwidth to spare, and few options to
+                tune. I worked within that by controlling how resources are used: checks are scheduled and spaced out,
+                heavy tests never overlap, and only one on-demand trace runs at a time.
               </p>
             </article>
             <article class="story">
-              <h3>Reading a traceroute like a person</h3>
+              <h3>Cloud resources are expensive</h3>
               <p>
-                Raw hops are addresses and silence. They are grouped by owner, the first hop on an interconnect is
-                attributed with a stated confidence, and routers that never answer are drawn as a gap, not a fault.
+                I know AWS and GCP well, but my goal was to keep the cost as low as possible, ideally free. So I moved
+                to Oracle Cloud and its free tier, and designed the server to be small: thin APIs, rolled-up history and
+                a demo that cannot start expensive work.
               </p>
             </article>
             <article class="story">
-              <h3>A public demo on a private network</h3>
+              <h3>Testing without a fleet of devices</h3>
               <p>
-                Showing real data to strangers meant designing for them: a read-only role enforced by the API, no public
-                IP, idle expiry, and a record of every visit.
+                I recommend a non-production environment for testing, but that would mean a separate physical Raspberry
+                Pi for each one, which I did not want to buy. Virtual Pi instances stand in for most of that. They work,
+                with limits: they cannot reproduce real Wi-Fi radios or the behaviour of a real home network.
               </p>
             </article>
-          </div>
         </div>
       </section>
 
