@@ -1013,3 +1013,16 @@ code {
   color: var(--muted);
   font-size: 17px;
 }
+
+.story-wide {
+  grid-column: 1 / -1;
+  border-left-color: var(--mint);
+  border-style: dashed;
+  border-left-style: solid;
+}
+
+@media (max-width: 720px) {
+  .story-wide {
+    grid-column: auto;
+  }
+}
