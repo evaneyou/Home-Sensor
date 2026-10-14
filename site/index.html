@@ -36,7 +36,7 @@
         </a>
         <nav aria-label="Sections">
           <a href="#speed">Speed</a>
-          <a href="#complexity">What's inside</a>
+          <a href="#complexity">Under the hood</a>
           <a href="#docs">Docs</a>
           <a href="#about">About me</a>
         </nav>
@@ -88,28 +88,44 @@
         </div>
       </section>
 
+      <!-- Under the hood: the best visual, near the top -->
+      <section id="complexity" class="under" aria-label="Under the hood">
+        <div class="wrap">
+          <p class="eyebrow">A look inside</p>
+          <h2>What's under the hood</h2>
+          <figure class="figure">
+            <a href="path-diagram.png" aria-label="Open the Network Path Diagram at full size">
+              <img
+                src="path-diagram.png"
+                width="1387"
+                height="639"
+                loading="lazy"
+                alt="The Network Path Diagram from the live app. Inside the home, the Raspberry Pi's wired and Wi-Fi interfaces reach the home router. Past the ISP, signalling travels through two WireGuard tunnels to the server, while measurement traffic goes direct to the measurement service."
+              />
+            </a>
+            <figcaption>
+              <b>The app's own Network Path Diagram, live.</b> Hardware, networking, security and internet routing data,
+              all in one picture. I hid the ISP address.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
       <!-- Experience -->
       <section class="exp-section" aria-label="Experience">
         <div class="wrap">
           <div class="experience">
             <div class="exp-num" aria-hidden="true">30<small>years</small></div>
             <div>
-              <h3>30 years of institutional knowledge</h3>
+              <h3>What 30 years adds</h3>
               <p>
-                AI can write the code, but it cannot supply judgment. That is where thirty years across IT,
-                infrastructure, cloud, networking, cybersecurity, and enterprise systems development come in.
+                AI accelerates the mechanics of generation. Experience decides what is worth building and how: the
+                architectural guardrails, security reviews, and operational sanity checks that make speed trustworthy.
               </p>
               <p>
-                My foundation began with an IT degree from RIT, grounding me in system architecture, UI/UX, and coding
-                principles that remain just as relevant in today&rsquo;s distributed architectures. While I wrote
-                software earlier in my career, modern engineering isn&rsquo;t about who types the syntax&mdash;it&rsquo;s
-                about who steers the system.
-              </p>
-              <p>
-                AI accelerates the mechanics of generation, while my experience provides the architectural guardrails,
-                security reviews, and operational sanity checks. More importantly, it pairs hands-on technical direction
-                with leadership: aligning teams, shifting engineering culture, and turning emerging capabilities into
-                disciplined, production-grade delivery.
+                That is what this project shows. In nine days it became a secured, monitored, documented system running
+                in production, directed with the kind of leadership that aligns teams and turns emerging capabilities
+                into disciplined, production-grade delivery.
               </p>
             </div>
           </div>
@@ -178,8 +194,12 @@
                 <p>A phone-friendly Path View, traces to any host, zoomable charts, stronger security headers, and this page.</p>
               </div>
             </li>
+            <li class="roadmap-label">
+              <span></span>
+              <div>On the roadmap: planned or in development, not shipped yet</div>
+            </li>
             <li class="next">
-              <time>Next</time>
+              <time>Roadmap</time>
               <div>
                 <h3>A packet generator built in Rust</h3>
                 <p>
@@ -190,14 +210,14 @@
               </div>
             </li>
             <li class="next">
-              <time>Next</time>
+              <time>Roadmap</time>
               <div>
                 <h3>Wi-Fi security scanning</h3>
                 <p>WIDS (wireless intrusion detection), alert filtering, and Nmap and Scapy scans.</p>
               </div>
             </li>
             <li class="next">
-              <time>Next</time>
+              <time>Roadmap</time>
               <div>
                 <h3>AI Decision Engine</h3>
                 <p>In development: it will read through logs and errors quickly, work out what matters, and summarize the alerts in plain language.</p>
@@ -207,29 +227,11 @@
         </div>
       </section>
 
-      <!-- Complexity -->
-      <section id="complexity" class="block alt">
+      <!-- Challenges -->
+      <section id="challenges" class="block alt">
         <div class="wrap">
-          <p class="eyebrow">What's inside</p>
-          <h2>More than a to-do app</h2>
-
-          <figure class="figure">
-            <a href="path-diagram.png" aria-label="Open the Network Path Diagram at full size">
-              <img
-                src="path-diagram.png"
-                width="1387"
-                height="639"
-                loading="lazy"
-                alt="The Network Path Diagram from the live app. Inside the home, the Raspberry Pi's wired and Wi-Fi interfaces reach the home router. Past the ISP, signalling travels through two WireGuard tunnels to the server, while measurement traffic goes direct to the measurement service."
-              />
-            </a>
-            <figcaption>
-              <b>The app's own Network Path Diagram, live.</b> Hardware, networking, security and internet routing data,
-              all in one picture. I hid the ISP address.
-            </figcaption>
-          </figure>
-
-          <h3 class="stories-title">Challenges and limitations</h3>
+          <p class="eyebrow">The honest part</p>
+          <h2>Challenges and limitations</h2>
           <div class="stories">
             <article class="story">
               <h3>AI coding isn't cheap</h3>
@@ -261,7 +263,8 @@
                 of it, but they can't reproduce real Wi-Fi radios or a real home network.
               </p>
             </article>
-            <article class="story story-half">
+            <article class="story story-half story-roadmap">
+              <span class="tag-roadmap">Roadmap</span>
               <h3>Phase 2.0: an AI operations team, someday</h3>
               <p>
                 I'd love to build AI agents that read the logs, find the root cause of an outage, then restore service,
