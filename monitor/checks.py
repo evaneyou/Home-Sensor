@@ -240,6 +240,23 @@ def interface_roles() -> dict[str, str | None]:
     return {"wired": _wired_interface(), "link": roles["link"], "radio": roles["radio"]}
 
 
+def lan_address(roles: dict[str, str | None] | None = None, ipv4_of=None) -> str | None:
+    """The Pi's address on the home LAN: the wired NIC's, else the Wi-Fi NIC that carries traffic.
+
+    Read from the adapters, never from the route to the server. Once enrolled, the server is
+    reached through a WireGuard tunnel, so that route reports the tunnel's own address, which is
+    not on the LAN at all.
+    """
+    found = roles if roles is not None else interface_roles()
+    reader = ipv4_of or _read_interface_ipv4
+    for name in (found.get("wired"), found.get("link")):
+        if name:
+            address = reader(name)
+            if address:
+                return address
+    return None
+
+
 def _wireless_interface() -> str | None:
     """Wi-Fi NIC. The built-in radio wins when a USB adapter is also associated."""
     return wifi_roles()["link"]
