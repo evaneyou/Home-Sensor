@@ -1250,3 +1250,114 @@
   overflow: visible;
   pointer-events: none;
 }
+
+/* Path View diagrams (React Flow). */
+.npf {
+  position: relative;
+  width: 100%;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.npf .react-flow {
+  background: transparent;
+}
+
+.npf .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.npf-node {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.npf-step {
+  position: absolute;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--panel, #131a2b);
+  border: 1px solid #4a5878;
+  color: var(--soft, #aab4cc);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.npf-step.is-big {
+  background: #ffc24d;
+  border-color: #ffc24d;
+  color: #0b0f1a;
+}
+
+.npf-as {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 2px solid var(--c);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--c) 14%, #0b0f1a);
+  overflow: hidden;
+}
+
+.npf-as b {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--c);
+}
+
+.npf-as span {
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.npf-tag {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--soft, #aab4cc);
+}
+
+.npf-tag.origin {
+  color: #6ee7a8;
+}
+
+.npf-lane {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--soft, #aab4cc);
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .npv-bars,
+  .npv-xlabels {
+    gap: 2px;
+  }
+
+  .npv-xl {
+    overflow: hidden;
+  }
+
+  .npv-xl b,
+  .npv-xl span,
+  .npv-col .val {
+    font-size: 9px;
+  }
+
+  .npv-xl span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
