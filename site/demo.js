@@ -1,9 +1,14 @@
 // One click into the live demo: sign in as the read-only guest, then open the dashboard.
 // The guest account is public by design. It cannot change anything, never sees the public IP,
 // and its session ends after three idle minutes. If sign-in fails the link still opens the normal login.
+//
+// This page is also served from the bare domain, where the app's API is not. There the button hands
+// over to this same page on the app's own host (with #demo), which signs in and opens the dashboard.
 (function () {
+  var APP = "https://live.homenetwatch.com";
   var buttons = document.querySelectorAll("[data-demo]");
   var status = document.querySelector("[data-demo-status]");
+  var onApp = window.location.origin === APP;
 
   function say(text, isError) {
     if (!status) return;
@@ -12,7 +17,11 @@
   }
 
   function enter(event) {
-    event.preventDefault();
+    if (event) event.preventDefault();
+    if (!onApp) {
+      window.location.assign(APP + "/welcome/#demo");
+      return;
+    }
     buttons.forEach(function (button) {
       button.setAttribute("aria-busy", "true");
     });
@@ -41,4 +50,6 @@
   buttons.forEach(function (button) {
     button.addEventListener("click", enter);
   });
+
+  if (onApp && window.location.hash === "#demo") enter();
 })();
