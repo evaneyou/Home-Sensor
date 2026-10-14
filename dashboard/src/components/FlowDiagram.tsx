@@ -56,6 +56,10 @@ function PathBox({ data }: NodeProps<FlowNodeType>) {
     .filter(Boolean)
     .join(" ");
   const { facts, through, side, align } = data.info;
+  const rows = [...new Set(through.map(({ flow }) => flow.key))].map((key) => {
+    const entries = through.filter(({ flow }) => flow.key === key);
+    return { flow: entries[0].flow, control: entries.every(({ role }) => role === "control") };
+  });
   return (
     <div
       className={classes}
@@ -84,16 +88,16 @@ function PathBox({ data }: NodeProps<FlowNodeType>) {
               ))}
             </dl>
           ) : null}
-          {through.length > 0 ? (
+          {rows.length > 0 ? (
             <>
               <h5>Flows through here</h5>
               <ul>
-                {through.map(({ flow, role }) => (
-                  <li key={`${flow.key}:${role}`}>
+                {rows.map(({ flow, control }) => (
+                  <li key={flow.key}>
                     <span className={`flow-dot status-${flow.status}`} title={STATUS_LABEL[flow.status]} />
                     <strong>
                       {flow.kindLabel} · {flow.link === "wired" ? "Wired" : "Wi-Fi"}
-                      {role === "control" ? " (control)" : ""}
+                      {control ? " (control)" : ""}
                     </strong>
                     <span>
                       {[flow.route === "web" ? hostOf(flow.target) : "", flow.detail].filter(Boolean).join(" · ") ||
