@@ -70,7 +70,7 @@ export default function RealtimeHealth({
 
   return (
     <div className="health-stack">
-      <h3 className="wifi-heading">Real-Time Application Health</h3>
+      <h2>Real-Time Application Health</h2>
       {healthQ.isLoading ? <div className="muted">Loading real-time application health…</div> : null}
       {healthQ.isError ? <div className="muted">Could not load real-time application health.</div> : null}
       {!healthQ.isLoading && types.length === 0 ? (

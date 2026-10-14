@@ -725,33 +725,37 @@ function InternetDetail({
 
   if (linkHealth && !check) {
     return (
-      <section className="panel network-health">
-        <h2 style={{ marginTop: 0, fontSize: "1rem" }}>{linkLabel} Network Health</h2>
-        {onRangeChange ? null : <RangeTabs range={range} onChange={setRange} />}
-        {loading ? (
-          <div className="muted">Loading internet checks…</div>
-        ) : failed ? (
-          <div className="muted">Could not load internet checks.</div>
-        ) : (
-          <div className="health-stack">
-            <HealthBar
-              title="Internet Connection"
-              detail={`${fmt(speed(latestLibre).down)} Mbps down · ${fmt(speed(latestLibre).up)} Mbps up · ping ${fmt(latestLibre?.rtt_ms)} ms · jitter ${fmt(latestLibre?.jitter_ms)} ms`}
-              strip={transferStrip}
-              empty={transferChart.length === 0}
-              onOpen={openConnection}
-            />
-            {monitorId ? (
-              <RealtimeHealth
-                monitorId={monitorId}
-                link={healthLink}
-                range={range}
-                onOpen={(slug) => openCheck(`rtnp:${slug}`)}
+      <>
+        <section className="panel network-health">
+          <h2>{linkLabel} Network Health</h2>
+          {onRangeChange ? null : <RangeTabs range={range} onChange={setRange} />}
+          {loading ? (
+            <div className="muted">Loading internet checks…</div>
+          ) : failed ? (
+            <div className="muted">Could not load internet checks.</div>
+          ) : (
+            <div className="health-stack">
+              <HealthBar
+                title="Internet Connection"
+                detail={`${fmt(speed(latestLibre).down)} Mbps down · ${fmt(speed(latestLibre).up)} Mbps up · ping ${fmt(latestLibre?.rtt_ms)} ms · jitter ${fmt(latestLibre?.jitter_ms)} ms`}
+                strip={transferStrip}
+                empty={transferChart.length === 0}
+                onOpen={openConnection}
               />
-            ) : null}
-          </div>
-        )}
-      </section>
+            </div>
+          )}
+        </section>
+        {monitorId && !loading && !failed ? (
+          <section className="panel network-health">
+            <RealtimeHealth
+              monitorId={monitorId}
+              link={healthLink}
+              range={range}
+              onOpen={(slug) => openCheck(`rtnp:${slug}`)}
+            />
+          </section>
+        ) : null}
+      </>
     );
   }
 
