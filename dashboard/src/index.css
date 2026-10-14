@@ -1190,6 +1190,53 @@ button:hover,
   text-decoration: underline;
 }
 
+.connection-summary-label {
+  display: block;
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+}
+
+.connection-path {
+  height: 460px;
+  margin: 0 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.connection-path .react-flow {
+  background: var(--bg);
+}
+
+.path-node {
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.path-node strong {
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.path-node span {
+  color: var(--muted);
+}
+
+.connection-path .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .health-bar {
   height: 18px;
   min-height: 18px;

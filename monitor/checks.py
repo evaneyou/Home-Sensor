@@ -234,6 +234,12 @@ def wifi_roles(root: Path | None = None, ipv4_of=None) -> dict[str, str | None]:
     return {"link": link, "radio": _radio_from_entries(entries, link)}
 
 
+def interface_roles() -> dict[str, str | None]:
+    """Ethernet NIC, the Wi-Fi NIC that carries traffic, and the other NIC used to listen."""
+    roles = wifi_roles()
+    return {"wired": _wired_interface(), "link": roles["link"], "radio": roles["radio"]}
+
+
 def _wireless_interface() -> str | None:
     """Wi-Fi NIC. The built-in radio wins when a USB adapter is also associated."""
     return wifi_roles()["link"]

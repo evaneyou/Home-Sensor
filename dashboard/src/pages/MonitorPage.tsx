@@ -68,11 +68,6 @@ export default function MonitorPage() {
   const link = searchParams.get("link");
   const openLink = (link === "wired" || link === "wireless") && Boolean(searchParams.get("detail"));
   const wanId = networks.find((network) => network.slug === "wan")?.id ?? null;
-  const testsSoFar = monitorQ.data?.tests ?? [];
-  const wiredId = testsSoFar.find((test) => test.network_slug === "wired")?.network_id ?? null;
-  const wirelessId = testsSoFar.find((test) => test.network_slug === "wifi")?.network_id ?? null;
-  const onWired = link === "wired";
-  const onWireless = link === "wireless";
   const activeTab =
     openLink && wanId
       ? wanId
@@ -130,45 +125,19 @@ export default function MonitorPage() {
             <button
               key={n.id}
               type="button"
-              className={`tab ${!onWired && !onWireless && activeTab === n.id ? "active" : ""}`}
+              className={`tab ${activeTab === n.id ? "active" : ""}`}
               onClick={() => setSearchParams({ network: n.id })}
             >
               {networkLabel(n)}
             </button>,
           ];
-          if (n.slug === "wan" && wiredId) {
-            buttons.push(
-              <button
-                key="wired"
-                type="button"
-                className={`tab ${onWired ? "active" : ""}`}
-                onClick={() => setSearchParams({ network: wiredId, detail: "isp", link: "wired" })}
-              >
-                Wired
-              </button>,
-            );
-          }
-          if (n.slug === "wan" && wirelessId) {
-            buttons.push(
-              <button
-                key="wireless"
-                type="button"
-                className={`tab ${onWireless ? "active" : ""}`}
-                onClick={() =>
-                  setSearchParams({ network: wirelessId, detail: "isp", link: "wireless" })
-                }
-              >
-                Wi-Fi
-              </button>,
-            );
-          }
           return buttons;
         })}
       </div>
 
       {activeNetwork?.slug === "wifi-main" ? <WifiScans monitorId={monitor.id} /> : null}
       {activeNetwork?.slug === "wan" ? (
-        <InternetPath tests={tests} isp={monitor.isp} monitorId={monitor.id} />
+        <InternetPath tests={tests} isp={monitor.isp} monitorId={monitor.id} monitor={monitor} />
       ) : null}
 
       <div className="panel">

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
@@ -153,6 +154,9 @@ class DeviceHealthIn(BaseModel):
     isp: Optional[str] = Field(default=None, max_length=128)
     config_version: int = Field(default=0, ge=0)
     airwave_mode: Optional[str] = None
+    wired_iface: Optional[str] = None
+    wifi_link_iface: Optional[str] = None
+    wifi_radio_iface: Optional[str] = None
     link_ssid: Optional[str] = Field(default=None, max_length=64)
     link_bssid: Optional[str] = Field(default=None, max_length=17)
     last_error: Optional[str] = Field(default=None, max_length=600)
@@ -177,6 +181,16 @@ class DeviceHealthIn(BaseModel):
             return None
         cleaned = " ".join(value.split())
         return cleaned[:128] or None
+
+    @field_validator("wired_iface", "wifi_link_iface", "wifi_radio_iface")
+    @classmethod
+    def _iface_name(cls, value: Optional[str]) -> Optional[str]:
+        if not value:
+            return None
+        cleaned = value.strip()
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.:-]{0,31}", cleaned):
+            return None
+        return cleaned
 
 
 class ScheduledTestOut(BaseModel):

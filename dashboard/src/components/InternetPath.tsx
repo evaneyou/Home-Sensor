@@ -17,6 +17,7 @@ import { CHART_COLORS } from "../chartTheme";
 import { formatChartTick, chartTicks, chartWindow, zoomedDomain } from "../chartTime";
 import type { MetricsResponse, MonitorDetail } from "../types";
 import { useChartZoom } from "../useChartZoom";
+import ConnectionPath from "./ConnectionPath";
 import RealtimeHealth from "./RealtimeHealth";
 import StatusMark, { statusLabel } from "./StatusMark";
 
@@ -220,10 +221,12 @@ export default function InternetPath({
   tests,
   isp,
   monitorId,
+  monitor,
 }: {
   tests: MonitorDetail["tests"];
   isp: string | null;
   monitorId?: string;
+  monitor?: MonitorDetail;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const requested = searchParams.get("detail");
@@ -252,6 +255,28 @@ export default function InternetPath({
       next.delete("link");
     }
     setSearchParams(next);
+  }
+
+  function openCharts(linkName: "wired" | "wireless") {
+    const next = new URLSearchParams(searchParams);
+    next.set("detail", "isp");
+    next.set("link", linkName);
+    next.set("check", "librespeed");
+    next.delete("view");
+    const id = (linkName === "wireless" ? wireless : wired)[0]?.network_id;
+    if (id) next.set("network", id);
+    setSearchParams(next);
+  }
+
+  if (requested === "connection") {
+    return (
+      <InternetConnection
+        wired={wired}
+        wireless={wireless}
+        monitor={monitor}
+        onOpen={openCharts}
+      />
+    );
   }
 
   if (detail) {
@@ -654,13 +679,19 @@ function InternetDetail({
           <div className="muted">Could not load internet checks.</div>
         ) : (
           <div className="health-stack">
-            <HealthBar
-              title="Transfer Speed"
-              detail={`${fmt(speed(latestLibre).down)} Mbps down · ${fmt(speed(latestLibre).up)} Mbps up · ping ${fmt(latestLibre?.rtt_ms)} ms · jitter ${fmt(latestLibre?.jitter_ms)} ms`}
-              strip={transferStrip}
-              empty={transferChart.length === 0}
-              onOpen={() => openCheck("librespeed")}
-            />
+            <div className="health-row">
+              <div className="health-row-head">
+                <span className="mono">
+                  {`${fmt(speed(latestLibre).down)} Mbps down · ${fmt(speed(latestLibre).up)} Mbps up · ping ${fmt(latestLibre?.rtt_ms)} ms · jitter ${fmt(latestLibre?.jitter_ms)} ms`}
+                </span>
+              </div>
+              <span
+                className="isp-strip health-bar"
+                title={linkLabel ?? "Speed"}
+                style={{ background: stripGradient(transferStrip) }}
+              />
+              {transferChart.length === 0 ? <div className="muted">No samples in this range.</div> : null}
+            </div>
             {monitorId ? (
               <RealtimeHealth
                 monitorId={monitorId}
@@ -678,9 +709,7 @@ function InternetDetail({
   if (check === "librespeed") {
     return (
       <div className="panel">
-        <h2 style={{ marginTop: 0, fontSize: "1.4rem" }}>
-          {linkLabel} · File Transfer
-        </h2>
+        <h2 style={{ marginTop: 0, fontSize: "1.4rem" }}>Internet Connection</h2>
         <RangeTabs range={range} onChange={setRange} />
         {loading ? (
           <div className="muted">Loading internet checks…</div>
@@ -814,33 +843,73 @@ function RangeTabs({
   );
 }
 
-function HealthBar({
-  title,
-  detail,
-  strip,
-  empty,
+function InternetConnection({
+  wired,
+  wireless,
+  monitor,
   onOpen,
 }: {
-  title: string;
-  detail: string;
-  strip: string[];
-  empty: boolean;
-  onOpen?: () => void;
+  wired: TestRow[];
+  wireless: TestRow[];
+  monitor?: MonitorDetail;
+  onOpen: (link: "wired" | "wireless") => void;
 }) {
+  const [range, setRange] = useState<(typeof RANGES)[number]>("1h");
+  const wiredSpeed = useSeries(
+    wired.filter((test) => test.slug === "librespeed"),
+    range,
+  );
+  const wirelessSpeed = useSeries(
+    wireless.filter((test) => test.slug === "librespeed"),
+    range,
+  );
   return (
-    <div className="health-row">
-      <div className="health-row-head">
-        {onOpen ? (
-          <button className="health-row-title" type="button" onClick={onOpen}>
-            {title}
-          </button>
-        ) : (
-          <strong>{title}</strong>
-        )}
-        <span className="mono">{detail}</span>
+    <section className="panel network-health">
+      <h2 style={{ marginTop: 0, fontSize: "1rem" }}>Internet Connection</h2>
+      <ConnectionPath monitor={monitor} />
+      <RangeTabs range={range} onChange={setRange} />
+      <div className="health-stack">
+        <SpeedSummary label="Wired" query={wiredSpeed} range={range} onOpen={() => onOpen("wired")} />
+        <SpeedSummary label="Wi-Fi" query={wirelessSpeed} range={range} onOpen={() => onOpen("wireless")} />
       </div>
-      <span className="isp-strip health-bar" title={title} style={{ background: stripGradient(strip) }} />
-      {empty ? <div className="muted">No samples in this range.</div> : null}
+    </section>
+  );
+}
+
+function SpeedSummary({
+  label,
+  query,
+  range,
+  onOpen,
+}: {
+  label: string;
+  query: ReturnType<typeof useSeries>;
+  range: (typeof RANGES)[number];
+  onOpen: () => void;
+}) {
+  const series = query.points.get("librespeed") ?? [];
+  const latest = series.at(-1);
+  const strip = statusStrip(series, range);
+  return (
+    <div className="connection-summary">
+      <button className="health-row-title connection-summary-label" type="button" onClick={onOpen}>
+        {label}
+      </button>
+      {query.loading ? (
+        <div className="muted">Loading internet checks…</div>
+      ) : query.failed ? (
+        <div className="muted">Could not load internet checks.</div>
+      ) : (
+        <div className="health-row">
+          <div className="health-row-head">
+            <span className="mono">
+              {`${fmt(speed(latest).down)} Mbps down · ${fmt(speed(latest).up)} Mbps up · ping ${fmt(latest?.rtt_ms)} ms · jitter ${fmt(latest?.jitter_ms)} ms`}
+            </span>
+          </div>
+          <span className="isp-strip health-bar" title={label} style={{ background: stripGradient(strip) }} />
+          {series.length === 0 ? <div className="muted">No samples in this range.</div> : null}
+        </div>
+      )}
     </div>
   );
 }
