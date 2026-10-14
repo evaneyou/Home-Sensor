@@ -1557,3 +1557,99 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* Path View controls and summary follow the rest of the app: small, lightly rounded, no box per figure. */
+.npv:not(.airwaves) .npv-actions {
+  gap: 8px;
+}
+
+.npv:not(.airwaves) .npv-agent {
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--bg-inset, var(--chip));
+}
+
+.npv:not(.airwaves) .npv-dot {
+  width: 8px;
+  height: 8px;
+  box-shadow: none;
+}
+
+.npv:not(.airwaves) .npv-agent-label {
+  font-size: 11px;
+}
+
+.npv:not(.airwaves) .npv-agent-name,
+.npv:not(.airwaves) .npv-select,
+.npv:not(.airwaves) button.npv-select {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.npv:not(.airwaves) .npv-run {
+  min-height: 40px;
+  padding: 8px 16px;
+  gap: 8px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 28%, var(--bg-elevated));
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--line));
+  color: color-mix(in srgb, var(--accent) 72%, white);
+}
+
+.npv:not(.airwaves) .npv-run:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 40%, var(--bg-elevated));
+}
+
+.npv:not(.airwaves) .npv-run:disabled {
+  background: var(--bg-inset, var(--chip));
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+.npv:not(.airwaves) .npv-stats {
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.npv:not(.airwaves) .npv-stat {
+  flex: 1 1 150px;
+  background: transparent;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  padding: 8px 14px;
+}
+
+.npv:not(.airwaves) .npv-stat:first-child {
+  border-left: 0;
+}
+
+.npv:not(.airwaves) .npv-card {
+  border-radius: 12px;
+}
+
+@media (max-width: 768px) {
+  .npv:not(.airwaves) .npv-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .npv:not(.airwaves) .npv-stat {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .npv:not(.airwaves) .npv-stat:nth-child(-n + 2) {
+    border-top: 0;
+  }
+
+  .npv:not(.airwaves) .npv-stat:nth-child(even) {
+    border-left: 1px solid var(--line);
+  }
+}
