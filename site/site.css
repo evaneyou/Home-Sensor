@@ -1164,8 +1164,10 @@ code {
 }
 
 .about-cols {
-  columns: 2;
-  column-gap: 56px;
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 0 56px;
+  align-items: start;
   margin-bottom: 8px;
 }
 
@@ -1175,6 +1177,6 @@ code {
 
 @media (max-width: 800px) {
   .about-cols {
-    columns: 1;
+    grid-template-columns: 1fr;
   }
 }
