@@ -20,12 +20,13 @@ type Tone = "wired" | "wifi" | "neutral";
 type FlowNodeData = { title: string; lines: string[]; tone: Tone; active: boolean; dim: boolean };
 type FlowNodeType = Node<FlowNodeData, "box">;
 
-type Pulse = { hop: number; hops: number; role: "data" | "control" };
-type RouteEdgeData = { label: string; pulses: Pulse[]; color: string; dim: boolean };
+type Pulse = { hop: number; hops: number; role: "data" | "control"; color: string; offset: number };
+type RouteEdgeData = { label: string; pulses: Pulse[]; dim: boolean };
 type RouteEdgeType = Edge<RouteEdgeData, "route">;
 
 const COLOR: Record<FlowLink, string> = { wired: "#4fd1b5", wifi: "#ffc24d" };
 const QUIET = "#2a3550";
+const SHARED = "#8fa3d1";
 const RETURN_COLOR = "#e8ecf8";
 
 /** One hop's pulse crosses its edge in this long; the cycle is out, back, then a rest. */
@@ -61,6 +62,7 @@ function Dot({
   to,
   window,
   total,
+  offset,
 }: {
   path: string;
   color: string;
@@ -69,6 +71,7 @@ function Dot({
   to: number;
   window: [number, number];
   total: number;
+  offset: number;
 }) {
   const a = window[0] / total;
   const b = window[1] / total;
@@ -77,6 +80,7 @@ function Dot({
     <circle r={radius} fill={color} opacity={0}>
       <animateMotion
         dur={`${total}s`}
+        begin={`-${offset.toFixed(3)}s`}
         repeatCount="indefinite"
         path={path}
         calcMode="linear"
@@ -86,6 +90,7 @@ function Dot({
       <animate
         attributeName="opacity"
         dur={`${total}s`}
+        begin={`-${offset.toFixed(3)}s`}
         repeatCount="indefinite"
         calcMode="discrete"
         values="0;1;0"
@@ -95,7 +100,7 @@ function Dot({
   );
 }
 
-function Pulses({ path, pulses, color }: { path: string; pulses: Pulse[]; color: string }) {
+function Pulses({ path, pulses }: { path: string; pulses: Pulse[] }) {
   return (
     <>
       {pulses.map((pulse, index) => {
@@ -103,10 +108,10 @@ function Pulses({ path, pulses, color }: { path: string; pulses: Pulse[]; color:
         const out = pulse.hop * STEP;
         const back = (pulse.hops + (pulse.hops - 1 - pulse.hop)) * STEP;
         const radius = pulse.role === "data" ? 4.5 : 2.75;
-        const tint = pulse.role === "data" ? color : `${color}aa`;
+        const tint = pulse.role === "data" ? pulse.color : `${pulse.color}aa`;
         return (
           <g key={index}>
-            <Dot path={path} color={tint} radius={radius} from={0} to={1} window={[out, out + STEP]} total={total} />
+            <Dot path={path} color={tint} radius={radius} from={0} to={1} window={[out, out + STEP]} total={total} offset={pulse.offset} />
             <Dot
               path={path}
               color={pulse.role === "data" ? RETURN_COLOR : `${RETURN_COLOR}88`}
@@ -115,6 +120,7 @@ function Pulses({ path, pulses, color }: { path: string; pulses: Pulse[]; color:
               to={0}
               window={[back, back + STEP]}
               total={total}
+              offset={pulse.offset}
             />
           </g>
         );
@@ -129,20 +135,22 @@ function RouteEdge(props: EdgeProps<RouteEdgeType>) {
   const pulses = data?.pulses ?? [];
   const active = pulses.length > 0;
   const controlOnly = active && pulses.every((pulse) => pulse.role === "control");
+  const colors = new Set(pulses.map((pulse) => pulse.color));
+  const color = colors.size === 1 ? [...colors][0] : SHARED;
   return (
     <>
       <BaseEdge
         id={id}
         path={path}
         style={{
-          stroke: active ? data?.color : QUIET,
+          stroke: active ? color : QUIET,
           strokeWidth: active ? 2.5 : 1.5,
           strokeLinecap: "round",
           strokeDasharray: controlOnly ? "5 5" : undefined,
           opacity: active || !data?.dim ? 1 : 0.45,
         }}
       />
-      {active ? <Pulses path={path} pulses={pulses} color={data?.color ?? QUIET} /> : null}
+      {active ? <Pulses path={path} pulses={pulses} /> : null}
       {data?.label ? (
         <EdgeLabelRenderer>
           <div
@@ -218,24 +226,28 @@ function specs(monitor: MonitorDetail | undefined): Spec[] {
   ];
 }
 
-export default function FlowDiagram({ test, monitor }: { test: FlowTest | null; monitor?: MonitorDetail }) {
+export default function FlowDiagram({ flows, monitor }: { flows: FlowTest[]; monitor?: MonitorDetail }) {
   const { nodes, edges } = useMemo(() => {
-    const paths = test ? pathsFor(test) : [];
-    const color = test ? COLOR[test.link] : QUIET;
-    const lit = new Set(paths.flatMap((path) => path.nodes));
+    const active = flows.length > 0;
+    const lit = new Set<string>();
     const pulses = new Map<string, Pulse[]>();
-    for (const path of paths) {
-      const hops = path.nodes.length - 1;
-      for (let hop = 0; hop < hops; hop += 1) {
-        const id = edgeId(path.nodes[hop], path.nodes[hop + 1]);
-        pulses.set(id, [...(pulses.get(id) ?? []), { hop, hops, role: path.role }]);
+    flows.forEach((flow, index) => {
+      for (const path of pathsFor(flow)) {
+        path.nodes.forEach((node) => lit.add(node));
+        const hops = path.nodes.length - 1;
+        // Spread the flows evenly through the cycle so those that share a hop do not overlap.
+        const offset = (index / flows.length) * (hops * 2 * STEP + REST);
+        for (let hop = 0; hop < hops; hop += 1) {
+          const id = edgeId(path.nodes[hop], path.nodes[hop + 1]);
+          pulses.set(id, [...(pulses.get(id) ?? []), { hop, hops, role: path.role, color: COLOR[flow.link], offset }]);
+        }
       }
-    }
+    });
     const built: FlowNodeType[] = specs(monitor).map((spec) => ({
       id: spec.id,
       type: "box",
       position: { x: spec.x, y: spec.y },
-      data: { title: spec.title, lines: spec.lines, tone: spec.tone, active: lit.has(spec.id), dim: Boolean(test) && !lit.has(spec.id) },
+      data: { title: spec.title, lines: spec.lines, tone: spec.tone, active: lit.has(spec.id), dim: active && !lit.has(spec.id) },
       draggable: false,
       connectable: false,
       selectable: false,
@@ -249,14 +261,14 @@ export default function FlowDiagram({ test, monitor }: { test: FlowTest | null; 
         source,
         target,
         selectable: false,
-        data: { label: EDGE_LABEL[id] ?? "", pulses: pulses.get(id) ?? [], color, dim: Boolean(test) },
+        data: { label: EDGE_LABEL[id] ?? "", pulses: pulses.get(id) ?? [], dim: active },
       };
     });
     return { nodes: built, edges: wires };
-  }, [test, monitor]);
+  }, [flows, monitor]);
 
   return (
-    <div className="flow-canvas" aria-label="Animated path of the selected check">
+    <div className="flow-canvas" aria-label="Animated paths of the selected service">
       <ReactFlow
         nodes={nodes}
         edges={edges}

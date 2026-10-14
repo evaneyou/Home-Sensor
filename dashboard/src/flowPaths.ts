@@ -10,9 +10,17 @@ export type FlowLink = "wired" | "wifi";
  */
 export type FlowRoute = "web" | "server-direct" | "tunnel";
 
+export type FlowCategory = "web" | "application" | "server";
+
 export type FlowTest = {
   key: string;
   name: string;
+  /** The service a check belongs to: Facebook's HTTP and ICMP checks share one. */
+  group: string;
+  groupName: string;
+  /** What kind of check it is, for telling same-service flows apart. */
+  kindLabel: string;
+  category: FlowCategory;
   link: FlowLink;
   route: FlowRoute;
   /** An always-on application flow also keeps its control channel in the tunnel. */
@@ -86,6 +94,19 @@ function formatMs(value: number | null): string {
   return value >= 100 ? `${value.toFixed(0)} ms` : `${value.toFixed(1)} ms`;
 }
 
+const KIND_LABEL: Record<string, string> = { http: "HTTP", ping: "ICMP", mtr: "MTR", librespeed: "Transfer" };
+const KIND_ORDER = ["HTTP", "ICMP", "MTR", "Transfer", "Flow"];
+
+/** http-facebook and icmp-facebook are one service; so are the three path checks. */
+function groupOf(slug: string): string {
+  return slug.replace(/^(http|icmp|mtr)-/, "");
+}
+
+function groupNameOf(slug: string, name: string): string {
+  if (groupOf(slug) === "path") return "Path to the HomeNetWatch server";
+  return name.replace(/\s+(HTTP|ICMP|MTR)$/i, "") || name;
+}
+
 /**
  * Every check the server has switched on for this Pi, plus every application flow
  * that is running, as one row per link. Nothing here is a fixed list: a check
@@ -101,11 +122,16 @@ export function buildFlowTests(
     const link = linkOf(test.network_slug);
     if (!test.enabled || !link || !KINDS.has(test.kind)) continue;
     const rtt = formatMs(test.latest_rtt_ms);
+    const route = routeOf(test.slug, test.target);
     rows.push({
       key: `check:${test.id}`,
       name: test.name,
+      group: groupOf(test.slug),
+      groupName: groupNameOf(test.slug, test.name),
+      kindLabel: KIND_LABEL[test.kind] ?? test.kind,
+      category: route === "web" ? "web" : "server",
       link,
-      route: routeOf(test.slug, test.target),
+      route,
       application: false,
       status: statusOf(test.latest_status, test.latest_at, now),
       detail: rtt,
@@ -119,6 +145,10 @@ export function buildFlowTests(
       rows.push({
         key: `flow:${profile.slug}:${link}`,
         name: profile.name,
+        group: `flow:${profile.slug}`,
+        groupName: profile.name,
+        kindLabel: "Flow",
+        category: "application",
         link,
         route: "server-direct",
         application: true,
@@ -169,3 +199,59 @@ export const ROUTE_LABEL: Record<FlowRoute, string> = {
 };
 
 export const ROUTE_ORDER: FlowRoute[] = ["web", "server-direct", "tunnel"];
+
+export type FlowGroup = {
+  key: string;
+  name: string;
+  category: FlowCategory;
+  flows: FlowTest[];
+  /** The worst state among its flows, so a failing one is not hidden by passing ones. */
+  status: FlowTest["status"];
+};
+
+export const CATEGORY_LABEL: Record<FlowCategory, string> = {
+  web: "Direct to the internet",
+  application: "Application flows",
+  server: "To the HomeNetWatch server",
+};
+
+export const CATEGORY_ORDER: FlowCategory[] = ["web", "application", "server"];
+
+const SEVERITY: Record<FlowTest["status"], number> = { fail: 3, degraded: 2, ok: 1, idle: 0 };
+
+/**
+ * One group per service, holding every flow it has: Facebook's HTTP and ICMP
+ * checks on both links become one group of four, drawn together.
+ */
+export function groupFlows(tests: FlowTest[]): FlowGroup[] {
+  const groups = new Map<string, FlowGroup>();
+  for (const test of tests) {
+    const group = groups.get(test.group);
+    if (group) {
+      group.flows.push(test);
+    } else {
+      groups.set(test.group, {
+        key: test.group,
+        name: test.groupName,
+        category: test.category,
+        flows: [test],
+        status: "idle",
+      });
+    }
+  }
+  for (const group of groups.values()) {
+    group.flows.sort(
+      (a, b) =>
+        KIND_ORDER.indexOf(a.kindLabel) - KIND_ORDER.indexOf(b.kindLabel) ||
+        Number(a.link === "wifi") - Number(b.link === "wifi"),
+    );
+    group.status = group.flows.reduce<FlowTest["status"]>(
+      (worst, flow) => (SEVERITY[flow.status] > SEVERITY[worst] ? flow.status : worst),
+      "idle",
+    );
+  }
+  return [...groups.values()].sort(
+    (a, b) =>
+      CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category) || a.name.localeCompare(b.name),
+  );
+}

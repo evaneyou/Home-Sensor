@@ -885,6 +885,12 @@
   font-size: 0.75rem;
 }
 
+.flow-count {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 .flow-link {
   padding: 1px 8px;
   border-radius: 999px;
@@ -1031,4 +1037,50 @@
   .flow-canvas circle {
     display: none;
   }
+}
+
+/* One chip per flow of the selected service, under the diagram. */
+.flow-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flow-chip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1px 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.flow-chip.link-wired { border-left-color: #4fd1b5; }
+.flow-chip.link-wifi { border-left-color: #ffc24d; }
+
+.flow-chip:hover,
+.flow-chip.is-only {
+  background: color-mix(in srgb, var(--ink) 7%, var(--bg-elevated));
+}
+
+.flow-chip span:not(.flow-dot) {
+  grid-column: 2;
+  color: var(--muted);
+}
+
+.flow-chip-detail {
+  font-variant-numeric: tabular-nums;
 }
