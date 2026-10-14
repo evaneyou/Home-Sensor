@@ -105,11 +105,16 @@
       <section class="demo" aria-labelledby="demo-title">
         <div class="wrap demo-card">
           <div>
-            <h2 id="demo-title">Do not take my word for it. Open it.</h2>
+            <h2 id="demo-title">Come and explore the live app</h2>
             <p>
-              The demo is the production app reading measurements my Raspberry Pi took a few minutes ago. Look for
+              The demo is the production app, reading measurements my Raspberry Pi took a few minutes ago. Look for
               the Network Path Diagram, Path View with its BGP comparison, the Wi-Fi view and the real-time voice
-              health charts.
+              health charts. Have a look around; there is nothing to break.
+            </p>
+            <p class="demo-note">
+              <b>Good to know.</b> Private details, such as IP addresses, are hidden from guests. Features that start
+              tests, change settings or add devices are switched off in the guest session, so a curious visitor cannot
+              overload the server. Everything you read is live data.
             </p>
           </div>
           <div class="demo-act">
@@ -183,6 +188,23 @@
             Speed means little if the thing is simple. HomeNetWatch spans hardware, kernel networking, cryptography,
             internet routing data, a time-series store and a real-time interface.
           </p>
+          <figure class="figure">
+            <a href="path-diagram.png" aria-label="Open the Network Path Diagram at full size">
+              <img
+                src="path-diagram.png"
+                width="1387"
+                height="639"
+                loading="lazy"
+                alt="The Network Path Diagram from the live app. Inside the home, the Raspberry Pi's wired and Wi-Fi interfaces reach the home router. Past the ISP, signalling travels through two WireGuard tunnels to the server, while measurement traffic goes direct to the measurement service."
+              />
+            </a>
+            <figcaption>
+              <b>The app's own Network Path Diagram, live.</b> Each test is drawn with the route it takes: signalling
+              travels through the WireGuard tunnels, while measurement traffic goes directly over the internet. The
+              ISP address is hidden in this picture.
+            </figcaption>
+          </figure>
+
           <div class="cards">
             <article class="card">
               <h3>A distributed system</h3>

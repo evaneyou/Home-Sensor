@@ -966,3 +966,43 @@ code {
     top: 14px;
   }
 }
+
+.demo-note {
+  margin-top: 12px !important;
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--soft) !important;
+  font-size: 15px;
+}
+
+.demo-note b {
+  color: var(--text);
+}
+
+/* Architecture figure */
+.figure {
+  margin: 0 0 32px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+}
+
+.figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+}
+
+.figure figcaption {
+  padding: 14px 6px 4px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.figure figcaption b {
+  color: var(--text);
+}
