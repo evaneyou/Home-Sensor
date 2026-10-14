@@ -400,7 +400,9 @@ function factsFor(
       add("Last scan", when(rf?.last_scan_at));
       break;
     case NODE.nearby:
-      for (const band of rf?.bands ?? []) add(`${band.band} networks`, String(band.ap_count));
+      for (const band of rf?.bands ?? []) {
+        add(`${/^[\d.]+$/.test(band.band) ? `${band.band} GHz` : band.band} networks`, String(band.ap_count));
+      }
       add("Last scan", when(rf?.last_scan_at));
       add("Joined", "No: heard, never joined");
       break;
