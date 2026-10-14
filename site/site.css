@@ -1180,3 +1180,12 @@ code {
     grid-template-columns: 1fr;
   }
 }
+
+/* About: one column of text. */
+.about-text {
+  max-width: 860px;
+}
+
+.about-text .lead {
+  max-width: none;
+}
