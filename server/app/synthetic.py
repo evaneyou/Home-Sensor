@@ -493,7 +493,7 @@ def _verdict(
 
 
 def range_start(name: str, now: datetime) -> datetime:
-    hours = {"1h": 1, "6h": 6, "12h": 12, "24h": 24, "7d": 24 * 7}.get(name, 1)
+    hours = {"1h": 1, "6h": 6, "12h": 12, "24h": 24, "7d": 24 * 7, "30d": 24 * 30}.get(name, 1)
     return now - timedelta(hours=hours)
 
 

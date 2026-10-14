@@ -17,22 +17,9 @@ export type AirContext = {
   overviewError: boolean;
 };
 
-const STALE_MS = 15 * 60 * 1000;
-
-export function isStale(lastScan: string | null | undefined): boolean {
-  if (!lastScan) return false;
-  return Date.now() - new Date(lastScan).getTime() > STALE_MS;
-}
-
 export function scanLabel(lastScan: string | null | undefined): string {
   if (!lastScan) return "No scans yet";
   return `Last scan ${new Date(lastScan).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
-}
-
-export function modeLabel(mode: string | undefined): string {
-  if (mode === "kismet") return "Kismet capture";
-  if (mode === "scan") return "Scan capture";
-  return "Capture off";
 }
 
 export function useAirwaves(): AirContext | "loading" | "error" | "empty" {
@@ -118,7 +105,6 @@ export default function AirwavesLayout() {
       <header className="air-titlebar">
         <div className="air-title">
           <h1>Airwaves</h1>
-          <span className="air-badge">{modeLabel(overview?.airwave_mode)}</span>
         </div>
         <p className="air-sub">What's in the air around {place}</p>
       </header>
@@ -162,7 +148,6 @@ export default function AirwavesLayout() {
         <p className="air-scan-time">{overviewLoading ? "Checking scans…" : scanLabel(overview?.last_scan_at)}</p>
       </div>
       {overviewError ? <div className="error">Could not load the latest scan.</div> : null}
-      {isStale(overview?.last_scan_at) ? <p className="air-stale">The last scan is more than 15 minutes old.</p> : null}
       <div className="air-tabs">
         <div className="air-tab-grid" role="tablist">
           {pages.map((page) => (

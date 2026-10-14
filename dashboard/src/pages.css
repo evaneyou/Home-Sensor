@@ -623,3 +623,118 @@
     align-items: end;
   }
 }
+
+.topbar,
+.dash-shell .topbar {
+  padding-left: clamp(16px, 5vw, 72px);
+  padding-right: clamp(16px, 5vw, 72px);
+}
+
+.main,
+.main:has(.airwaves),
+.main:has(.app-health),
+.app-shell.ui-compact .main,
+.app-shell:not(.dash-shell) .main:has(.airwaves) {
+  max-width: none;
+  padding-left: clamp(16px, 5vw, 72px);
+  padding-right: clamp(16px, 5vw, 72px);
+}
+
+.main:has(.dash) {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.connection-diagram-link {
+  display: block;
+  margin: 0 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #101620;
+}
+
+.connection-diagram-link img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 180px;
+  object-fit: contain;
+  object-position: center;
+}
+
+.connection-live {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  gap: 12px;
+  align-items: start;
+  margin-top: 12px;
+}
+
+.connection-live-stage {
+  position: relative;
+}
+
+.connection-live-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(72vh, 820px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #101620;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.connection-live-canvas:active {
+  cursor: grabbing;
+}
+
+.connection-live-canvas [data-cell] {
+  cursor: pointer;
+}
+
+.connection-live-zoom {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.connection-live-zoom button {
+  min-width: 2.4rem;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: inherit;
+  cursor: pointer;
+}
+
+.connection-live-detail {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  padding: 14px;
+}
+
+.connection-live-detail h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+
+.connection-live-detail p {
+  margin: 0 0 8px;
+}
+
+@media (max-width: 800px) {
+  .connection-live {
+    grid-template-columns: 1fr;
+  }
+
+  .connection-live-canvas {
+    max-height: 60vh;
+  }
+}

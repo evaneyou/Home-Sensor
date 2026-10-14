@@ -5,7 +5,7 @@ import { api } from "../api";
 import { CHART_COLORS } from "../chartTheme";
 import { chartTicks, chartWindow, formatChartTick } from "../chartTime";
 
-const RANGES = ["1h", "6h", "12h", "24h", "7d"] as const;
+const RANGES = ["1h", "6h", "12h", "24h", "7d", "30d"] as const;
 type Range = (typeof RANGES)[number];
 
 type Point = {
