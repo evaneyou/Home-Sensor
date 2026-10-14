@@ -578,7 +578,8 @@ def check_mtr(test: dict) -> dict:
     for mode in ([], ["--udp"]):
         try:
             source = _interface_ipv4(iface) if (iface := _probe_interface(test)) else None
-            bind = ["-a", source] if source else []
+            # A bound source is an IPv4 address, so trace over IPv4: a host name may resolve to IPv6, which mtr refuses.
+            bind = ["-4", "-a", source] if source else []
             completed = subprocess.run(
                 ["mtr", "--json", "-c", "5", "-n", "-m", "15", *bind, *mode, host],
                 check=False,
