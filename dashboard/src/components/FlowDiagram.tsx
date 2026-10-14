@@ -15,7 +15,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useMemo, useState } from "react";
-import { EDGE_IDS, NODE, SCAN_EDGE, edgeId, hostOf, pathsFor, type FlowLink, type FlowTest } from "../flowPaths";
+import { EDGE_IDS, NODE, SCAN_EDGE, edgeId, hostOf, hostsOf, pathsFor, type FlowLink, type FlowTest } from "../flowPaths";
 import type { MonitorAdmin, MonitorDetail, RfOverview } from "../types";
 
 type Tone = "wired" | "wifi" | "neutral";
@@ -119,7 +119,7 @@ function PathBox({ data }: NodeProps<FlowNodeType>) {
                       {control ? " (signalling)" : ""}
                     </strong>
                     <span>
-                      {[flow.route === "web" ? hostOf(flow.target) : "", flow.detail].filter(Boolean).join(" · ") ||
+                      {[flow.route === "web" && !flow.members ? hostOf(flow.target) : "", flow.detail].filter(Boolean).join(" · ") ||
                         STATUS_LABEL[flow.status]}
                     </span>
                     {flow.status === "degraded" || flow.status === "fail" ? (
@@ -418,8 +418,8 @@ function factsFor(
       add("Public address", monitor?.public_ip);
       break;
     case NODE.web: {
-      const hosts = [...new Set(flows.filter((flow) => flow.route === "web").map((flow) => hostOf(flow.target)))];
-      add("Destination", hosts.join(", "));
+      const hosts = [...new Set(flows.filter((flow) => flow.route === "web").flatMap(hostsOf))].sort();
+      add(hosts.length > 1 ? "Destinations" : "Destination", hosts.join(", "));
       add("Through a tunnel", "No");
       break;
     }

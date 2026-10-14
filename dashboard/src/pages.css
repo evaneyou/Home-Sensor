@@ -1224,3 +1224,20 @@
   color: var(--ink);
   font-weight: 800;
 }
+
+/* Says why a merged group is drawn once, and which sites it stands for. */
+.flow-note {
+  margin: 10px 0 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-elevated));
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.flow-note strong {
+  color: var(--ink);
+}
