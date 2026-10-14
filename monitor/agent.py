@@ -30,6 +30,7 @@ from pathlib import Path
 
 from checks import (
     interface_roles,
+    lan_address,
     link_is_busy,
     link_lock,
     parse_link_bssid,
@@ -666,6 +667,23 @@ def load_1() -> float:
 
 
 def lan_ip(server_url: str) -> str | None:
+    """The Pi's address on the home LAN.
+
+    Read from the adapter that sits on the LAN. The route to the server is only a fallback: it is
+    right while enrolling, when the server is a public address, but once enrolled it goes through
+    the tunnel and would report the tunnel's own address.
+    """
+    try:
+        address = lan_address()
+    except OSError:
+        address = None
+    if address:
+        return address
+    routed = _routed_ip(server_url)
+    return None if routed and synthetic.is_tunnel_target(routed) else routed
+
+
+def _routed_ip(server_url: str) -> str | None:
     parsed = urllib.parse.urlparse(server_url)
     host = parsed.hostname
     if not host:

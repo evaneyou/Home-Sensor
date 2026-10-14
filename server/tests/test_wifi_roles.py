@@ -100,3 +100,21 @@ def test_lan_reenroll_requires_the_current_device_key():
     assert module.setup_allowed(True, "10.0.0.8", "secret", "secret") is True
     assert module.setup_allowed(True, "10.0.0.8", "wrong", "secret") is False
     assert "sudo hnw-reset" in module.PAGE
+
+
+def test_lan_address_comes_from_the_adapters_not_the_route_to_the_server():
+    checks = _checks()
+    addresses = {"eth0": "192.0.2.20", "wlan0": "192.0.2.21"}
+
+    def reader(name):
+        return addresses.get(name)
+
+    # The wired NIC wins when both are on the LAN.
+    assert checks.lan_address({"wired": "eth0", "link": "wlan0", "radio": "wlan1"}, reader) == "192.0.2.20"
+    # Without a wired address it falls back to the Wi-Fi NIC that carries traffic.
+    assert checks.lan_address({"wired": "eth0", "link": "wlan0", "radio": None}, {"wlan0": "192.0.2.21"}.get) == "192.0.2.21"
+    assert checks.lan_address({"wired": None, "link": "wlan0", "radio": None}, reader) == "192.0.2.21"
+    # The monitor radio only listens; it is never the LAN address.
+    assert checks.lan_address({"wired": None, "link": None, "radio": "wlan1"}, {"wlan1": "192.0.2.22"}.get) is None
+    # A tunnel interface is never one of the roles, so its address cannot be reported.
+    assert checks.lan_address({"wired": None, "link": None, "radio": None}, lambda name: "10.7.0.2") is None
