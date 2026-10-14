@@ -708,9 +708,11 @@ function InternetDetail({
   if (linkHealth && rtnpSlug && monitorId) {
     return (
       <>
-        <div className="panel">
-          <RangeTabs range={range} onChange={setRange} />
-        </div>
+        {onRangeChange ? null : (
+          <div className="panel">
+            <RangeTabs range={range} onChange={setRange} />
+          </div>
+        )}
         <RealtimeHealth
           monitorId={monitorId}
           link={healthLink}
@@ -759,7 +761,7 @@ function InternetDetail({
         <h2 style={{ marginTop: 0, fontSize: "1.4rem" }}>
           {linkLabel} · Internet Connection
         </h2>
-        <RangeTabs range={range} onChange={setRange} />
+        {onRangeChange ? null : <RangeTabs range={range} onChange={setRange} />}
         {loading ? (
           <div className="muted">Loading internet checks…</div>
         ) : failed ? (
@@ -792,7 +794,7 @@ function InternetDetail({
         {linkLabel ? `${linkLabel} · ` : ""}
         {detail === "isp" ? isp || "ISP" : app?.label}
       </h2>
-      <RangeTabs range={range} onChange={setRange} />
+      {onRangeChange ? null : <RangeTabs range={range} onChange={setRange} />}
       {loading ? (
         <div className="muted">Loading internet checks…</div>
       ) : failed ? (
@@ -1041,7 +1043,7 @@ function HttpAreaChart({
   );
 }
 
-function TimeAxis({ domain }: { domain: [number, number] }) {
+export function TimeAxis({ domain }: { domain: [number, number] }) {
   const span = domain[1] - domain[0];
   return (
     <XAxis
