@@ -98,6 +98,9 @@ export const api = {
   monitor: (id: string) => request(`/api/v1/monitors/${id}`),
   monitorPath: (id: string, link: "wired" | "wireless", destination = "server") =>
     request(`/api/v1/monitors/${id}/path?link=${link}&destination=${encodeURIComponent(destination)}`),
+  requestTrace: (id: string, link: "wired" | "wireless", target: string, csrf: string) =>
+    request(`/api/v1/monitors/${id}/traces`, { method: "POST", headers: csrfHeaders(csrf), body: JSON.stringify({ link, target }) }),
+  monitorTrace: (id: string, traceId: string) => request(`/api/v1/monitors/${id}/traces/${traceId}`),
   monitorLog: (id: string, offset: number, limit: number, probe = "all") =>
     request(`/api/v1/monitors/${id}/log?offset=${offset}&limit=${limit}&probe=${encodeURIComponent(probe)}`),
   updateMonitorLocation: (

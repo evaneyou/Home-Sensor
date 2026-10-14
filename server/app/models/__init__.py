@@ -542,3 +542,21 @@ class SyntheticSample(Base):
         UniqueConstraint("run_id", "link", "sample_key", name="uq_synthetic_sample"),
         Index("ix_synthetic_sample_recorded", "recorded_at"),
     )
+
+
+class AdhocTrace(Base):
+    """A trace someone asked a remote agent to run on demand, to any host they typed in."""
+
+    __tablename__ = "adhoc_traces"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    monitor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"), nullable=False, index=True)
+    link: Mapped[str] = mapped_column(String(16), nullable=False)
+    target: Mapped[str] = mapped_column(String(255), nullable=False)
+    # pending: waiting for the agent. running: handed to the agent. done or failed: finished.
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    requested_by: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    hops: Mapped[Optional[list[Any]]] = mapped_column(JSONB)
+    error: Mapped[str] = mapped_column(Text, nullable=False, default="")
