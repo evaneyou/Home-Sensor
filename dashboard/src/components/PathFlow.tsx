@@ -17,10 +17,14 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useElementWidth, useNarrow } from "../useNarrow";
+import { useElementWidth } from "../useNarrow";
 import type { PathGroup, PathHop, PathTrace } from "./NetworkPathView";
 
 const NODE_WIDTH = 244;
+/** Under this width the diagram runs top to bottom. */
+const WIDE = 760;
+const MAX_COLUMN = 460;
+const BAR_MAX = 34;
 const GAP_X = 100;
 const GAP_Y = 64;
 const PAD = 10;
@@ -31,8 +35,12 @@ type GroupData = {
   group: PathGroup;
   hops: PathHop[];
   warn: number[];
+  index: number;
+  chosen: boolean;
+  axisMax: number;
   selected: number | null;
   onSelect: (ttl: number) => void;
+  onGroup: (index: number) => void;
   vertical: boolean;
 };
 type GroupNode = Node<GroupData, "network">;
@@ -51,12 +59,26 @@ function networkLabel(label: string): string {
 
 /** One network on the path, with the hops that belong to it. The hops stay buttons: pick one for its details. */
 function NetworkNode({ data }: NodeProps<GroupNode>) {
-  const { group, hops, warn, selected, onSelect, vertical } = data;
+  const { group, hops, warn, selected, onSelect, onGroup, vertical, index, chosen, axisMax } = data;
   const dashed = group.role === "unknown";
   // On a wide layout the connections leave at the header, so every link is level whatever a node's height.
   const level = vertical ? undefined : { top: 38 };
   return (
-    <div className={`npv-group npf-node${dashed ? " dashed" : ""}`} style={{ ["--c" as string]: `var(--role-${group.role})` }}>
+    <div
+      className={`npv-group npf-node${dashed ? " dashed" : ""}${chosen ? " is-chosen" : ""}`}
+      style={{ ["--c" as string]: `var(--role-${group.role})` }}
+      role="button"
+      tabIndex={0}
+      aria-pressed={chosen}
+      aria-label={`${group.name}, ${group.role_label}. Show details`}
+      onClick={() => onGroup(index)}
+      onKeyDown={(event) => {
+        if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          onGroup(index);
+        }
+      }}
+    >
       <Handle type="target" position={vertical ? Position.Top : Position.Left} style={level} />
       <Handle type="source" position={vertical ? Position.Bottom : Position.Right} style={level} />
       <div className="npv-ghead">
@@ -73,8 +95,18 @@ function NetworkNode({ data }: NodeProps<GroupNode>) {
             style={{ ["--c" as string]: `var(--role-${hop.role})` }}
             aria-pressed={selected === hop.ttl}
             aria-label={`Hop ${hop.ttl}, ${hop.name}, ${hop.silent ? "no reply" : `${fmt(hop.avg_ms)} milliseconds`}`}
-            onClick={() => onSelect(hop.ttl)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelect(hop.ttl);
+            }}
           >
+            <span className="npf-bar-slot" aria-hidden="true">
+              {hop.silent || hop.avg_ms == null ? (
+                <i className="npf-bar none" />
+              ) : (
+                <i className="npf-bar" style={{ height: Math.max(4, Math.round((hop.avg_ms / axisMax) * BAR_MAX)) }} />
+              )}
+            </span>
             <span className="n">#{hop.ttl}</span>
             <span className="v">{hop.silent ? "* * *" : fmt(hop.avg_ms)}</span>
             <span className="u">{hop.silent ? "no reply" : "ms"}</span>
@@ -99,6 +131,11 @@ function StepLine(props: EdgeProps<StepEdge>) {
         interactionWidth={0}
         style={{ stroke: data?.big ? "#ffc24d" : "#4a5878", strokeWidth: 2.2, strokeLinecap: "round" }}
       />
+      {[0, 0.5].map((phase) => (
+        <circle key={phase} r={3.6} fill={data?.big ? "#ffc24d" : "#6ee7a8"} opacity={0.9} className="npf-dot">
+          <animateMotion dur="1.8s" begin={`-${phase * 1.8}s`} repeatCount="indefinite" path={path} calcMode="linear" />
+        </circle>
+      ))}
       <EdgeLabelRenderer>
         <div
           className={`npf-step nodrag nopan${data?.big ? " is-big" : ""}`}
@@ -118,6 +155,9 @@ function Layout({
   trace,
   selected,
   onSelect,
+  group: chosenGroup,
+  onGroup,
+  axisMax,
   vertical,
   width,
   onHeight,
@@ -125,6 +165,9 @@ function Layout({
   trace: PathTrace;
   selected: number | null;
   onSelect: (ttl: number) => void;
+  group: number | null;
+  onGroup: (index: number) => void;
+  axisMax: number;
   vertical: boolean;
   width: number;
   onHeight: (height: number) => void;
@@ -133,7 +176,8 @@ function Layout({
   const ready = useNodesInitialized();
   const placed = useRef("");
   const [nodes, setNodes, onNodesChange] = useNodesState<GroupNode>([]);
-  const nodeWidth = vertical ? Math.max(200, width - 2 * PAD) : NODE_WIDTH;
+  const nodeWidth = vertical ? Math.min(MAX_COLUMN, Math.max(200, width - 2 * PAD)) : NODE_WIDTH;
+  const left = vertical ? Math.max(PAD, Math.round((width - nodeWidth) / 2)) : 0;
   const hopsByTtl = useMemo(() => new Map(trace.hops.map((hop) => [hop.ttl, hop])), [trace.hops]);
 
   // The boxes and what they say. Positions are kept, so choosing a hop does not move anything.
@@ -146,8 +190,12 @@ function Layout({
           group,
           hops: group.hop_ttls.map((ttl) => hopsByTtl.get(ttl)).filter((hop): hop is PathHop => Boolean(hop)),
           warn: trace.warn_ttls,
+          index,
+          chosen: chosenGroup === index,
+          axisMax,
           selected,
           onSelect,
+          onGroup,
           vertical,
         };
         return {
@@ -162,7 +210,7 @@ function Layout({
         };
       }),
     );
-  }, [trace, hopsByTtl, selected, onSelect, vertical, nodeWidth, setNodes]);
+  }, [trace, hopsByTtl, selected, onSelect, chosenGroup, onGroup, axisMax, vertical, nodeWidth, setNodes]);
 
   const edges = useMemo<StepEdge[]>(
     () =>
@@ -194,7 +242,7 @@ function Layout({
       const w = node.measured?.width ?? nodeWidth;
       const h = node.measured?.height ?? 120;
       tallest = Math.max(tallest, h);
-      const position = vertical ? { x: PAD, y: cursor + PAD } : { x: cursor, y: PAD };
+      const position = vertical ? { x: left, y: cursor + PAD } : { x: cursor, y: PAD };
       cursor += vertical ? h + GAP_Y : w + GAP_X;
       return { ...node, position };
     });
@@ -207,7 +255,7 @@ function Layout({
       onHeight(tallest + 2 * PAD + 6);
       requestAnimationFrame(() => void fitView({ padding: 0.03, minZoom: 0.55, maxZoom: 1, duration: 0 }));
     }
-  }, [ready, trace.traced_at, trace.groups.length, vertical, nodeWidth, getNodes, setNodes, setViewport, fitView, onHeight, nodes]);
+  }, [ready, trace.traced_at, trace.groups.length, vertical, nodeWidth, left, getNodes, setNodes, setViewport, fitView, onHeight, nodes]);
 
   return (
     <ReactFlow
@@ -241,20 +289,26 @@ export default function PathFlow({
   trace,
   selected,
   onSelect,
+  group,
+  onGroup,
 }: {
   trace: PathTrace;
   selected: number | null;
   onSelect: (ttl: number) => void;
+  group: number | null;
+  onGroup: (index: number) => void;
 }) {
-  const vertical = useNarrow();
   const [ref, width] = useElementWidth<HTMLDivElement>();
+  const vertical = width > 0 && width < WIDE;
+  const slowest = Math.max(0, ...trace.hops.map((hop) => (hop.silent ? 0 : (hop.avg_ms ?? 0))));
+  const axisMax = Math.max(15, Math.ceil(slowest / 15) * 15);
   const [height, setHeight] = useState(vertical ? 420 : 280);
   const onHeight = useCallback((next: number) => setHeight(Math.ceil(next)), []);
   return (
     <div ref={ref} className={`npf${vertical ? " is-vertical" : ""}`} style={{ height }}>
       {width > 0 ? (
         <ReactFlowProvider>
-          <Layout trace={trace} selected={selected} onSelect={onSelect} vertical={vertical} width={width} onHeight={onHeight} />
+          <Layout trace={trace} selected={selected} onSelect={onSelect} group={group} onGroup={onGroup} axisMax={axisMax} vertical={vertical} width={width} onHeight={onHeight} />
         </ReactFlowProvider>
       ) : null}
     </div>

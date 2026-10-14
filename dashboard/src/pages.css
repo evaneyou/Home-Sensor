@@ -1366,3 +1366,49 @@
 .npf-node .npv-chips {
   flex-wrap: wrap;
 }
+
+/* A network box on the path is selectable; its hops show their latency as a bar. */
+.npf-node {
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.npf-node:hover {
+  border-color: color-mix(in srgb, var(--c) 80%, transparent);
+}
+
+.npf-node.is-chosen {
+  border-color: var(--c);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 45%, transparent);
+}
+
+.npf-node:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--mint) 55%, transparent);
+  outline-offset: 3px;
+}
+
+.npf-node .npv-chip {
+  justify-content: flex-end;
+}
+
+.npf-bar-slot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 34px;
+  width: 100%;
+}
+
+.npf-bar {
+  display: block;
+  width: 16px;
+  border-radius: 4px 4px 0 0;
+  background: var(--c);
+}
+
+.npf-bar.none {
+  height: 4px;
+  background: transparent;
+  border-top: 2px dashed var(--c);
+  border-radius: 0;
+}
