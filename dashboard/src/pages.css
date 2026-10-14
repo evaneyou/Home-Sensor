@@ -647,11 +647,12 @@
 
 .connection-diagram-link {
   display: block;
-  margin: 0 0 12px;
+  margin: 0 0 14px;
+  padding: 16px 12px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 14px;
   overflow: hidden;
-  background: #101620;
+  background: #0e1320;
 }
 
 .connection-diagram-link:hover {
@@ -660,7 +661,7 @@
 
 /* The overview is a picture inside a link: let the link take every click. */
 .connection-mini {
-  height: 170px;
+  height: 230px;
   pointer-events: none;
 }
 
@@ -672,14 +673,85 @@
   opacity: 0;
 }
 
-.mini-node {
+.mini-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  padding: 8px 10px;
-  text-align: center;
+  gap: 10px;
+  padding: 10px 14px 10px 12px;
+  border: 1.25px solid #2a3550;
+  border-radius: 14px;
+  background: #161d2f;
+  box-shadow: 0 2px 10px rgb(5 7 13 / 55%);
+  color: #e8ecf8;
+  font-family: var(--font-ui);
+  line-height: 1.3;
 }
 
-.mini-node.is-ellipse {
-  border-radius: 999px;
+.mini-card.tone-wired { border-color: #2f6b5d; background: #13262b; }
+.mini-card.tone-wifi { border-color: #6b5420; background: #2b2414; }
+
+.mini-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 6%);
+  color: #9aa6c4;
+}
+
+.mini-card.tone-wired .mini-icon { color: #4fd1b5; background: rgb(79 209 181 / 14%); }
+.mini-card.tone-wifi .mini-icon { color: #ffc24d; background: rgb(255 194 77 / 14%); }
+
+.mini-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mini-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mini-text strong {
+  font-size: 13px;
+}
+
+.mini-text span {
+  overflow: hidden;
+  color: #9aa6c4;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-status {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.mini-status.s-ok { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.mini-status.s-degraded { background: var(--degraded); }
+.mini-status.s-fail { background: var(--fail); box-shadow: 0 0 8px var(--fail); }
+
+@media (prefers-reduced-motion: reduce) {
+  .connection-mini .react-flow__edge.animated path {
+    animation: none;
+  }
 }
 
 /* The network path diagram: the connection drawn with React Flow, with the flows of one service animated. */

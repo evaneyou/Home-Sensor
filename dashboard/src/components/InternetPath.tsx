@@ -18,6 +18,7 @@ import { formatChartTick, chartTicks, chartWindow, zoomedDomain } from "../chart
 import type { MetricsResponse, MonitorDetail } from "../types";
 import { useChartZoom } from "../useChartZoom";
 import ConnectionDiagramLink from "./ConnectionDiagramLink";
+import type { LinkLive, LinkStatus } from "./ConnectionMini";
 import RealtimeHealth from "./RealtimeHealth";
 import StatusMark, { statusLabel } from "./StatusMark";
 
@@ -123,12 +124,27 @@ function trackStatuses(
   }
   const first = slots.findIndex((status) => status);
   if (first < 0) return slots;
+  // A check that reports every N minutes cannot be "missing" for less than N minutes, so the time
+  // before its first sample is only sampling phase. Cover it by one typical spacing and no more:
+  // a real gap, such as an agent that was offline, is longer than that and stays empty.
+  const reach = Math.min(first, Math.ceil(typicalSpacing(points, start, end) / width));
   let last = slots[first];
   return slots.map((status, index) => {
-    if (index < first) return null;
+    if (index < first) return index >= first - reach ? last : null;
     if (status) last = status;
     return last;
   });
+}
+
+/** The median time between consecutive samples inside the window, or 0 when there are too few to say. */
+function typicalSpacing(points: Point[], start: number, end: number): number {
+  const times = points
+    .map((point) => new Date(point.t).getTime())
+    .filter((time) => time >= start && time <= end)
+    .sort((a, b) => a - b);
+  if (times.length < 3) return 0;
+  const gaps = times.slice(1).map((time, index) => time - times[index]).sort((a, b) => a - b);
+  return gaps[Math.floor(gaps.length / 2)];
 }
 
 function ragStatus(statuses: (string | null | undefined)[]): string {
@@ -171,6 +187,16 @@ function speed(point: Point | undefined): { down: number | null; up: number | nu
     down: point?.throughput_mbps?.download ?? point?.down_mbps ?? null,
     up: point?.throughput_mbps?.upload ?? point?.up_mbps ?? null,
   };
+}
+
+const FRESH_MS = 30 * 60 * 1000;
+
+function liveOf(series: Point[]): LinkLive {
+  const latest = series.at(-1);
+  const fresh = latest != null && Date.now() - new Date(latest.t).getTime() < FRESH_MS;
+  const status: LinkStatus =
+    fresh && (latest.status === "ok" || latest.status === "degraded" || latest.status === "fail") ? latest.status : "unknown";
+  return { status, down: speed(latest).down, up: speed(latest).up, ping: latest?.rtt_ms ?? null };
 }
 
 function currentRag(statuses: (string | null | undefined)[]): string {
@@ -895,7 +921,11 @@ function InternetConnection({
   return (
     <section className="panel network-health">
       <h2 style={{ marginTop: 0, fontSize: "1rem" }}>Internet Connection</h2>
-      <ConnectionDiagramLink monitorId={monitorId} />
+      <ConnectionDiagramLink
+        monitorId={monitorId}
+        wired={liveOf(wiredSpeed.points.get("librespeed") ?? [])}
+        wireless={liveOf(wirelessSpeed.points.get("librespeed") ?? [])}
+      />
       {onRangeChange ? null : <RangeTabs range={range} onChange={setRange} />}
       <div className="health-stack">
         <SpeedSummary label="Wired Internet Connection" query={wiredSpeed} range={range} onOpen={() => onOpen("wired")} />
