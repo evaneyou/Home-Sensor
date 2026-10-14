@@ -1511,3 +1511,12 @@ h3 {
     grid-column: auto;
   }
 }
+
+/* The experience call-out now sits right under the hero. */
+.exp-section {
+  padding: 20px 0 0;
+}
+
+.exp-section .experience {
+  margin-top: 0;
+}
