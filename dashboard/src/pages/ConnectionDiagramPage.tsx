@@ -74,7 +74,7 @@ export default function ConnectionDiagramPage() {
           )}
         </aside>
       </div>
-      <FlowSection monitorId={id} monitor={monitor.data} />
+      <FlowSection monitorId={id} monitor={monitor.data} agent={agent} />
     </div>
   );
 }

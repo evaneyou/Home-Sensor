@@ -27,7 +27,20 @@ export type FlowTest = {
   application: boolean;
   status: "ok" | "degraded" | "fail" | "idle";
   detail: string;
+  /** The host or address the check talks to; empty for an application flow. */
+  target: string;
+  /** The server's own words for the latest result. */
+  reason: string | null;
+  lossPct: number | null;
+  checkedAt: string | null;
 };
+
+/** The newest figures the server holds for one application flow on one link. */
+export type FlowLatest = {
+  slug: string;
+  latest: { rtt_ms: number | null; jitter_ms: number | null; loss_pct: number | null; verdict: string | null };
+};
+export type FlowHealth = Partial<Record<FlowLink, FlowLatest[]>>;
 
 export type FlowProfile = {
   slug: string;
@@ -115,6 +128,7 @@ function groupNameOf(slug: string, name: string): string {
 export function buildFlowTests(
   tests: MonitorDetail["tests"] | undefined,
   profiles: FlowProfile[] | undefined,
+  health: FlowHealth = {},
   now: number = Date.now(),
 ): FlowTest[] {
   const rows: FlowTest[] = [];
@@ -135,6 +149,10 @@ export function buildFlowTests(
       application: false,
       status: statusOf(test.latest_status, test.latest_at, now),
       detail: rtt,
+      target: test.target,
+      reason: test.latest_reason,
+      lossPct: test.latest_loss_pct,
+      checkedAt: test.latest_at,
     });
   }
   for (const profile of profiles ?? []) {
@@ -142,6 +160,14 @@ export function buildFlowTests(
     for (const raw of profile.continuous.links) {
       const link: FlowLink | null = raw === "wired" ? "wired" : raw === "wireless" ? "wifi" : null;
       if (!link) continue;
+      const latest = health[link]?.find((item) => item.slug === profile.slug)?.latest;
+      const figures = latest
+        ? [
+            latest.rtt_ms != null ? formatMs(latest.rtt_ms) : "",
+            latest.jitter_ms != null ? `jitter ${formatMs(latest.jitter_ms)}` : "",
+            latest.loss_pct != null ? `loss ${latest.loss_pct.toFixed(1)}%` : "",
+          ].filter(Boolean)
+        : [];
       rows.push({
         key: `flow:${profile.slug}:${link}`,
         name: profile.name,
@@ -152,8 +178,12 @@ export function buildFlowTests(
         link,
         route: "server-direct",
         application: true,
-        status: "ok",
-        detail: "continuous",
+        status: latest?.verdict === "fail" ? "fail" : latest?.verdict === "pass" ? "ok" : "idle",
+        detail: figures.join(" · ") || "continuous",
+        target: "",
+        reason: null,
+        lossPct: latest?.loss_pct ?? null,
+        checkedAt: null,
       });
     }
   }
@@ -254,4 +284,12 @@ export function groupFlows(tests: FlowTest[]): FlowGroup[] {
     (a, b) =>
       CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category) || a.name.localeCompare(b.name),
   );
+}
+
+export function hostOf(target: string): string {
+  try {
+    return new URL(target.includes("://") ? target : `https://${target}`).hostname;
+  } catch {
+    return target;
+  }
 }

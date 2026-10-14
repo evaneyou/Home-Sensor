@@ -1084,3 +1084,123 @@
 .flow-chip-detail {
   font-variant-numeric: tabular-nums;
 }
+
+/* The card that opens over a box. It never takes the pointer, so it cannot make the box flicker. */
+.flow-tip {
+  width: max-content;
+  min-width: 14rem;
+  max-width: 22rem;
+  padding: 12px 14px;
+  border: 1px solid #3a4666;
+  border-radius: 12px;
+  background: #0b0f1a;
+  box-shadow: 0 10px 28px rgb(2 4 10 / 70%);
+  color: #e8ecf8;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.flow-tip h4 {
+  margin: 0 0 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #232d49;
+  font-size: 13px;
+}
+
+.flow-tip h5 {
+  margin: 10px 0 6px;
+  color: #9aa6c4;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.flow-tip dl {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.flow-tip dl div {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 8px;
+}
+
+.flow-tip dt {
+  color: #9aa6c4;
+}
+
+.flow-tip dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-tip ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flow-tip li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1px 8px;
+  align-items: center;
+}
+
+.flow-tip li span:not(.flow-dot),
+.flow-tip li em {
+  grid-column: 2;
+  color: #9aa6c4;
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
+.flow-tip li em {
+  color: #ffc24d;
+}
+
+.flow-tip p {
+  margin: 8px 0 0;
+  color: #9aa6c4;
+}
+
+/* The boxes can now take the keyboard, so show where it is. */
+.flow-node:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.flow-canvas .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid #2a3550;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgb(5 7 13 / 55%);
+}
+
+.flow-canvas .react-flow__controls-button {
+  width: 30px;
+  height: 30px;
+  border-bottom: 1px solid #232d49;
+  background: #161d2f;
+  fill: #e8ecf8;
+}
+
+.flow-canvas .react-flow__controls-button:hover {
+  background: #1f2942;
+}
+
+.flow-canvas .react-flow__pane {
+  cursor: grab;
+}
+
+.flow-canvas .react-flow__pane.dragging {
+  cursor: grabbing;
+}

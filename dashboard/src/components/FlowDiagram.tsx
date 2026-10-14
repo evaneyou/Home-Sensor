@@ -1,8 +1,10 @@
 import {
   Background,
   BaseEdge,
+  Controls,
   EdgeLabelRenderer,
   Handle,
+  NodeToolbar,
   Position,
   ReactFlow,
   getBezierPath,
@@ -12,12 +14,15 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useMemo } from "react";
-import { EDGE_IDS, NODE, edgeId, pathsFor, type FlowLink, type FlowTest } from "../flowPaths";
-import type { MonitorDetail } from "../types";
+import { useMemo, useState } from "react";
+import { EDGE_IDS, NODE, edgeId, hostOf, pathsFor, type FlowLink, type FlowTest } from "../flowPaths";
+import type { MonitorAdmin, MonitorDetail } from "../types";
 
 type Tone = "wired" | "wifi" | "neutral";
-type FlowNodeData = { title: string; lines: string[]; tone: Tone; active: boolean; dim: boolean };
+type Fact = [label: string, value: string];
+type Through = { flow: FlowTest; role: "data" | "control" };
+type NodeInfo = { facts: Fact[]; through: Through[]; side: Position.Top | Position.Bottom };
+type FlowNodeData = { title: string; lines: string[]; tone: Tone; active: boolean; dim: boolean; info: NodeInfo };
 type FlowNodeType = Node<FlowNodeData, "box">;
 
 type Pulse = { hop: number; hops: number; role: "data" | "control"; color: string; offset: number };
@@ -33,18 +38,74 @@ const RETURN_COLOR = "#e8ecf8";
 const STEP = 0.55;
 const REST = 0.9;
 
+const STATUS_LABEL: Record<FlowTest["status"], string> = {
+  ok: "Passing",
+  degraded: "Degraded",
+  fail: "Failing",
+  idle: "No recent result",
+};
+
 function PathBox({ data }: NodeProps<FlowNodeType>) {
+  const [open, setOpen] = useState(false);
   const classes = ["flow-node", `tone-${data.tone}`, data.active ? "is-active" : "", data.dim ? "is-dim" : ""]
     .filter(Boolean)
     .join(" ");
+  const { facts, through, side } = data.info;
   return (
-    <div className={classes}>
+    <div
+      className={classes}
+      tabIndex={0}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+    >
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
       <strong>{data.title}</strong>
       {data.lines.map((line) => (
         <span key={line}>{line}</span>
       ))}
+      <NodeToolbar isVisible={open} position={side} offset={12}>
+        <div className="flow-tip" role="tooltip">
+          <h4>{data.title}</h4>
+          {facts.length > 0 ? (
+            <dl>
+              {facts.map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+          {through.length > 0 ? (
+            <>
+              <h5>Flows through here</h5>
+              <ul>
+                {through.map(({ flow, role }) => (
+                  <li key={`${flow.key}:${role}`}>
+                    <span className={`flow-dot status-${flow.status}`} title={STATUS_LABEL[flow.status]} />
+                    <strong>
+                      {flow.kindLabel} · {flow.link === "wired" ? "Wired" : "Wi-Fi"}
+                      {role === "control" ? " (control)" : ""}
+                    </strong>
+                    <span>
+                      {[flow.route === "web" ? hostOf(flow.target) : "", flow.detail].filter(Boolean).join(" · ") ||
+                        STATUS_LABEL[flow.status]}
+                    </span>
+                    {flow.status === "degraded" || flow.status === "fail" ? (
+                      <em>{flow.reason ?? STATUS_LABEL[flow.status]}</em>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p>Nothing in the selected service passes through here.</p>
+          )}
+        </div>
+      </NodeToolbar>
     </div>
   );
 }
@@ -226,14 +287,102 @@ function specs(monitor: MonitorDetail | undefined): Spec[] {
   ];
 }
 
-export default function FlowDiagram({ flows, monitor }: { flows: FlowTest[]; monitor?: MonitorDetail }) {
+const TUNNEL_STATE: Record<string, string> = {
+  connected: "Connected",
+  disconnected: "Disconnected",
+  never_connected: "Not connected yet",
+};
+
+function when(iso: string | null | undefined): string {
+  return iso ? new Date(iso).toLocaleString() : "";
+}
+
+/** What is known about one hop, whatever flows pass through it. */
+function factsFor(id: string, monitor: MonitorDetail | undefined, agent: MonitorAdmin | null | undefined, flows: FlowTest[]): Fact[] {
+  const facts: Fact[] = [];
+  const add = (label: string, value: string | null | undefined) => {
+    if (value) facts.push([label, value]);
+  };
+  const lan = agent?.lan_ip ?? monitor?.lan_ip;
+  switch (id) {
+    case NODE.piWired:
+      add("Status", monitor?.status);
+      add("Last seen", when(monitor?.last_seen_at));
+      add("Adapter", monitor?.wired_iface);
+      add("LAN address", lan);
+      add("Tunnel address", monitor?.tunnel_address);
+      add("Tunnel", agent?.tunnel_state ? (TUNNEL_STATE[agent.tunnel_state] ?? agent.tunnel_state) : "");
+      add("Last handshake", when(agent?.last_handshake_at));
+      add("Agent version", agent?.agent_version);
+      break;
+    case NODE.piWifi:
+      add("Wi-Fi client", monitor?.wifi_link_iface);
+      add("Monitor radio", monitor?.wifi_radio_iface);
+      add("Tunnel address", monitor?.wireless_tunnel_address);
+      add(
+        "Tunnel",
+        agent?.wireless_tunnel_state ? (TUNNEL_STATE[agent.wireless_tunnel_state] ?? agent.wireless_tunnel_state) : "",
+      );
+      break;
+    case NODE.router:
+      add("ISP", monitor?.isp);
+      add("Pi LAN address", lan);
+      add("Carries", "Ethernet and Wi-Fi");
+      break;
+    case NODE.internet:
+      add("ISP", monitor?.isp);
+      add("Public address", monitor?.public_ip);
+      break;
+    case NODE.web: {
+      const hosts = [...new Set(flows.filter((flow) => flow.route === "web").map((flow) => hostOf(flow.target)))];
+      add("Destination", hosts.join(", "));
+      add("Through a tunnel", "No");
+      break;
+    }
+    case NODE.serverDirect:
+      add("Reached by", "Application flows and MTR");
+      add("Through a tunnel", "No: the server's public address");
+      break;
+    case NODE.tunnelWired:
+      add("Address", "10.7.0.1 · UDP 51820");
+      add("Tunnel", agent?.tunnel_state ? (TUNNEL_STATE[agent.tunnel_state] ?? agent.tunnel_state) : "");
+      add("Last handshake", when(agent?.last_handshake_at));
+      break;
+    case NODE.tunnelWifi:
+      add("Address", "10.7.1.1 · UDP 51821");
+      add(
+        "Tunnel",
+        agent?.wireless_tunnel_state ? (TUNNEL_STATE[agent.wireless_tunnel_state] ?? agent.wireless_tunnel_state) : "",
+      );
+      break;
+    case NODE.services:
+      add("Serves", "API and File Transfer");
+      add("Reached", "Only inside a tunnel");
+      break;
+  }
+  return facts;
+}
+
+export default function FlowDiagram({
+  flows,
+  monitor,
+  agent,
+}: {
+  flows: FlowTest[];
+  monitor?: MonitorDetail;
+  agent?: MonitorAdmin | null;
+}) {
   const { nodes, edges } = useMemo(() => {
     const active = flows.length > 0;
     const lit = new Set<string>();
     const pulses = new Map<string, Pulse[]>();
+    const through = new Map<string, Through[]>();
     flows.forEach((flow, index) => {
       for (const path of pathsFor(flow)) {
-        path.nodes.forEach((node) => lit.add(node));
+        path.nodes.forEach((node) => {
+          lit.add(node);
+          through.set(node, [...(through.get(node) ?? []), { flow, role: path.role }]);
+        });
         const hops = path.nodes.length - 1;
         // Spread the flows evenly through the cycle so those that share a hop do not overlap.
         const offset = (index / flows.length) * (hops * 2 * STEP + REST);
@@ -247,7 +396,14 @@ export default function FlowDiagram({ flows, monitor }: { flows: FlowTest[]; mon
       id: spec.id,
       type: "box",
       position: { x: spec.x, y: spec.y },
-      data: { title: spec.title, lines: spec.lines, tone: spec.tone, active: lit.has(spec.id), dim: active && !lit.has(spec.id) },
+      data: { title: spec.title, lines: spec.lines, tone: spec.tone, active: lit.has(spec.id), dim: active && !lit.has(spec.id),
+        // The top row opens its card downwards so it is not cut off by the edge of the canvas.
+        info: {
+          facts: factsFor(spec.id, monitor, agent, flows),
+          through: through.get(spec.id) ?? [],
+          side: spec.y < 150 ? Position.Bottom : Position.Top,
+        },
+      },
       draggable: false,
       connectable: false,
       selectable: false,
@@ -265,7 +421,7 @@ export default function FlowDiagram({ flows, monitor }: { flows: FlowTest[]; mon
       };
     });
     return { nodes: built, edges: wires };
-  }, [flows, monitor]);
+  }, [flows, monitor, agent]);
 
   return (
     <div className="flow-canvas" aria-label="Animated paths of the selected service">
@@ -279,14 +435,19 @@ export default function FlowDiagram({ flows, monitor }: { flows: FlowTest[]; mon
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
+        minZoom={0.35}
+        maxZoom={2.5}
+        // A plain wheel scrolls the page; zooming takes Ctrl or Cmd so the diagram never traps it.
         zoomOnScroll={false}
-        zoomOnPinch={false}
-        zoomOnDoubleClick={false}
-        panOnDrag={false}
+        zoomActivationKeyCode={["Control", "Meta"]}
+        zoomOnPinch
+        zoomOnDoubleClick
+        panOnDrag
         preventScrolling={false}
         colorMode="dark"
       >
         <Background gap={24} size={1} color="#1a2238" />
+        <Controls showInteractive={false} position="bottom-right" />
       </ReactFlow>
     </div>
   );

@@ -7,10 +7,12 @@ import {
   ROUTE_LABEL,
   buildFlowTests,
   groupFlows,
+  type FlowHealth,
+  type FlowLatest,
   type FlowProfile,
   type FlowTest,
 } from "../flowPaths";
-import type { MonitorDetail } from "../types";
+import type { MonitorAdmin, MonitorDetail } from "../types";
 import FlowDiagram from "./FlowDiagram";
 
 const STATUS_LABEL: Record<FlowTest["status"], string> = {
@@ -25,7 +27,15 @@ const STATUS_LABEL: Record<FlowTest["status"], string> = {
  * every flow of one service animated together. The list is built from what the
  * server has switched on and what the Pi is running, so it changes when they do.
  */
-export default function FlowSection({ monitorId, monitor }: { monitorId: string; monitor?: MonitorDetail }) {
+export default function FlowSection({
+  monitorId,
+  monitor,
+  agent,
+}: {
+  monitorId: string;
+  monitor?: MonitorDetail;
+  agent?: MonitorAdmin | null;
+}) {
   const profilesQ = useQuery({
     queryKey: ["synthetic-profiles", monitorId],
     queryFn: () => api.syntheticProfiles(monitorId) as Promise<{ profiles: FlowProfile[] }>,
@@ -33,12 +43,16 @@ export default function FlowSection({ monitorId, monitor }: { monitorId: string;
     refetchInterval: 30000,
     retry: false,
   });
+  // The newest figures for each application flow, which the checks table does not hold.
+  const healthWired = useHealth(monitorId, "wired");
+  const healthWifi = useHealth(monitorId, "wireless");
   const [chosen, setChosen] = useState<string | null>(null);
   const [only, setOnly] = useState<string | null>(null);
 
+  const health = useMemo<FlowHealth>(() => ({ wired: healthWired, wifi: healthWifi }), [healthWired, healthWifi]);
   const groups = useMemo(
-    () => groupFlows(buildFlowTests(monitor?.tests, profilesQ.data?.profiles)),
-    [monitor?.tests, profilesQ.data],
+    () => groupFlows(buildFlowTests(monitor?.tests, profilesQ.data?.profiles, health)),
+    [monitor?.tests, profilesQ.data, health],
   );
   const selected = groups.find((item) => item.key === chosen) ?? groups[0] ?? null;
   // Hovering a chip isolates one flow of the group; leaving it brings the rest back.
@@ -52,7 +66,8 @@ export default function FlowSection({ monitorId, monitor }: { monitorId: string;
       <p className="page-sub">
         Pick a service to watch all of its flows at once: each leaves the Pi, reaches its destination and comes
         back. Teal is the wired link, amber is Wi-Fi, and a dashed line is an application flow's control channel,
-        which always rides the tunnel. Hover a flow under the diagram to follow just that one.
+        which always rides the tunnel. Hover a box for its live details, or a flow under the diagram to follow just
+        that one. Zoom with the buttons, Ctrl or ⌘ and scroll, pinch or a double-click, and drag to pan.
       </p>
       <div className="flow-layout">
         <nav className="flow-list" aria-label="Services running on this agent">
@@ -89,7 +104,7 @@ export default function FlowSection({ monitorId, monitor }: { monitorId: string;
           )}
         </nav>
         <div className="flow-stage">
-          <FlowDiagram flows={shown} monitor={monitor} />
+          <FlowDiagram flows={shown} monitor={monitor} agent={agent} />
           <div className="flow-legend" aria-hidden="true">
             <span><i className="flow-key-out" /> out to the destination</span>
             <span><i className="flow-key-back" /> back to the Pi</span>
@@ -121,5 +136,20 @@ export default function FlowSection({ monitorId, monitor }: { monitorId: string;
         </div>
       </div>
     </section>
+  );
+}
+
+function useHealth(monitorId: string, link: "wired" | "wireless"): FlowLatest[] | undefined {
+  const query = useQuery({
+    queryKey: ["synthetic-health", monitorId, link, "1h"],
+    queryFn: () =>
+      api.syntheticHealth(monitorId, link, "1h") as Promise<{ types: { slug: string; latest: FlowLatest["latest"] }[] }>,
+    enabled: Boolean(monitorId),
+    refetchInterval: 15000,
+    retry: false,
+  });
+  return useMemo(
+    () => query.data?.types.map((item) => ({ slug: item.slug, latest: item.latest })),
+    [query.data],
   );
 }
