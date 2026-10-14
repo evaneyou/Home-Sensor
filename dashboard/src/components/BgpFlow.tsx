@@ -1,4 +1,5 @@
 import {
+  Controls,
   Handle,
   MarkerType,
   Position,
@@ -171,7 +172,9 @@ function Lanes({ trace, vertical, width }: { trace: PathTrace; vertical: boolean
       minZoom={0.4}
       maxZoom={1.6}
       colorMode="dark"
-    />
+    >
+      <Controls showInteractive={false} position="bottom-right" />
+    </ReactFlow>
   );
 }
 

@@ -1,5 +1,6 @@
 import {
   BaseEdge,
+  Controls,
   EdgeLabelRenderer,
   Handle,
   MarkerType,
@@ -24,9 +25,9 @@ const NODE_WIDTH = 244;
 /** Under this width the diagram runs top to bottom. */
 const WIDE = 760;
 const MAX_COLUMN = 460;
-const BAR_MAX = 34;
-const GAP_X = 100;
-const GAP_Y = 64;
+const BAR_MAX = 26;
+const GAP_X = 60;
+const GAP_Y = 30;
 const PAD = 10;
 /** A step this big between two networks is worth flagging. */
 const BIG_STEP_MS = 15;
@@ -277,7 +278,9 @@ function Layout({
       zoomOnDoubleClick={!vertical}
       preventScrolling={false}
       colorMode="dark"
-    />
+    >
+      <Controls showInteractive={false} position="bottom-right" />
+    </ReactFlow>
   );
 }
 

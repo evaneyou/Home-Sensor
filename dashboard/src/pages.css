@@ -1412,3 +1412,38 @@
   border-top: 2px dashed var(--c);
   border-radius: 0;
 }
+
+/* The boxes take the pointer even though they cannot be dragged, or they could not be clicked. */
+.npf .react-flow__node {
+  pointer-events: all !important;
+}
+
+/* Tighter boxes: less padding and shorter bars, so the path takes less room. */
+.npf-node {
+  padding: 8px 10px;
+  gap: 6px;
+}
+
+.npf-node .npv-ghead {
+  gap: 3px;
+  padding: 0;
+}
+
+.npf-node .npv-chips {
+  gap: 6px;
+}
+
+.npf-node .npv-chip {
+  width: 52px;
+  padding: 5px 2px;
+  border-radius: 12px;
+  gap: 1px;
+}
+
+.npf-node .npv-chip .v {
+  font-size: 14px;
+}
+
+.npf-bar-slot {
+  height: 26px;
+}
