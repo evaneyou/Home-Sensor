@@ -23,6 +23,14 @@
 		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), accelerometer=(), gyroscope=(), magnetometer=(), midi=(), display-capture=(), interest-cohort=()"
 	}
 
+	# The project landing page (site/): a short description of the app, documents, an author bio, and a
+	# one-click guest demo. It is plain static files, so it needs no build step.
+	redir /welcome /welcome/ 308
+	handle_path /welcome/* {
+		root * /srv/site
+		file_server
+	}
+
 	# API requests go to FastAPI. Everything else is the dashboard.
 	@api path /api/*
 	handle @api {
