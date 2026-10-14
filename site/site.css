@@ -1110,3 +1110,9 @@ code {
   font-size: 13px;
   font-weight: 700;
 }
+
+/* About: a single column now that the traits list is gone. */
+.about {
+  grid-template-columns: 1fr;
+  max-width: 860px;
+}
