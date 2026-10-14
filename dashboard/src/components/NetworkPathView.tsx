@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../api";
+import type { User } from "../types";
 import BgpFlow from "./BgpFlow";
 import PathFlow from "./PathFlow";
 import SelectMenu from "./SelectMenu";
@@ -139,6 +140,7 @@ export default function NetworkPathView({
   const [hostText, setHostText] = useState("");
   const [custom, setCustom] = useState<{ id: string; target: string } | null>(null);
   const [traceError, setTraceError] = useState("");
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api.me() as Promise<User> });
   const pathQ = useQuery({
     queryKey: ["monitor-path", monitorId, link, destination],
     queryFn: () => api.monitorPath(monitorId, link, destination) as Promise<PathTrace>,
@@ -192,14 +194,23 @@ export default function NetworkPathView({
     setRunning(true);
     try {
       if (typed) {
-        const queued = (await api.requestTrace(monitorId, link, typed)) as { id: string; target: string };
+        const csrf = me.data?.csrf_token;
+        if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+        const queued = (await api.requestTrace(monitorId, link, typed, csrf)) as { id: string; target: string };
         setCustom({ id: queued.id, target: queued.target });
       } else {
         setCustom(null);
         await pathQ.refetch();
       }
     } catch (error) {
-      setTraceError(error instanceof Error ? error.message : "Could not start the trace.");
+      let message = error instanceof Error ? error.message : "Could not start the trace.";
+      try {
+        const detail = (JSON.parse(message) as { detail?: unknown }).detail;
+        if (typeof detail === "string") message = detail;
+      } catch {
+        // not JSON: show it as it is
+      }
+      setTraceError(message);
     } finally {
       setRunning(false);
     }
