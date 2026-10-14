@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../api";
+import { useGuestGate } from "../guestGate";
 import type { User } from "../types";
 import BgpFlow from "./BgpFlow";
 import PathFlow from "./PathFlow";
@@ -140,6 +141,7 @@ export default function NetworkPathView({
   const [hostText, setHostText] = useState("");
   const [custom, setCustom] = useState<{ id: string; target: string } | null>(null);
   const [traceError, setTraceError] = useState("");
+  const run = useGuestGate();
   const me = useQuery({ queryKey: ["me"], queryFn: () => api.me() as Promise<User> });
   const pathQ = useQuery({
     queryKey: ["monitor-path", monitorId, link, destination],
@@ -191,6 +193,11 @@ export default function NetworkPathView({
     if (running || waiting) return;
     setTraceError("");
     const typed = hostText.trim();
+    // A guest can look but not start work on the Pi; the gate explains that instead of failing.
+    if (typed && me.data?.role === "guest") {
+      run(() => undefined);
+      return;
+    }
     setRunning(true);
     try {
       if (typed) {

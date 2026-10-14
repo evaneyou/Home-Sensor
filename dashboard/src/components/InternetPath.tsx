@@ -708,9 +708,11 @@ function InternetDetail({
   if (linkHealth && rtnpSlug && monitorId) {
     return (
       <>
-        <div className="panel">
-          <RangeTabs range={range} onChange={setRange} />
-        </div>
+        {onRangeChange ? null : (
+          <div className="panel">
+            <RangeTabs range={range} onChange={setRange} />
+          </div>
+        )}
         <RealtimeHealth
           monitorId={monitorId}
           link={healthLink}
@@ -723,33 +725,37 @@ function InternetDetail({
 
   if (linkHealth && !check) {
     return (
-      <section className="panel network-health">
-        <h2 style={{ marginTop: 0, fontSize: "1rem" }}>{linkLabel} Network Health</h2>
-        {onRangeChange ? null : <RangeTabs range={range} onChange={setRange} />}
-        {loading ? (
-          <div className="muted">Loading internet checks…</div>
-        ) : failed ? (
-          <div className="muted">Could not load internet checks.</div>
-        ) : (
-          <div className="health-stack">
-            <HealthBar
-              title="Internet Connection"
-              detail={`${fmt(speed(latestLibre).down)} Mbps down · ${fmt(speed(latestLibre).up)} Mbps up · ping ${fmt(latestLibre?.rtt_ms)} ms · jitter ${fmt(latestLibre?.jitter_ms)} ms`}
-              strip={transferStrip}
-              empty={transferChart.length === 0}
-              onOpen={openConnection}
-            />
-            {monitorId ? (
-              <RealtimeHealth
-                monitorId={monitorId}
-                link={healthLink}
-                range={range}
-                onOpen={(slug) => openCheck(`rtnp:${slug}`)}
+      <>
+        <section className="panel network-health">
+          <h2>{linkLabel} Network Health</h2>
+          {onRangeChange ? null : <RangeTabs range={range} onChange={setRange} />}
+          {loading ? (
+            <div className="muted">Loading internet checks…</div>
+          ) : failed ? (
+            <div className="muted">Could not load internet checks.</div>
+          ) : (
+            <div className="health-stack">
+              <HealthBar
+                title="Internet Connection"
+                detail={`${fmt(speed(latestLibre).down)} Mbps down · ${fmt(speed(latestLibre).up)} Mbps up · ping ${fmt(latestLibre?.rtt_ms)} ms · jitter ${fmt(latestLibre?.jitter_ms)} ms`}
+                strip={transferStrip}
+                empty={transferChart.length === 0}
+                onOpen={openConnection}
               />
-            ) : null}
-          </div>
-        )}
-      </section>
+            </div>
+          )}
+        </section>
+        {monitorId && !loading && !failed ? (
+          <section className="panel network-health">
+            <RealtimeHealth
+              monitorId={monitorId}
+              link={healthLink}
+              range={range}
+              onOpen={(slug) => openCheck(`rtnp:${slug}`)}
+            />
+          </section>
+        ) : null}
+      </>
     );
   }
 
@@ -759,7 +765,7 @@ function InternetDetail({
         <h2 style={{ marginTop: 0, fontSize: "1.4rem" }}>
           {linkLabel} · Internet Connection
         </h2>
-        <RangeTabs range={range} onChange={setRange} />
+        {onRangeChange ? null : <RangeTabs range={range} onChange={setRange} />}
         {loading ? (
           <div className="muted">Loading internet checks…</div>
         ) : failed ? (
@@ -792,7 +798,7 @@ function InternetDetail({
         {linkLabel ? `${linkLabel} · ` : ""}
         {detail === "isp" ? isp || "ISP" : app?.label}
       </h2>
-      <RangeTabs range={range} onChange={setRange} />
+      {onRangeChange ? null : <RangeTabs range={range} onChange={setRange} />}
       {loading ? (
         <div className="muted">Loading internet checks…</div>
       ) : failed ? (
@@ -982,11 +988,14 @@ function HealthBar({
   onOpen?: () => void;
 }) {
   return (
-    <div className="health-row">
+    <div className={onOpen ? "health-row is-link" : "health-row"} onClick={onOpen}>
       <div className="health-row-head">
         {onOpen ? (
-          <button className="health-row-title" type="button" onClick={onOpen}>
+          <button className="health-row-title" type="button">
             {title}
+            <svg className="row-chevron" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
         ) : (
           <strong>{title}</strong>
@@ -1041,7 +1050,7 @@ function HttpAreaChart({
   );
 }
 
-function TimeAxis({ domain }: { domain: [number, number] }) {
+export function TimeAxis({ domain }: { domain: [number, number] }) {
   const span = domain[1] - domain[0];
   return (
     <XAxis

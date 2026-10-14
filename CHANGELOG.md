@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The repository version lives in [`VERSION`](./VERSION). The Pi agent in `monitor/`
 reports its own `AGENT_VERSION` so it can be updated independently of the server.
 
+## [0.2.0] - 2026-10-14
+
+### Added
+
+- **Network Path Diagram:** an animated React Flow diagram of the path each test takes (direct, or signalling through the tunnel), with hover details, zoom, one merged "Web services" group, and steady-speed pulses that stay visible on dashed lines. The Internet Connection overview diagram is live and drawn the same way.
+- **Path View:** the Network path and BGP comparison are React Flow diagrams that fit a phone. The latency chart and hop detail are folded into the path: each network box is selectable, hops show a latency bar, and details sit below.
+- **Trace any host:** type a host name or public IP into Path View and the agent traces to it on demand over the chosen link. Admin only, private addresses refused (migration 0034).
+- **Zoom:** the real-time application health charts zoom by drag, wheel and double-click.
+- Agent reports its Ethernet, Wi-Fi and radio interface names and a real LAN address.
+- `scripts/deploy.sh`, which recreates `rtnp` whenever `wireguard` is recreated.
+
+### Changed
+
+- Path View and the Remote agent pages use a compact layout: one summary line, controls on one row, and the time range on the Web, Wired and Wi-Fi row.
+- "File Transfer" is now "Bandwidth Test". The product is named HomeNetWatch.
+- A shared monitor tab bar on every monitor page. Home shows Web first and no longer has the Internet chip.
+- Several flows can run at once on a link; Wi-Fi measurements are bound to the Wi-Fi interface.
+
+### Removed
+
+- draw.io, the web-service MTR checks, and the Video call check (migration 0032).
+
 ## [0.1.0] - 2026-10-13
 
 First release.

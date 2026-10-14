@@ -133,8 +133,7 @@ export default function MonitorPage() {
         />
           {activeNetwork?.slug === "wan" && !searchParams.get("detail") && !link && wiredId && wirelessId ? (
             <StripRangeTabs range={stripRange} onChange={setStripRange} />
-          ) : !searchParams.get("check") &&
-            (onConnection || ((onWired || onWireless) && searchParams.get("detail") === "isp")) ? (
+          ) : onConnection || ((onWired || onWireless) && (searchParams.get("check") || searchParams.get("detail"))) ? (
             <RangeTabs range={chartRange} onChange={setChartRange} />
           ) : null}
         </div>
