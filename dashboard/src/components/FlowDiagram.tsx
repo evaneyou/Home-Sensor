@@ -116,7 +116,7 @@ function PathBox({ data }: NodeProps<FlowNodeType>) {
                     <span className={`flow-dot status-${flow.status}`} title={STATUS_LABEL[flow.status]} />
                     <strong>
                       {flow.kindLabel} · {flow.link === "wired" ? "Wired" : "Wi-Fi"}
-                      {control ? " (control)" : ""}
+                      {control ? " (signalling)" : ""}
                     </strong>
                     <span>
                       {[flow.route === "web" ? hostOf(flow.target) : "", flow.detail].filter(Boolean).join(" · ") ||

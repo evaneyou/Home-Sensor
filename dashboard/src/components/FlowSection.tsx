@@ -75,8 +75,8 @@ export default function FlowSection({
       </h2>
       <p className="page-sub">
         Pick a service to watch all of its flows at once: each leaves the Pi, reaches its destination and comes
-        back. Teal is the wired link, amber is Wi-Fi, and a dashed line is an application flow's control channel,
-        which always rides the tunnel. Hover a box for its live details, or a flow under the diagram to follow just
+        back. Teal is the wired link, amber is Wi-Fi. An application flow sends its payload straight across the
+        internet, and its signalling, drawn dashed, through the tunnel. Hover a box for its live details, or a flow under the diagram to follow just
         that one. Zoom with the buttons, Ctrl or ⌘ and scroll, pinch or a double-click, and drag to pan.
       </p>
       <div className="flow-layout">
@@ -118,7 +118,7 @@ export default function FlowSection({
           <div className="flow-legend" aria-hidden="true">
             <span><i className="flow-key-out" /> out to the destination</span>
             <span><i className="flow-key-back" /> back to the Pi</span>
-            <span><i className="flow-key-dash" /> control channel</span>
+            <span><i className="flow-key-dash" /> signalling, in the tunnel</span>
           </div>
           {selected ? (
             <ul className="flow-chips" aria-label={`Flows of ${selected.name}`}>
