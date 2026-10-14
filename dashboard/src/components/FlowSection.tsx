@@ -124,7 +124,7 @@ export default function FlowSection({
           </div>
           {selected && selected.sites.length > 0 ? (
             <p className="flow-note">
-              <strong>Every web service takes the same path.</strong> Out the link shown, through your router and your
+              <strong>Every web service takes the same path.</strong> Out the wired or Wi-Fi link, through your router and your
               ISP, and straight to the website itself, never through a tunnel. So one picture covers them all, and
               there is nothing to pick between them. Examples: {listSites(selected.sites)}. The figures on each flow
               below are the range across all of them, and its dot shows the worst.
