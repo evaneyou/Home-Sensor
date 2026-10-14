@@ -1520,3 +1520,7 @@ h3 {
 .exp-section .experience {
   margin-top: 0;
 }
+
+.experience p + p {
+  margin-top: 8px;
+}
