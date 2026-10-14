@@ -135,12 +135,12 @@ Caddy sets these on every response (`deploy/Caddyfile`):
 | Header | Setting |
 | --- | --- |
 | `Strict-Transport-Security` | `max-age=$HSTS_MAX_AGE; includeSubDomains`. Starts at 300 seconds. |
-| `Content-Security-Policy-Report-Only` | Logs violations in the browser console; blocks nothing yet. |
+| `Content-Security-Policy` | Enforced. Scripts and API calls from this site only; Google Fonts, Esri map tiles and the Photon address search are allowed. |
 | `Permissions-Policy` | Camera, microphone, geolocation, payment, USB and similar are off. |
 
 **Raising HSTS.** Browsers remember HSTS for the whole max-age, so check first that `https://$DOMAIN` and every subdomain you use serve valid HTTPS, then set `HSTS_MAX_AGE=31536000` in `.env` and run `docker compose up -d caddy`. `includeSubDomains` makes browsers refuse plain HTTP on every subdomain too.
 
-**Enforcing the CSP.** Browse every page with the browser console open. A line starting "[Report Only] Refused to ..." names what the policy would block; add that source to the policy. When the console stays quiet, rename the header to `Content-Security-Policy` in `deploy/Caddyfile` and run `docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile`.
+**If a page breaks under the CSP.** Open the browser console: a line starting "Refused to ..." names the blocked source. Add it to the policy in `deploy/Caddyfile` and run `docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile`. To log violations without blocking while you investigate, rename the header to `Content-Security-Policy-Report-Only`.
 
 ## Updating
 
