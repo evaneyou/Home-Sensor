@@ -19,7 +19,10 @@ sed -i -E '0,/^version = ".*"$/s//version = "'"$version"'"/' server/pyproject.to
 
 if command -v uv >/dev/null 2>&1; then
   (cd server && uv lock --quiet)
+else
+  # CI runs `uv sync --locked`, so the lockfile must carry the same version. Without uv, edit it directly.
+  sed -i -E '/^name = "hns-server"$/{n;s/^version = ".*"$/version = "'"$version"'"/}' server/uv.lock
 fi
 
-echo "Version set to $version in VERSION, server/pyproject.toml, dashboard/package.json."
+echo "Version set to $version in VERSION, server/pyproject.toml, server/uv.lock, dashboard/package.json."
 echo "Next: update CHANGELOG.md, commit, then: git tag v$version"
