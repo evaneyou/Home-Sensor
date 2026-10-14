@@ -3,18 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Evan You: HomeNetWatch, built in 9 days with AI</title>
+    <title>Evan You: I built HomeNetWatch in 9 days with AI</title>
     <meta
       name="description"
-      content="HomeNetWatch is a distributed network-observability platform built, secured and deployed in 9 days by Evan You, working with AI as a team member. Open the live demo and read how it was done."
+      content="Hi, I'm Evan You. HomeNetWatch is a live network monitor I built in nine days, working with AI as a teammate. Come and explore it, and read how it came together."
     />
     <meta name="theme-color" content="#0b0f1a" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="HomeNetWatch" />
-    <meta property="og:title" content="A production network platform in 9 days, built with AI" />
+    <meta property="og:title" content="I built a live network monitor in 9 days, with AI as a teammate" />
     <meta
       property="og:description"
-      content="Raspberry Pi agents, secure tunnels, an API, a database and a live dashboard, built by Evan You. Open the demo on real data."
+      content="Raspberry Pi agents, a cloud server and a live dashboard, built by Evan You. Come and explore the demo."
     />
     <meta property="og:image" content="https://live.homenetwatch.com/welcome/homenetwatch.png" />
     <link rel="icon" type="image/png" href="icon.png" />
@@ -36,9 +36,9 @@
         </a>
         <nav aria-label="Sections">
           <a href="#speed">Speed</a>
-          <a href="#complexity">Complexity</a>
-          <a href="#method">Method</a>
-          <a href="#transform">Transformation</a>
+          <a href="#complexity">What's inside</a>
+          <a href="#method">How I work</a>
+          <a href="#transform">Teams</a>
           <a href="#docs">Docs</a>
           <a href="#about">About me</a>
         </nav>
@@ -51,52 +51,51 @@
       <section class="hero" id="top">
         <div class="wrap hero-grid">
           <div>
-            <p class="eyebrow">Evan You &middot; AI-native engineering</p>
-            <h1>A production network platform, built in 9 days.</h1>
+            <p class="eyebrow">Hi, I'm Evan You</p>
+            <h1>I built an app that shows where your internet breaks. It took 9 days.</h1>
             <p class="lead">
-              HomeNetWatch is a distributed system: Raspberry Pi agents, encrypted tunnels, an API, a database and a
-              real-time dashboard that explains where an internet connection breaks. I built, secured and deployed it
-              by working with AI as a member of the team, not as a chat window. It is running right now, and you can
-              open it.
+              HomeNetWatch watches my home internet from a little Raspberry Pi, sends what it finds to a server in the
+              cloud, and tells the story on a live dashboard. I built it with AI as a teammate, and it's running right
+              now. Come and take a look.
             </p>
             <div class="cta">
               <a class="btn btn-primary" href="/" data-demo>Open the live demo</a>
-              <a class="btn btn-ghost" href="#speed">See how fast it moved</a>
+              <a class="btn btn-ghost" href="#speed">See how it came together</a>
             </div>
             <p class="fine" data-demo-note>
-              One click signs you in as a read-only guest on my real home network. Nothing to register. Guest
-              sessions end after three idle minutes and never show my public IP address.
+              One click gets you in as a guest on my real home network. No sign-up. You can look around but not change
+              anything, guests can't see my public IP address, and your session ends after three quiet minutes.
             </p>
           </div>
 
-          <div class="pipe" aria-label="Architecture overview">
+          <div class="pipe" aria-label="How the pieces fit together">
             <div class="pipe-node">
               <span class="pipe-tag">At home</span>
               <b>Raspberry Pi agent</b>
-              <small>HTTP stages, ping, MTR, voice flows, Wi-Fi survey</small>
+              <small>Tests the connection over Ethernet and Wi-Fi</small>
             </div>
-            <div class="pipe-link"><i></i><em>outbound only, signed</em></div>
+            <div class="pipe-link"><i></i><em>only calls out, never in</em></div>
             <div class="pipe-node">
               <span class="pipe-tag">In the cloud</span>
-              <b>Server and tunnel hub</b>
-              <small>FastAPI, Postgres, WireGuard</small>
+              <b>Server</b>
+              <small>Collects the results (FastAPI, Postgres, WireGuard)</small>
             </div>
-            <div class="pipe-link"><i></i><em>read API, cookie auth</em></div>
+            <div class="pipe-link"><i></i><em>read-only API</em></div>
             <div class="pipe-node">
-              <span class="pipe-tag">In the browser</span>
+              <span class="pipe-tag">In your browser</span>
               <b>Live dashboard</b>
-              <small>React, TypeScript, React Flow</small>
+              <small>Shows it all as it happens (React, TypeScript)</small>
             </div>
           </div>
         </div>
 
         <div class="wrap">
           <dl class="stats">
-            <div><dt>9 days</dt><dd>first commit to a live, secured release</dd></div>
+            <div><dt>9 days</dt><dd>from the first commit to a live, secured app</dd></div>
             <div><dt>108</dt><dd>commits, 98 of them in the last two days</dd></div>
-            <div><dt>66</dt><dd>pull requests, each through CI</dd></div>
-            <div><dt>37k</dt><dd>lines across Python, TypeScript, CSS, C and shell</dd></div>
-            <div><dt>24</dt><dd>database tables, 34 migrations, 2 releases</dd></div>
+            <div><dt>66</dt><dd>pull requests, every one checked by CI</dd></div>
+            <div><dt>37k</dt><dd>lines of code in five languages</dd></div>
+            <div><dt>24</dt><dd>database tables, 34 migrations and 2 releases</dd></div>
           </dl>
         </div>
       </section>
@@ -105,16 +104,16 @@
       <section class="demo" aria-labelledby="demo-title">
         <div class="wrap demo-card">
           <div>
-            <h2 id="demo-title">Come and explore the live app</h2>
+            <h2 id="demo-title">Come and have a look around</h2>
             <p>
-              The demo is the production app, reading measurements my Raspberry Pi took a few minutes ago. Look for
-              the Network Path Diagram, Path View with its BGP comparison, the Wi-Fi view and the real-time voice
-              health charts. Have a look around; there is nothing to break.
+              This is the real app, showing measurements my Raspberry Pi took a few minutes ago. Try the Network Path
+              Diagram, Path View with its BGP comparison, the Wi-Fi view and the voice-quality charts. Click anything
+              you like. You can't break it.
             </p>
             <p class="demo-note">
-              <b>Good to know.</b> Private details, such as IP addresses, are hidden from guests. Features that start
-              tests, change settings or add devices are switched off in the guest session, so a curious visitor cannot
-              overload the server. Everything you read is live data.
+              <b>A couple of things to know.</b> I hide private details like IP addresses from guests. Anything that
+              starts tests, changes settings or adds devices is turned off for guests, so my small server doesn't get
+              overloaded. Everything you see is live data.
             </p>
           </div>
           <div class="demo-act">
@@ -127,32 +126,32 @@
       <!-- Speed -->
       <section id="speed" class="block">
         <div class="wrap">
-          <p class="eyebrow">The speed</p>
-          <h2>From a blank repository to a live product in nine calendar days</h2>
+          <p class="eyebrow">How fast it moved</p>
+          <h2>From an empty repository to a live app in nine days</h2>
           <p class="sub">
-            This is the real commit history, not a plan. Each stage below shipped, ran against hardware, and went
-            through review before the next began.
+            This is the real commit history. Every stage ran on real hardware and went through review before the next
+            one started.
           </p>
           <ol class="timeline">
             <li>
               <time datetime="2026-10-06">Oct 6</time>
               <div>
-                <h3>Spec, server and dashboard</h3>
-                <p>The specification and Compose layout first, then the FastAPI server with a seed, then the React dashboard.</p>
+                <h3>The plan, the server and the dashboard</h3>
+                <p>I started with a written spec and the Docker layout, then the server, then the first dashboard.</p>
               </div>
             </li>
             <li>
               <time datetime="2026-10-09">Oct 9</time>
               <div>
-                <h3>Hardware joins the system</h3>
-                <p>The Raspberry Pi agent, the WireGuard hub, Wi-Fi scans, path traces, and Kismet capture of the surrounding airwaves.</p>
+                <h3>The hardware joins in</h3>
+                <p>The Raspberry Pi agent, the WireGuard tunnel hub, Wi-Fi scans, path traces, and a second radio listening to the airwaves.</p>
               </div>
             </li>
             <li>
               <time datetime="2026-10-11">Oct 11</time>
               <div>
-                <h3>Trust and insight</h3>
-                <p>Secure enrollment with installer codes, public traceroute paths with AS numbers, and a compact layout across the app.</p>
+                <h3>Trust, and a clearer picture</h3>
+                <p>Secure sign-up for new agents, traceroutes with the networks they cross, and a tighter layout across the app.</p>
               </div>
             </li>
             <li>
@@ -160,18 +159,18 @@
               <div>
                 <h3>Release 0.1.0 and a day of 60 commits</h3>
                 <p>
-                  A Rust LibreSpeed backend, a read-only guest role, concurrent voice-quality flows, Wi-Fi link
-                  pinning, a redesigned Airwaves view, an animated Network Path Diagram, and the rename to HomeNetWatch.
+                  A faster speed test, a read-only guest account, voice-quality flows, Wi-Fi link pinning, a redesigned
+                  Airwaves view, an animated Network Path Diagram, and the new name.
                 </p>
               </div>
             </li>
             <li>
               <time datetime="2026-10-14">Oct 14</time>
               <div>
-                <h3>Release 0.2.0 and production hardening</h3>
+                <h3>Release 0.2.0 and a security pass</h3>
                 <p>
-                  Path View rebuilt as React Flow diagrams that fit a phone, on-demand traces to any host,
-                  zoomable charts, HSTS, an enforced CSP, a Permissions-Policy and this page.
+                  A new Path View that works on a phone, traces to any host on demand, zoomable charts, stronger
+                  security headers, and this page.
                 </p>
               </div>
             </li>
@@ -182,12 +181,13 @@
       <!-- Complexity -->
       <section id="complexity" class="block alt">
         <div class="wrap">
-          <p class="eyebrow">The complexity</p>
-          <h2>This is not a to-do app</h2>
+          <p class="eyebrow">What's inside</p>
+          <h2>It's a lot more than a to-do app</h2>
           <p class="sub">
-            Speed means little if the thing is simple. HomeNetWatch spans hardware, kernel networking, cryptography,
-            internet routing data, a time-series store and a real-time interface.
+            Moving fast is easy when a project is small. This one touches hardware, networking, security, internet
+            routing data and a live interface.
           </p>
+
           <figure class="figure">
             <a href="path-diagram.png" aria-label="Open the Network Path Diagram at full size">
               <img
@@ -199,104 +199,103 @@
               />
             </a>
             <figcaption>
-              <b>The app's own Network Path Diagram, live.</b> Each test is drawn with the route it takes: signalling
-              travels through the WireGuard tunnels, while measurement traffic goes directly over the internet. The
-              ISP address is hidden in this picture.
+              <b>The app's own Network Path Diagram, live.</b> Each test is drawn with the route it takes. Signalling
+              travels through the WireGuard tunnels, while the measurement traffic goes straight over the internet. I
+              hid the ISP address in this picture.
             </figcaption>
           </figure>
 
           <div class="cards">
             <article class="card">
-              <h3>A distributed system</h3>
+              <h3>Several systems working together</h3>
               <p>
-                Four runtimes talking to each other: a Python agent on a Pi, a FastAPI server, a Postgres database and
-                a React single-page app, plus a WireGuard hub, a traffic generator and a Kismet survey radio.
+                A Python agent on a Pi, a FastAPI server, a Postgres database and a React app, plus a WireGuard hub, a
+                traffic generator and a second radio that listens for Wi-Fi.
               </p>
             </article>
             <article class="card">
-              <h3>Security as a feature</h3>
+              <h3>Security built in</h3>
               <p>
-                Signed enrollment, a pinned TLS key, admin approval, per-device WireGuard tunnels, roles enforced on
-                the server, CSRF, HSTS and an enforced CSP. The guest role is read-only and hides my public IP.
+                New devices sign their requests and wait for my approval. Each gets its own encrypted tunnel, roles are
+                enforced on the server, and the guest account is read-only.
               </p>
             </article>
             <article class="card">
-              <h3>Kernel-level networking</h3>
+              <h3>Down in the network stack</h3>
               <p>
-                Wired and Wi-Fi measured separately on one machine. Sockets are steered per interface in a small C
-                shim, and flows share a container network namespace with the VPN.
+                Wired and Wi-Fi are measured separately on one little computer. A small C program steers each test out
+                the right network interface.
               </p>
             </article>
             <article class="card">
-              <h3>Internet-routing intelligence</h3>
+              <h3>Making routing data readable</h3>
               <p>
-                Traceroutes enriched with ASN, IXP and RPKI data, grouped by owning network, and compared with the
-                path BGP announces.
+                Traceroutes get ASN, IXP and RPKI details, are grouped by the network that owns each hop, and are
+                compared with the path BGP announces.
               </p>
             </article>
             <article class="card">
-              <h3>Data with a lifecycle</h3>
+              <h3>History that doesn't pile up</h3>
               <p>
-                24 tables and 34 migrations. Raw results for six months, rolled up to hourly and daily averages so
-                history stays cheap.
+                24 tables and 34 migrations. Raw results are kept for six months, then rolled up into hourly and daily
+                averages so storage stays small.
               </p>
             </article>
             <article class="card">
-              <h3>A real-time interface</h3>
+              <h3>An interface that feels alive</h3>
               <p>
-                Animated React Flow diagrams, drag-to-zoom charts, a layout that works on a phone, and on-demand traces
-                that round-trip through the Pi in seconds.
+                Animated diagrams, charts you can zoom with a drag, a layout that works on a phone, and traces that go
+                out to the Pi and back in seconds.
               </p>
             </article>
           </div>
 
           <h3 class="stories-title">Challenges and limitations</h3>
           <p class="stories-sub">
-            Real projects run on real budgets. These constraints shaped the design, and working inside them is part of
-            the skill.
+            Real projects run on real budgets. These limits shaped how I built it, and working inside them is part of
+            the job.
           </p>
           <div class="stories">
             <article class="story">
-              <h3>AI coding is not cheap</h3>
+              <h3>AI coding isn't cheap</h3>
               <p>
-                Heavy AI-assisted development adds up quickly. I spread the work across several coding agents and used
-                the Git repository as the coordination layer: one source of truth, a branch per task, pull requests as
-                the hand-off, and written rules that every agent follows.
+                Heavy AI-assisted development adds up fast. I spread the work across several coding agents and used the
+                Git repository to keep them in step: one source of truth, a branch for each task, pull requests as the
+                hand-off, and written rules every agent follows.
               </p>
             </article>
             <article class="story">
-              <h3>Home hardware is not enterprise grade</h3>
+              <h3>Home hardware isn't enterprise grade</h3>
               <p>
-                A home router and a Raspberry Pi have little CPU, memory and bandwidth to spare, and few options to
-                tune. I worked within that by controlling how resources are used: checks are scheduled and spaced out,
-                heavy tests never overlap, and only one on-demand trace runs at a time.
+                A home router and a Raspberry Pi don't have much CPU, memory or bandwidth to spare, and there's little to
+                tune. So I was careful about how resources get used: checks are spaced out, heavy tests never overlap,
+                and only one on-demand trace runs at a time.
               </p>
             </article>
             <article class="story">
-              <h3>Cloud resources are expensive</h3>
+              <h3>Cloud is expensive</h3>
               <p>
-                I know AWS and GCP well, but my goal was to keep the cost as low as possible, ideally free. So I moved
-                to Oracle Cloud and its free tier, and designed the server to be small: thin APIs, rolled-up history and
-                a demo that cannot start expensive work.
+                I know AWS and GCP well, but I wanted to keep my costs as low as I could, ideally free. So I moved to
+                Oracle Cloud and its free tier, and I kept the server small: light APIs, rolled-up history, and a demo
+                that can't kick off expensive work.
               </p>
             </article>
             <article class="story">
               <h3>Testing without a fleet of devices</h3>
               <p>
-                A separate non-production environment is a must for safe testing. That would mean a separate physical
-                Raspberry Pi for each environment, and I did not want to buy more hardware until I could prove that one
-                would work for this project. It has, so that is now an easier decision. Until then, virtual Pi
-                instances stand in for most of it. They work, with limits: they cannot reproduce real Wi-Fi radios or the
-                behaviour of a real home network.
+                A separate non-production environment is a must for safe testing. That means a separate Raspberry Pi for
+                each environment, and I didn't want to buy more hardware until I'd proven that one would work for this
+                project. It has, so the next Pi is an easier decision. Until then, virtual Pi instances cover most of
+                it. They work, but they can't reproduce real Wi-Fi radios or how a real home network behaves.
               </p>
             </article>
             <article class="story story-wide">
-              <h3>Phase 2.0: an agentic operations AI, not yet</h3>
+              <h3>Phase 2.0: an AI operations team, someday</h3>
               <p>
-                The next step I would love to build is a set of agentic AIs that automate log analysis, identify the
-                root cause of an outage, and then act: restore service, fix the issue, and even contact the ISP to
-                get service back. It is a plan, not a build. Running agents like that costs real money, which makes it
-                impractical for now. It stays on the roadmap as Phase 2.0, for when the economics catch up.
+                What I'd love to build next is a set of AI agents that read the logs, work out the root cause of an
+                outage, and then act: restore service, fix the problem, and even contact the ISP to get things back up.
+                It's a plan, not a build. Running agents like that costs real money, so it isn't practical yet. It's on
+                the roadmap as Phase 2.0, for when the economics catch up.
               </p>
             </article>
           </div>
@@ -306,49 +305,50 @@
       <!-- Method -->
       <section id="method" class="block">
         <div class="wrap">
-          <p class="eyebrow">The method</p>
-          <h2>Beyond chat: AI as a member of the team</h2>
+          <p class="eyebrow">How I work</p>
+          <h2>AI as a teammate, not a search box</h2>
           <p class="sub">
-            Pasting questions into a chat window does not produce this. What does is an operating model: a contract
-            the AI works to, guardrails that catch its mistakes, and a human who owns the decisions.
+            Typing questions into a chat window won't get you this far. What did was a simple way of working: a plan the
+            AI follows, safety checks that catch its mistakes, and me making the calls.
           </p>
           <ol class="steps">
             <li>
-              <b>1. A spec is the contract</b>
-              <span>One document owns the architecture, API and phases, with an explicit out-of-scope list so nothing sprawls.</span>
+              <b>1. Start with a plan</b>
+              <span>One document holds the architecture, the API and the phases, plus a list of what's out of scope so nothing creeps in.</span>
             </li>
             <li>
-              <b>2. A rulebook the AI follows</b>
-              <span>Written project rules cover architecture, branching, deployment, secrets and what never to touch. They live in the repository.</span>
+              <b>2. Give the AI house rules</b>
+              <span>Written project rules cover the design, branches, deploys, secrets and what never to touch. They live in the repository.</span>
             </li>
             <li>
-              <b>3. Small changes, always reviewed</b>
-              <span>Feature branches, pull requests, CI running tests, a build and a config check, and conventional commits.</span>
+              <b>3. Keep changes small and reviewed</b>
+              <span>A branch and a pull request for every change, with CI running the tests, the build and the config check.</span>
             </li>
             <li>
-              <b>4. Verified against reality</b>
-              <span>Changes are deployed over SSH and checked in a real browser, against real hardware and live data, not only in tests.</span>
+              <b>4. Check it for real</b>
+              <span>Changes get deployed and checked in a real browser, on real hardware, with live data, not only in tests.</span>
             </li>
             <li>
-              <b>5. Safe by design</b>
-              <span>Backups before risky changes, reversible commits, and a rule to say what will restart before it does.</span>
+              <b>5. Play it safe</b>
+              <span>Backups before anything risky, changes that are easy to undo, and a heads-up on what will restart before it does.</span>
             </li>
             <li>
-              <b>6. Knowledge captured</b>
+              <b>6. Write down what you learn</b>
               <span>Every fix ends up in the changelog, the runbook or a test, so the next person, or the next AI session, starts ahead.</span>
             </li>
           </ol>
+
           <div class="experience">
             <div class="exp-num" aria-hidden="true">30<small>years</small></div>
             <div>
               <h3>30 years of institutional knowledge</h3>
               <p>
-                AI writes much of the code. What it cannot supply is judgment, and that is what I bring: three decades
-                across IT, infrastructure, cloud, networking and systems development. I know what a sound architecture
-                looks like, where services tend to fail, and what it costs to skip security or operations. My IT degree
-                from the Rochester Institute of Technology (RIT) taught me system design, UI, UX and coding, and it
-                all still helps. I wrote code myself, but it has been a long time. AI closes that gap: it does the
-                typing under my direction, and my foundation is what lets me direct it and review what it produces.
+                AI writes much of the code. What it can't give me is judgment, and that's where 30 years comes in: IT,
+                infrastructure, cloud, networking and systems development. I know what a good design looks like, where
+                things tend to break, and what you pay for skipping security or operations. My IT degree from the
+                Rochester Institute of Technology (RIT) taught me system design, UI, UX and coding, and it all still
+                helps. I did write code myself, but that was a long time ago. AI fills that gap. It does the typing
+                while I steer, and my background is what lets me steer well and check its work.
               </p>
               <ul class="exp-tags" aria-label="Areas of experience">
                 <li>IT</li><li>Infrastructure</li><li>Cloud</li><li>Networking</li><li>Systems development</li><li>RIT IT degree</li>
@@ -360,20 +360,20 @@
             <div class="split-col">
               <h3>What the AI does</h3>
               <ul>
-                <li>Explores the codebase and drafts changes</li>
+                <li>Explores the code and drafts changes</li>
                 <li>Writes and runs tests, builds and deploys</li>
-                <li>Diagnoses faults on a live server and a Pi</li>
-                <li>Checks its work in a browser</li>
+                <li>Tracks down faults on a live server and a Pi</li>
+                <li>Checks its own work in a browser</li>
               </ul>
             </div>
             <div class="split-col">
               <h3>What I do</h3>
               <ul>
                 <li>Bring 30 years of IT, infrastructure, cloud and network experience, and an RIT IT degree, to every decision</li>
-                <li>Set the architecture, scope and priorities</li>
-                <li>Write the rules and the definition of done</li>
+                <li>Set the design, the scope and the priorities</li>
+                <li>Write the rules and decide what "done" means</li>
                 <li>Review, push back and decide what ships</li>
-                <li>Own security, risk and the final taste call</li>
+                <li>Own security, risk and the final call on how it looks and feels</li>
               </ul>
             </div>
           </div>
@@ -383,42 +383,43 @@
       <!-- Transformation -->
       <section id="transform" class="block alt">
         <div class="wrap">
-          <p class="eyebrow">From one builder to an organization</p>
-          <h2>The same approach, taught to teams</h2>
+          <p class="eyebrow">Beyond my own projects</p>
+          <h2>Helping teams work this way too</h2>
           <p class="sub">
-            I do not stop at building with AI myself. I analyse how a team works, build the model that makes AI safe and
-            effective for them, and lead the adoption. This project is the working proof of the model.
+            I don't stop at building with AI myself. I look at how a team really works, set up what makes AI safe and
+            useful for them, and help them adopt it. HomeNetWatch is my working proof.
           </p>
           <div class="playbook">
             <article>
               <span class="num">01</span>
               <h3>Assess</h3>
-              <p>Map the real workflow: where time goes, where risk sits, and which tasks AI changes the most.</p>
+              <p>Look at how the team really works: where the time goes, where the risks are, and where AI helps most.</p>
             </article>
             <article>
               <span class="num">02</span>
               <h3>Pilot</h3>
-              <p>Pick one contained, real project and ship it end to end, so the evidence is a product, not a slide.</p>
+              <p>Pick one real, small project and finish it, so what you show is a product, not a slide.</p>
             </article>
             <article>
               <span class="num">03</span>
               <h3>Codify</h3>
-              <p>Turn what worked into rules, templates, review checklists and guardrails the whole team can reuse.</p>
+              <p>Write down what worked as rules, templates and checklists the whole team can reuse.</p>
             </article>
             <article>
               <span class="num">04</span>
               <h3>Enable</h3>
-              <p>Coach people in their own work, role by role, until the practice belongs to the team and not to me.</p>
+              <p>Coach people on their own work, role by role, until the way of working belongs to the team and not to me.</p>
             </article>
             <article>
               <span class="num">05</span>
               <h3>Measure and govern</h3>
-              <p>Track cycle time, quality and security, and keep review and risk controls in front of the speed.</p>
+              <p>Track speed, quality and security, and keep reviews and risk checks one step ahead of the speed.</p>
             </article>
           </div>
           <p class="note">
-            HomeNetWatch covers steps two and three in public: a pilot you can open, and the rulebook, CI and runbook
-            that made it repeatable. I am glad to walk through how the rest plays out at team and organization scale.
+            HomeNetWatch shows steps two and three in public: a pilot you can open, and the rules, checks and runbook
+            that make it repeatable. I'm happy to talk through the rest, and how it plays out for a whole team or
+            organization.
           </p>
         </div>
       </section>
@@ -426,20 +427,20 @@
       <!-- Docs -->
       <section id="docs" class="block">
         <div class="wrap">
-          <p class="eyebrow">Documents</p>
-          <h2>Read how it is built</h2>
+          <p class="eyebrow">Read more</p>
+          <h2>Peek behind the curtain</h2>
           <div class="docs">
             <a class="doc" href="https://github.com/evaneyou/homenetwatch/blob/main/SPEC.md">
               <b>Architecture and spec</b>
-              <span>Topology, data model, API surface and the phase plan.</span>
+              <span>How it's laid out: the topology, the data model, the API and the phase plan.</span>
             </a>
             <a class="doc" href="https://github.com/evaneyou/homenetwatch/blob/main/CLAUDE.md">
-              <b>The AI rulebook</b>
-              <span>The architecture rules, ground rules and conventions the AI works under.</span>
+              <b>The AI's house rules</b>
+              <span>The design rules, ground rules and conventions the AI works under.</span>
             </a>
             <a class="doc" href="https://github.com/evaneyou/homenetwatch/blob/main/docs/deploy.md">
               <b>Deployment guide</b>
-              <span>From a blank server to HTTPS, backups, updates and troubleshooting.</span>
+              <span>From a blank server to HTTPS, plus backups, updates and troubleshooting.</span>
             </a>
             <a class="doc" href="https://github.com/evaneyou/homenetwatch/pulls?q=is%3Apr+is%3Amerged">
               <b>Pull request history</b>
@@ -451,15 +452,15 @@
             </a>
             <a class="doc" href="https://github.com/evaneyou/homenetwatch/blob/main/monitor/README.md">
               <b>Raspberry Pi agent</b>
-              <span>Setup page, enrollment, the checks it runs and how it installs.</span>
+              <span>The setup page, enrollment, the checks it runs and how it installs.</span>
             </a>
             <a class="doc" href="https://github.com/evaneyou/homenetwatch/blob/main/CHANGELOG.md">
               <b>Changelog</b>
-              <span>Every release, written for the person who has to upgrade.</span>
+              <span>Every release, written for whoever has to upgrade.</span>
             </a>
             <a class="doc" href="https://github.com/evaneyou/homenetwatch/blob/main/SECURITY.md">
               <b>Security policy</b>
-              <span>Supported versions and how to report a vulnerability.</span>
+              <span>Which versions are supported and how to report a vulnerability.</span>
             </a>
           </div>
           <div class="stack" aria-label="Technology">
@@ -476,18 +477,18 @@
         <div class="wrap about">
           <div>
             <p class="eyebrow">About me</p>
-            <h2>Evan You</h2>
+            <h2>Hi, I'm Evan</h2>
             <p class="lead small">
-              I build, analyse and transform. I have moved past using AI as a chat tool: I run it as part of how
-              software gets made, with the specs, rules, reviews and safety nets that make the speed trustworthy.
-              I hold an IT degree from RIT, where I learned system design, UI, UX and coding, and I have spent
-              thirty years across IT, infrastructure, cloud and networking. HomeNetWatch is what that looks like when
-              one person does it: a spec, a Raspberry Pi agent, an API and
-              database, a dashboard and a hardened deployment, shipped in nine days and operated live.
+              I like to build things, work out how they tick, and help other people do the same. I don't use AI as a
+              chat window anymore. I work with it as part of how software gets made, with plans, rules, reviews and
+              safety nets that keep the speed trustworthy. I have an IT degree from RIT, where I learned system design,
+              UI, UX and coding, and thirty years in IT, infrastructure, cloud and networking. HomeNetWatch is what
+              that looks like when one person does it: a plan, a Raspberry Pi agent, an API and database, a dashboard
+              and a secured deployment, shipped in nine days and running live.
             </p>
             <p class="lead small">
-              The harder, more valuable part is repeating it. I help teams adopt this way of working and change how an
-              organization delivers.
+              The part I enjoy most is helping other people get there too. I help teams pick up this way of working
+              and change how their organization delivers.
             </p>
             <div class="cta">
               <a class="btn btn-primary" href="/" data-demo>Open the live demo</a>
@@ -500,7 +501,7 @@
               <div><dt>30 years</dt><dd>across IT, infrastructure, cloud, networking and systems development</dd></div>
               <div><dt>RIT</dt><dd>IT degree: system design, UI, UX and coding</dd></div>
               <div><dt>9 days</dt><dd>from the first commit to a live, secured HomeNetWatch</dd></div>
-              <div><dt>Today</dt><dd>helping teams adopt AI-native ways of building and delivering</dd></div>
+              <div><dt>Today</dt><dd>helping teams build and deliver with AI</dd></div>
             </dl>
           </aside>
         </div>

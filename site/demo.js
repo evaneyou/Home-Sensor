@@ -16,7 +16,7 @@
     buttons.forEach(function (button) {
       button.setAttribute("aria-busy", "true");
     });
-    say("Signing you in as a guest…", false);
+    say("Signing you in as a guest...", false);
     fetch("/api/v1/auth/login", {
       method: "POST",
       credentials: "include",
@@ -31,7 +31,7 @@
         buttons.forEach(function (button) {
           button.removeAttribute("aria-busy");
         });
-        say("The demo sign-in did not work. Opening the app: sign in with the username guest and the password guest.", true);
+        say("Hmm, the demo sign-in did not work. I will take you to the app: sign in with the username guest and the password guest.", true);
         window.setTimeout(function () {
           window.location.assign("/");
         }, 2500);
