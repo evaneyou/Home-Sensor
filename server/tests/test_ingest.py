@@ -242,3 +242,58 @@ def test_admin_can_queue_a_probe_restart(client: TestClient, db):
     cleared = client.get("/api/v1/monitors/command", headers=headers)
     assert cleared.json()["restart"] is False
 
+
+def test_health_stores_link_interfaces(client: TestClient, db):
+    login(client)
+    name = f"Ifaces {uuid.uuid4().hex[:6]}"
+    monitor, token = _make_monitor(db, name)
+    posted = client.post(
+        "/api/v1/monitors/health",
+        headers=_token_headers(token),
+        json={
+            **_health_body(),
+            "wired_iface": "eth0",
+            "wifi_link_iface": "wlan0",
+            "wifi_radio_iface": "wlan1",
+            "airwave_mode": "kismet",
+            "public_ip": "1.1.1.1",
+            "isp": "Example Fiber",
+        },
+    )
+    assert posted.status_code == 200, posted.text
+    detail = client.get(f"/api/v1/monitors/{monitor.id}")
+    assert detail.status_code == 200, detail.text
+    body = detail.json()
+    assert body["wired_iface"] == "eth0"
+    assert body["wifi_link_iface"] == "wlan0"
+    assert body["wifi_radio_iface"] == "wlan1"
+    assert body["airwave_mode"] == "kismet"
+    assert body["lan_ip"] == "10.0.0.50"
+    assert body["public_ip"] == "1.1.1.1"
+    assert body["isp"] == "Example Fiber"
+
+    guest = TestClient(app, base_url="https://testserver")
+    login(guest, "guest", "guest")
+    hidden = guest.get(f"/api/v1/monitors/{monitor.id}")
+    assert hidden.status_code == 200, hidden.text
+    assert hidden.json()["public_ip"] is None
+    assert hidden.json()["wired_iface"] == "eth0"
+
+    dropped = client.post(
+        "/api/v1/monitors/health",
+        headers=_token_headers(token),
+        json={
+            **_health_body(),
+            "wired_iface": "../eth0",
+            "wifi_link_iface": "wlan0;rm",
+            "wifi_radio_iface": "",
+            "airwave_mode": "scan",
+        },
+    )
+    assert dropped.status_code == 200, dropped.text
+    cleared = client.get(f"/api/v1/monitors/{monitor.id}")
+    assert cleared.json()["wired_iface"] is None
+    assert cleared.json()["wifi_link_iface"] is None
+    assert cleared.json()["wifi_radio_iface"] is None
+    assert cleared.json()["airwave_mode"] == "scan"
+

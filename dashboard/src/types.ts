@@ -341,8 +341,15 @@ export type MonitorDetail = {
   latitude: number | null;
   longitude: number | null;
   location_label: string | null;
+  lan_ip?: string | null;
+  tunnel_address?: string | null;
+  wireless_tunnel_address?: string | null;
   public_ip: string | null;
   isp: string | null;
+  wired_iface?: string | null;
+  wifi_link_iface?: string | null;
+  wifi_radio_iface?: string | null;
+  airwave_mode?: string | null;
   probes?: { slug: string; name: string }[];
   tests: {
     id: string;

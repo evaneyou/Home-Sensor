@@ -71,8 +71,9 @@ export default function MonitorPage() {
   const testsSoFar = monitorQ.data?.tests ?? [];
   const wiredId = testsSoFar.find((test) => test.network_slug === "wired")?.network_id ?? null;
   const wirelessId = testsSoFar.find((test) => test.network_slug === "wifi")?.network_id ?? null;
-  const onWired = link === "wired";
-  const onWireless = link === "wireless";
+  const detail = searchParams.get("detail");
+  const onConnection =
+    detail === "connection" || (openLink && detail === "isp");
   const activeTab =
     openLink && wanId
       ? wanId
@@ -130,35 +131,21 @@ export default function MonitorPage() {
             <button
               key={n.id}
               type="button"
-              className={`tab ${!onWired && !onWireless && activeTab === n.id ? "active" : ""}`}
+              className={`tab ${!onConnection && activeTab === n.id ? "active" : ""}`}
               onClick={() => setSearchParams({ network: n.id })}
             >
               {networkLabel(n)}
             </button>,
           ];
-          if (n.slug === "wan" && wiredId) {
+          if (n.slug === "wan" && (wiredId || wirelessId)) {
             buttons.push(
               <button
-                key="wired"
+                key="connection"
                 type="button"
-                className={`tab ${onWired ? "active" : ""}`}
-                onClick={() => setSearchParams({ network: wiredId, detail: "isp", link: "wired" })}
+                className={`tab ${onConnection ? "active" : ""}`}
+                onClick={() => setSearchParams({ network: n.id, detail: "connection" })}
               >
-                Wired
-              </button>,
-            );
-          }
-          if (n.slug === "wan" && wirelessId) {
-            buttons.push(
-              <button
-                key="wireless"
-                type="button"
-                className={`tab ${onWireless ? "active" : ""}`}
-                onClick={() =>
-                  setSearchParams({ network: wirelessId, detail: "isp", link: "wireless" })
-                }
-              >
-                Wi-Fi
+                Internet Connection
               </button>,
             );
           }
@@ -168,7 +155,7 @@ export default function MonitorPage() {
 
       {activeNetwork?.slug === "wifi-main" ? <WifiScans monitorId={monitor.id} /> : null}
       {activeNetwork?.slug === "wan" ? (
-        <InternetPath tests={tests} isp={monitor.isp} monitorId={monitor.id} />
+        <InternetPath tests={tests} isp={monitor.isp} monitorId={monitor.id} monitor={monitor} />
       ) : null}
 
       <div className="panel">
