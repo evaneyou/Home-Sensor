@@ -21,7 +21,12 @@ import type { MonitorAdmin, MonitorDetail } from "../types";
 type Tone = "wired" | "wifi" | "neutral";
 type Fact = [label: string, value: string];
 type Through = { flow: FlowTest; role: "data" | "control" };
-type NodeInfo = { facts: Fact[]; through: Through[]; side: Position.Top | Position.Bottom };
+type NodeInfo = {
+  facts: Fact[];
+  through: Through[];
+  side: Position.Top | Position.Bottom;
+  align: "start" | "center" | "end";
+};
 type FlowNodeData = { title: string; lines: string[]; tone: Tone; active: boolean; dim: boolean; info: NodeInfo };
 type FlowNodeType = Node<FlowNodeData, "box">;
 
@@ -50,7 +55,7 @@ function PathBox({ data }: NodeProps<FlowNodeType>) {
   const classes = ["flow-node", `tone-${data.tone}`, data.active ? "is-active" : "", data.dim ? "is-dim" : ""]
     .filter(Boolean)
     .join(" ");
-  const { facts, through, side } = data.info;
+  const { facts, through, side, align } = data.info;
   return (
     <div
       className={classes}
@@ -66,7 +71,7 @@ function PathBox({ data }: NodeProps<FlowNodeType>) {
       {data.lines.map((line) => (
         <span key={line}>{line}</span>
       ))}
-      <NodeToolbar isVisible={open} position={side} offset={12}>
+      <NodeToolbar isVisible={open} position={side} align={align} offset={12}>
         <div className="flow-tip" role="tooltip">
           <h4>{data.title}</h4>
           {facts.length > 0 ? (
@@ -405,6 +410,8 @@ export default function FlowDiagram({
           facts: factsFor(spec.id, monitor, agent, flows),
           through: through.get(spec.id) ?? [],
           side: spec.y < 150 ? Position.Bottom : Position.Top,
+          // The outer columns open their card inwards, so it is not cut off by the side of the canvas.
+          align: spec.x === 0 ? "start" : spec.x >= 750 ? "end" : "center",
         },
       },
       draggable: false,
