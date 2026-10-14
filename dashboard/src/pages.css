@@ -1143,3 +1143,14 @@
   border-color: #4a5578;
   background: #141a29;
 }
+
+/* An application flow's chip says what its payload and its signalling each do. */
+.flow-chip-line {
+  line-height: 1.35;
+}
+
+.flow-chip-line b {
+  margin-right: 4px;
+  color: var(--ink);
+  font-weight: 800;
+}

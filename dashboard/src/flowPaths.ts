@@ -23,7 +23,7 @@ export type FlowTest = {
   category: FlowCategory;
   link: FlowLink;
   route: FlowRoute;
-  /** An always-on application flow also keeps its control channel in the tunnel. */
+  /** An always-on application flow also signals through the tunnel while its packets go direct. */
   application: boolean;
   status: "ok" | "degraded" | "fail" | "idle";
   detail: string;
@@ -74,7 +74,16 @@ export const EDGE_IDS = [
   `${NODE.internet}>${NODE.tunnelWifi}`,
   `${NODE.tunnelWired}>${NODE.services}`,
   `${NODE.tunnelWifi}>${NODE.services}`,
+  // An application flow's signalling: out of the tunnel and into the same service its payload reaches.
+  `${NODE.tunnelWired}>${NODE.serverDirect}`,
+  `${NODE.tunnelWifi}>${NODE.serverDirect}`,
 ] as const;
+
+/** The server's tunnel address for each link: where an application flow's signalling goes. */
+export const TUNNEL_HOST: Record<FlowLink, string> = { wired: "10.7.0.1", wifi: "10.7.1.1" };
+
+/** The measurement service listens on the public address for the payload, and in the tunnel for signalling. */
+export const MEASURE_PORT = { payload: 8998, signalling: 8999 } as const;
 
 /** Not a flow edge: the radio listening to the networks around it. */
 export const SCAN_EDGE = `${NODE.piRadio}>${NODE.nearby}`;
@@ -218,11 +227,12 @@ function tunnelEnd(link: FlowLink): string {
  */
 export function pathsFor(test: FlowTest): FlowPath[] {
   const home = [start(test.link), NODE.router, NODE.internet];
-  const tunnel: FlowPath = { nodes: [...home, tunnelEnd(test.link), NODE.services], role: "data" };
-  if (test.route === "tunnel") return [tunnel];
+  if (test.route === "tunnel") return [{ nodes: [...home, tunnelEnd(test.link), NODE.services], role: "data" }];
   if (test.route === "web") return [{ nodes: [...home, NODE.web], role: "data" }];
   const direct: FlowPath = { nodes: [...home, NODE.serverDirect], role: "data" };
-  return test.application ? [direct, { ...tunnel, role: "control" }] : [direct];
+  // The payload and the signalling end at the same service: the payload over the public address,
+  // the signalling through the tunnel.
+  return test.application ? [direct, { nodes: [...home, tunnelEnd(test.link), NODE.serverDirect], role: "control" }] : [direct];
 }
 
 export function edgeId(from: string, to: string): string {

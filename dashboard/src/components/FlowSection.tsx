@@ -4,7 +4,9 @@ import { api } from "../api";
 import {
   CATEGORY_LABEL,
   CATEGORY_ORDER,
+  MEASURE_PORT,
   ROUTE_LABEL,
+  TUNNEL_HOST,
   buildFlowTests,
   groupFlows,
   type FlowHealth,
@@ -134,8 +136,24 @@ export default function FlowSection({
                     <strong>
                       {flow.kindLabel} · {flow.link === "wired" ? "Wired" : "Wi-Fi"}
                     </strong>
-                    <span>{ROUTE_LABEL[flow.route]}</span>
-                    {flow.detail ? <span className="flow-chip-detail">{flow.detail}</span> : null}
+                    {flow.application ? (
+                      <>
+                        {flow.detail ? <span className="flow-chip-detail">{flow.detail}</span> : null}
+                        <span className="flow-chip-line">
+                          <b>Payload</b> out the {flow.link === "wired" ? "Ethernet" : "Wi-Fi"} link and across the
+                          internet, UDP {MEASURE_PORT.payload} on the server's public address
+                        </span>
+                        <span className="flow-chip-line">
+                          <b>Signalling</b> through the {flow.link === "wired" ? "wired" : "Wi-Fi"} WireGuard tunnel,
+                          TCP {MEASURE_PORT.signalling} on {TUNNEL_HOST[flow.link]}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span>{ROUTE_LABEL[flow.route]}</span>
+                        {flow.detail ? <span className="flow-chip-detail">{flow.detail}</span> : null}
+                      </>
+                    )}
                   </button>
                 </li>
               ))}

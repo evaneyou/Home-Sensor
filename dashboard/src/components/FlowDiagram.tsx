@@ -272,6 +272,8 @@ const EDGE_LABEL: Record<string, string> = {
   [edgeId(NODE.internet, NODE.serverDirect)]: "Public address",
   [edgeId(NODE.internet, NODE.tunnelWired)]: "Tunnel 1",
   [edgeId(NODE.internet, NODE.tunnelWifi)]: "Tunnel 2",
+  [edgeId(NODE.tunnelWired, NODE.serverDirect)]: "Signalling",
+  [edgeId(NODE.tunnelWifi, NODE.serverDirect)]: "Signalling",
   [SCAN_EDGE]: "Scans",
 };
 
@@ -336,8 +338,8 @@ function specs(monitor: MonitorDetail | undefined, rf: RfOverview | null | undef
       x: 1170,
       y: 105,
       tone: "neutral",
-      title: "Server · public address",
-      lines: ["Application flows and traces"],
+      title: "Measurement service",
+      lines: ["Payload: UDP 8998, public", "Signalling: TCP 8999, tunnel"],
     },
     { id: NODE.tunnelWired, x: 830, y: 235, tone: "wired", title: "WireGuard · wired", lines: ["10.7.0.1 · UDP 51820"] },
     { id: NODE.tunnelWifi, x: 830, y: 345, tone: "wifi", title: "WireGuard · Wi-Fi", lines: ["10.7.1.1 · UDP 51821"] },
@@ -422,8 +424,9 @@ function factsFor(
       break;
     }
     case NODE.serverDirect:
-      add("Reached by", "Application flows and MTR");
-      add("Through a tunnel", "No: the server's public address");
+      add("Payload", "Direct over the internet to the public address, UDP 8998");
+      add("Signalling", "Through the tunnel to the tunnel address, TCP 8999");
+      add("Also reached by", "MTR traces to the public address");
       break;
     case NODE.tunnelWired:
       add("Address", "10.7.0.1 · UDP 51820");
