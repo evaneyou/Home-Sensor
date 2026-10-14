@@ -43,7 +43,7 @@ type FlowNodeType = Node<FlowNodeData, "box">;
 type Pulse = { hop: number; hops: number; role: "data" | "control"; color: string; offset: number };
 type RouteEdgeData = { label: string; pulses: Pulse[]; dim: boolean; scan?: boolean };
 
-type FrameData = { label: string; kind: "home" | "agent" };
+type FrameData = { label: string; kind: "zone" | "agent" };
 type FrameNodeType = Node<FrameData, "frame">;
 type RouteEdgeType = Edge<RouteEdgeData, "route">;
 
@@ -268,7 +268,7 @@ const edgeTypes = { route: RouteEdge };
 const EDGE_LABEL: Record<string, string> = {
   [edgeId(NODE.piWired, NODE.router)]: "Ethernet",
   [edgeId(NODE.piWifi, NODE.router)]: "Wi-Fi",
-  [edgeId(NODE.router, NODE.internet)]: "ISP",
+  [edgeId(NODE.router, NODE.internet)]: "WAN",
   [edgeId(NODE.internet, NODE.serverDirect)]: "Public address",
   [edgeId(NODE.internet, NODE.tunnelWired)]: "Tunnel 1",
   [edgeId(NODE.internet, NODE.tunnelWifi)]: "Tunnel 2",
@@ -327,13 +327,13 @@ function specs(monitor: MonitorDetail | undefined, rf: RfOverview | null | undef
       x: 570,
       y: 120,
       tone: "neutral",
-      title: "Internet",
+      title: "ISP",
       lines: clean([monitor?.isp ?? "ISP", monitor?.public_ip]),
     },
-    { id: NODE.web, x: 830, y: -20, tone: "neutral", title: "Web services", lines: ["Public sites", "Not through a tunnel"] },
+    { id: NODE.web, x: 1170, y: -20, tone: "neutral", title: "Web services", lines: ["Public sites", "Not through a tunnel"] },
     {
       id: NODE.serverDirect,
-      x: 830,
+      x: 1170,
       y: 105,
       tone: "neutral",
       title: "Server · public address",
@@ -341,7 +341,7 @@ function specs(monitor: MonitorDetail | undefined, rf: RfOverview | null | undef
     },
     { id: NODE.tunnelWired, x: 830, y: 235, tone: "wired", title: "WireGuard · wired", lines: ["10.7.0.1 · UDP 51820"] },
     { id: NODE.tunnelWifi, x: 830, y: 345, tone: "wifi", title: "WireGuard · Wi-Fi", lines: ["10.7.1.1 · UDP 51821"] },
-    { id: NODE.services, x: 1090, y: 290, tone: "neutral", title: "Server services", lines: ["API and File Transfer", "Inside the tunnel"] },
+    { id: NODE.services, x: 1170, y: 290, tone: "neutral", title: "Server services", lines: ["API and File Transfer", "Inside the tunnel"] },
   ];
 }
 
@@ -412,7 +412,7 @@ function factsFor(
       add("Carries", "Ethernet and Wi-Fi");
       break;
     case NODE.internet:
-      add("ISP", monitor?.isp);
+      add("Provider", monitor?.isp);
       add("Public address", monitor?.public_ip);
       break;
     case NODE.web: {
@@ -460,15 +460,18 @@ function around(rects: Rect[], pad: { left: number; right: number; top: number; 
 }
 
 /**
- * Two outlines: the Pi's three interfaces in one box, because they are one device, and a
- * dotted line round everything that lives in the house. Both are sized from the boxes they
- * hold, so moving a box moves its frame.
+ * The Pi's three interfaces in one solid box, because they are one device, and three dotted
+ * zones: your home, the internet (the ISP and the tunnels that cross it) and the cloud (the
+ * websites and the server). Each is sized from the boxes it holds, so moving a box moves its frame.
  */
 function frames(list: Spec[], name: string): FrameNodeType[] {
   const at = (ids: string[]): Rect[] =>
     list.filter((spec) => ids.includes(spec.id)).map((spec) => ({ x: spec.x, y: spec.y, w: NODE_W, h: NODE_H }));
   const agent = around(at([NODE.piWired, NODE.piWifi, NODE.piRadio]), { left: 20, right: 20, top: 46, bottom: 20 });
-  const home = around([agent, ...at([NODE.router, NODE.nearby])], { left: 30, right: 30, top: 54, bottom: 30 });
+  const zone = { left: 30, right: 30, top: 54, bottom: 30 };
+  const home = around([agent, ...at([NODE.router, NODE.nearby])], zone);
+  const internet = around(at([NODE.internet, NODE.tunnelWired, NODE.tunnelWifi]), zone);
+  const cloud = around(at([NODE.web, NODE.serverDirect, NODE.services]), zone);
   const frame = (id: string, rect: Rect, data: FrameData): FrameNodeType => ({
     id,
     type: "frame",
@@ -481,7 +484,9 @@ function frames(list: Spec[], name: string): FrameNodeType[] {
     style: { width: rect.w, height: rect.h },
   });
   return [
-    frame("frame-home", home, { label: "Your home", kind: "home" }),
+    frame("frame-home", home, { label: "Your home", kind: "zone" }),
+    frame("frame-internet", internet, { label: "Internet", kind: "zone" }),
+    frame("frame-cloud", cloud, { label: "Cloud services", kind: "zone" }),
     frame("frame-agent", agent, { label: `${name} · remote agent`, kind: "agent" }),
   ];
 }

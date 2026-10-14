@@ -1239,11 +1239,11 @@
 }
 
 /* Dotted: it is a boundary, not a device. The label sits on the line like a map legend. */
-.flow-frame.kind-home {
+.flow-frame.kind-zone {
   border: 2px dashed #3a4666;
 }
 
-.flow-frame.kind-home span {
+.flow-frame.kind-zone span {
   top: -8px;
   left: 24px;
   padding: 0 8px;
