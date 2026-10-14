@@ -12,8 +12,8 @@ import InternetPath, {
   type StripRange,
 } from "../components/InternetPath";
 import MonitorStatusDialog from "../components/MonitorStatusDialog";
+import MonitorTabs, { monitorNetworks } from "../components/MonitorTabs";
 import WifiScans from "../components/WifiScans";
-import { networkLabel, networkOrder } from "../labels";
 import type { MonitorDetail } from "../types";
 
 const MONITOR_ZONE = "America/New_York";
@@ -55,15 +55,7 @@ export default function MonitorPage() {
     enabled: !!id,
   });
 
-  const networks = useMemo(() => {
-    const map = new Map<string, { id: string; slug: string; name: string }>();
-    for (const t of monitorQ.data?.tests ?? []) {
-      map.set(t.network_id, { id: t.network_id, slug: t.network_slug, name: t.network_name });
-    }
-    return [...map.values()]
-      .filter((network) => network.slug !== "wired" && network.slug !== "wifi")
-      .sort((a, b) => networkOrder(a) - networkOrder(b));
-  }, [monitorQ.data]);
+  const networks = useMemo(() => monitorNetworks(monitorQ.data?.tests), [monitorQ.data]);
 
   if (searchParams.get("view") === "path") {
     const next = new URLSearchParams();
@@ -130,65 +122,15 @@ export default function MonitorPage() {
         </button>
       </div>
       <div className="page-tabs">
-        <div className="tabs">
-            {networks.flatMap((n) => {
-              const buttons = [
-                <button
-                  key={n.id}
-                  type="button"
-                  className={`tab ${!onWired && !onWireless && !onConnection && activeTab === n.id ? "active" : ""}`}
-                  onClick={() => setSearchParams({ network: n.id })}
-                >
-                  {networkLabel(n)}
-                </button>,
-              ];
-              if (n.slug === "wan" && wiredId) {
-                buttons.push(
-                  <button
-                    key="wired"
-                    type="button"
-                    className={`tab ${onWired ? "active" : ""}`}
-                    onClick={() => setSearchParams({ network: wiredId, detail: "isp", link: "wired" })}
-                  >
-                    Wired
-                  </button>,
-                );
-              }
-              if (n.slug === "wan" && wirelessId) {
-                buttons.push(
-                  <button
-                    key="wireless"
-                    type="button"
-                    className={`tab ${onWireless ? "active" : ""}`}
-                    onClick={() =>
-                      setSearchParams({ network: wirelessId, detail: "isp", link: "wireless" })
-                    }
-                  >
-                    Wi-Fi
-                  </button>,
-                );
-              }
-              if (n.slug === "wan" && onConnection && (link === "wired" || link === "wireless")) {
-                buttons.push(
-                  <button
-                    key="connection"
-                    type="button"
-                    className="tab active"
-                    onClick={() =>
-                      setSearchParams({
-                        network: n.id,
-                        detail: "connection",
-                        link: link === "wireless" ? "wireless" : "wired",
-                      })
-                    }
-                  >
-                    Internet Connection
-                  </button>,
-                );
-              }
-              return buttons;
-            })}
-          </div>
+        <MonitorTabs
+          tests={monitor.tests}
+          activeTab={activeTab}
+          onWired={onWired}
+          onWireless={onWireless}
+          onConnection={onConnection}
+          link={link}
+          onSelect={setSearchParams}
+        />
           {activeNetwork?.slug === "wan" && !searchParams.get("detail") && !link && wiredId && wirelessId ? (
             <StripRangeTabs range={stripRange} onChange={setStripRange} />
           ) : !searchParams.get("check") &&
