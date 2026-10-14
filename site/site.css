@@ -1157,3 +1157,24 @@ code {
     grid-template-columns: 1fr;
   }
 }
+
+/* About: the bio runs in two columns across the full width, so nothing is left empty. */
+.about {
+  grid-template-columns: 1fr;
+}
+
+.about-cols {
+  columns: 2;
+  column-gap: 56px;
+  margin-bottom: 8px;
+}
+
+.about-cols .lead {
+  max-width: none;
+}
+
+@media (max-width: 800px) {
+  .about-cols {
+    columns: 1;
+  }
+}
