@@ -7,7 +7,9 @@ import {
   NodeToolbar,
   Position,
   ReactFlow,
+  ViewportPortal,
   getBezierPath,
+  useNodes,
   type Edge,
   type EdgeProps,
   type Node,
@@ -40,7 +42,7 @@ type FlowNodeData = {
 };
 type FlowNodeType = Node<FlowNodeData, "box">;
 
-type Pulse = { hop: number; hops: number; role: "data" | "control"; color: string; offset: number };
+type Pulse = { role: "data" | "control"; color: string };
 type RouteEdgeData = { label: string; pulses: Pulse[]; dim: boolean; scan?: boolean };
 
 type FrameData = { label: string; kind: "zone" | "agent" };
@@ -52,9 +54,11 @@ const QUIET = "#2a3550";
 const SHARED = "#8fa3d1";
 const RETURN_COLOR = "#e8ecf8";
 
-/** One hop's pulse crosses its edge in this long; the cycle is out, back, then a rest. */
-const STEP = 0.55;
-const REST = 0.9;
+/** How fast a pulse travels, in diagram pixels per second, the same on every stretch of a route. */
+const SPEED = 230;
+/** A pause when it reaches the far end, and a longer one before it sets off again. */
+const TURN = 0.18;
+const REST = 0.7;
 
 const STATUS_LABEL: Record<FlowTest["status"], string> = {
   ok: "Passing",
@@ -138,83 +142,191 @@ function PathBox({ data }: NodeProps<FlowNodeType>) {
   );
 }
 
+type Box = { x: number; y: number; w: number; h: number };
+type Route = { key: string; d: string; length: number; color: string; role: "data" | "control"; offset: number };
+
 function fractions(value: number): string {
   return value.toFixed(4);
 }
 
-/** A dot that rides the edge during its own slice of the cycle, and is hidden the rest of it. */
+/** Length of a cubic bezier, by walking along it; close enough to set a speed. */
+function bezierLength(p0: [number, number], p1: [number, number], p2: [number, number], p3: [number, number]): number {
+  let length = 0;
+  let last = p0;
+  for (let step = 1; step <= 24; step += 1) {
+    const t = step / 24;
+    const u = 1 - t;
+    const point: [number, number] = [
+      u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0],
+      u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1],
+    ];
+    length += Math.hypot(point[0] - last[0], point[1] - last[1]);
+    last = point;
+  }
+  return length;
+}
+
+/**
+ * One unbroken path through every box of a route: the same curve each edge draws between two boxes,
+ * then straight across the next box to the curve that leaves it. A pulse that rides this path is
+ * never off the line, so it crosses the boxes instead of vanishing at one edge and appearing at the next.
+ */
+function routeGeometry(boxes: Box[]): { d: string; length: number } {
+  let d = "";
+  let length = 0;
+  boxes.forEach((box, index) => {
+    const right: [number, number] = [box.x + box.w, box.y + box.h / 2];
+    if (index === 0) {
+      d = `M ${right[0]} ${right[1]}`;
+      return;
+    }
+    const before = boxes[index - 1];
+    const from: [number, number] = [before.x + before.w, before.y + before.h / 2];
+    const left: [number, number] = [box.x, box.y + box.h / 2];
+    const lean = Math.max(0, (left[0] - from[0]) / 2);
+    const c1: [number, number] = [from[0] + lean, from[1]];
+    const c2: [number, number] = [left[0] - lean, left[1]];
+    d += ` C ${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${left[0]} ${left[1]}`;
+    length += bezierLength(from, c1, c2, left);
+    if (index < boxes.length - 1) {
+      d += ` L ${right[0]} ${right[1]}`;
+      length += box.w;
+    }
+  });
+  return { d, length };
+}
+
+function cycle(length: number): { out: number; total: number } {
+  const out = length / SPEED;
+  return { out, total: out * 2 + TURN + REST };
+}
+
+/**
+ * A dot that rides a route during its own slice of the cycle. Position is a fraction of the path's
+ * length, so equal time is equal distance: the same speed everywhere along it.
+ */
 function Dot({
-  path,
+  route,
   color,
   radius,
-  from,
-  to,
-  window,
-  total,
-  offset,
+  reverse,
+  lag,
+  fade,
 }: {
-  path: string;
+  route: Route;
   color: string;
   radius: number;
-  from: number;
-  to: number;
-  window: [number, number];
-  total: number;
-  offset: number;
+  reverse: boolean;
+  lag: number;
+  fade: number;
 }) {
-  const a = window[0] / total;
-  const b = window[1] / total;
-  const times = `0;${fractions(a)};${fractions(b)};1`;
+  const { out, total } = cycle(route.length);
+  const start = reverse ? out + TURN : 0;
+  const a = start / total;
+  const b = (start + out) / total;
+  const shift = (route.offset - lag).toFixed(3);
+  const from = reverse ? 1 : 0;
+  const to = reverse ? 0 : 1;
   return (
-    <circle r={radius} fill={color} opacity={0}>
+    <circle
+      r={radius}
+      fill={color}
+      stroke="#0b0f1a"
+      strokeWidth={1.5}
+      opacity={0}
+      style={{ filter: `drop-shadow(0 0 ${radius}px ${color})` }}
+    >
       <animateMotion
         dur={`${total}s`}
-        begin={`-${offset.toFixed(3)}s`}
+        begin={`-${shift}s`}
         repeatCount="indefinite"
-        path={path}
+        path={route.d}
         calcMode="linear"
         keyPoints={`${from};${from};${to};${to}`}
-        keyTimes={times}
+        keyTimes={`0;${fractions(a)};${fractions(b)};1`}
       />
       <animate
         attributeName="opacity"
         dur={`${total}s`}
-        begin={`-${offset.toFixed(3)}s`}
+        begin={`-${shift}s`}
         repeatCount="indefinite"
         calcMode="discrete"
-        values="0;1;0"
+        values={`0;${fade};0`}
         keyTimes={`0;${fractions(a)};${fractions(b)}`}
       />
     </circle>
   );
 }
 
-function Pulses({ path, pulses }: { path: string; pulses: Pulse[] }) {
+/** A bright head and a short fading tail, so the direction reads even over a dashed line. */
+function Pulse({ route }: { route: Route }) {
+  const data = route.role === "data";
+  const head = data ? 4.8 : 3.8;
+  const tail = [
+    { lag: 0.09, radius: head * 0.74, fade: 0.55 },
+    { lag: 0.18, radius: head * 0.52, fade: 0.3 },
+  ];
   return (
-    <>
-      {pulses.map((pulse, index) => {
-        const total = pulse.hops * 2 * STEP + REST;
-        const out = pulse.hop * STEP;
-        const back = (pulse.hops + (pulse.hops - 1 - pulse.hop)) * STEP;
-        const radius = pulse.role === "data" ? 4.5 : 2.75;
-        const tint = pulse.role === "data" ? pulse.color : `${pulse.color}aa`;
+    <g>
+      {[false, true].map((reverse) => {
+        const color = reverse ? RETURN_COLOR : route.color;
+        const strength = data ? 1 : 0.8;
         return (
-          <g key={index}>
-            <Dot path={path} color={tint} radius={radius} from={0} to={1} window={[out, out + STEP]} total={total} offset={pulse.offset} />
-            <Dot
-              path={path}
-              color={pulse.role === "data" ? RETURN_COLOR : `${RETURN_COLOR}88`}
-              radius={radius}
-              from={1}
-              to={0}
-              window={[back, back + STEP]}
-              total={total}
-              offset={pulse.offset}
-            />
+          <g key={String(reverse)}>
+            {tail.map((part) => (
+              <Dot key={part.lag} route={route} color={color} radius={part.radius} reverse={reverse} lag={part.lag} fade={part.fade * strength} />
+            ))}
+            <Dot route={route} color={color} radius={head} reverse={reverse} lag={0} fade={strength} />
           </g>
         );
       })}
-    </>
+    </g>
+  );
+}
+
+/**
+ * Draws every selected flow's pulses over the diagram, in the diagram's own coordinates so they follow
+ * pan and zoom. Each flow gets its own place in the cycle, so flows that share a stretch do not overlap.
+ */
+function FlowPulses({ flows }: { flows: FlowTest[] }) {
+  const nodes = useNodes();
+  const routes = useMemo(() => {
+    const boxes = new Map<string, Box>();
+    for (const node of nodes) {
+      boxes.set(node.id, {
+        x: node.position.x,
+        y: node.position.y,
+        w: node.measured?.width ?? 190,
+        h: node.measured?.height ?? 80,
+      });
+    }
+    const built: Route[] = [];
+    flows.forEach((flow, index) => {
+      for (const path of pathsFor(flow)) {
+        const known = path.nodes.map((id) => boxes.get(id));
+        if (known.some((box) => !box)) continue;
+        const { d, length } = routeGeometry(known as Box[]);
+        built.push({
+          key: `${flow.key}:${path.role}`,
+          d,
+          length,
+          color: COLOR[flow.link],
+          role: path.role,
+          offset: (index / flows.length) * cycle(length).total,
+        });
+      }
+    });
+    return built;
+  }, [flows, nodes]);
+  if (routes.length === 0) return null;
+  return (
+    <ViewportPortal>
+      <svg className="flow-pulses" width={1} height={1} aria-hidden="true">
+        {routes.map((route) => (
+          <Pulse key={route.key} route={route} />
+        ))}
+      </svg>
+    </ViewportPortal>
   );
 }
 
@@ -239,7 +351,14 @@ function RouteEdge(props: EdgeProps<RouteEdgeType>) {
           opacity: active || !data?.dim ? 1 : 0.45,
         }}
       />
-      {active ? <Pulses path={path} pulses={pulses} /> : null}
+      {controlOnly ? (
+        <BaseEdge
+          id={`${id}-track`}
+          path={path}
+          interactionWidth={0}
+          style={{ stroke: color, strokeWidth: 3, strokeOpacity: 0.22, strokeLinecap: "round" }}
+        />
+      ) : null}
       {data?.label ? (
         <EdgeLabelRenderer>
           <div
@@ -510,18 +629,15 @@ export default function FlowDiagram({
     const lit = new Set<string>();
     const pulses = new Map<string, Pulse[]>();
     const through = new Map<string, Through[]>();
-    flows.forEach((flow, index) => {
+    flows.forEach((flow) => {
       for (const path of pathsFor(flow)) {
         path.nodes.forEach((node) => {
           lit.add(node);
           through.set(node, [...(through.get(node) ?? []), { flow, role: path.role }]);
         });
-        const hops = path.nodes.length - 1;
-        // Spread the flows evenly through the cycle so those that share a hop do not overlap.
-        const offset = (index / flows.length) * (hops * 2 * STEP + REST);
-        for (let hop = 0; hop < hops; hop += 1) {
+        for (let hop = 0; hop < path.nodes.length - 1; hop += 1) {
           const id = edgeId(path.nodes[hop], path.nodes[hop + 1]);
-          pulses.set(id, [...(pulses.get(id) ?? []), { hop, hops, role: path.role, color: COLOR[flow.link], offset }]);
+          pulses.set(id, [...(pulses.get(id) ?? []), { role: path.role, color: COLOR[flow.link] }]);
         }
       }
     });
@@ -593,6 +709,7 @@ export default function FlowDiagram({
         colorMode="dark"
       >
         <Background gap={24} size={1} color="#1a2238" />
+        <FlowPulses flows={flows} />
         <Controls showInteractive={false} position="bottom-right" />
       </ReactFlow>
     </div>

@@ -1241,3 +1241,12 @@
 .flow-note strong {
   color: var(--ink);
 }
+
+/* The pulses are drawn in the diagram's own coordinates, over the boxes, and never take the pointer. */
+.flow-pulses {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
