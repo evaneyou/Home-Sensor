@@ -1087,3 +1087,26 @@ code {
     font-size: 48px;
   }
 }
+
+.experience p {
+  max-width: none;
+}
+
+.exp-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.exp-tags li {
+  padding: 4px 12px;
+  background: color-mix(in srgb, var(--mint) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mint) 35%, var(--line));
+  border-radius: 999px;
+  color: var(--soft);
+  font-size: 13px;
+  font-weight: 700;
+}
