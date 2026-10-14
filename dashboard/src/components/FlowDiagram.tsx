@@ -15,8 +15,8 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useMemo, useState } from "react";
-import { EDGE_IDS, NODE, edgeId, hostOf, pathsFor, type FlowLink, type FlowTest } from "../flowPaths";
-import type { MonitorAdmin, MonitorDetail } from "../types";
+import { EDGE_IDS, NODE, SCAN_EDGE, edgeId, hostOf, pathsFor, type FlowLink, type FlowTest } from "../flowPaths";
+import type { MonitorAdmin, MonitorDetail, RfOverview } from "../types";
 
 type Tone = "wired" | "wifi" | "neutral";
 type Fact = [label: string, value: string];
@@ -26,12 +26,25 @@ type NodeInfo = {
   through: Through[];
   side: Position.Top | Position.Bottom;
   align: "start" | "center" | "end";
+  passive: boolean;
 };
-type FlowNodeData = { title: string; lines: string[]; tone: Tone; active: boolean; dim: boolean; info: NodeInfo };
+type FlowNodeData = {
+  title: string;
+  lines: string[];
+  tone: Tone;
+  active: boolean;
+  dim: boolean;
+  /** Part of the picture but never on a flow's path: the radio and the networks it hears. */
+  passive: boolean;
+  info: NodeInfo;
+};
 type FlowNodeType = Node<FlowNodeData, "box">;
 
 type Pulse = { hop: number; hops: number; role: "data" | "control"; color: string; offset: number };
-type RouteEdgeData = { label: string; pulses: Pulse[]; dim: boolean };
+type RouteEdgeData = { label: string; pulses: Pulse[]; dim: boolean; scan?: boolean };
+
+type FrameData = { label: string; kind: "home" | "agent" };
+type FrameNodeType = Node<FrameData, "frame">;
 type RouteEdgeType = Edge<RouteEdgeData, "route">;
 
 const COLOR: Record<FlowLink, string> = { wired: "#4fd1b5", wifi: "#ffc24d" };
@@ -52,7 +65,13 @@ const STATUS_LABEL: Record<FlowTest["status"], string> = {
 
 function PathBox({ data }: NodeProps<FlowNodeType>) {
   const [open, setOpen] = useState(false);
-  const classes = ["flow-node", `tone-${data.tone}`, data.active ? "is-active" : "", data.dim ? "is-dim" : ""]
+  const classes = [
+    "flow-node",
+    `tone-${data.tone}`,
+    data.active ? "is-active" : "",
+    data.dim ? "is-dim" : "",
+    data.passive ? "is-passive" : "",
+  ]
     .filter(Boolean)
     .join(" ");
   const { facts, through, side, align } = data.info;
@@ -110,7 +129,7 @@ function PathBox({ data }: NodeProps<FlowNodeType>) {
                 ))}
               </ul>
             </>
-          ) : (
+          ) : data.passive ? null : (
             <p>Nothing in the selected service passes through here.</p>
           )}
         </div>
@@ -213,10 +232,10 @@ function RouteEdge(props: EdgeProps<RouteEdgeType>) {
         id={id}
         path={path}
         style={{
-          stroke: active ? color : QUIET,
+          stroke: active ? color : data?.scan ? "#6d7895" : QUIET,
           strokeWidth: active ? 2.5 : 1.5,
           strokeLinecap: "round",
-          strokeDasharray: controlOnly ? "5 5" : undefined,
+          strokeDasharray: data?.scan ? "2 6" : controlOnly ? "5 5" : undefined,
           opacity: active || !data?.dim ? 1 : 0.45,
         }}
       />
@@ -235,7 +254,15 @@ function RouteEdge(props: EdgeProps<RouteEdgeType>) {
   );
 }
 
-const nodeTypes = { box: PathBox };
+function FrameBox({ data }: NodeProps<FrameNodeType>) {
+  return (
+    <div className={`flow-frame kind-${data.kind}`}>
+      <span>{data.label}</span>
+    </div>
+  );
+}
+
+const nodeTypes = { box: PathBox, frame: FrameBox };
 const edgeTypes = { route: RouteEdge };
 
 const EDGE_LABEL: Record<string, string> = {
@@ -245,11 +272,12 @@ const EDGE_LABEL: Record<string, string> = {
   [edgeId(NODE.internet, NODE.serverDirect)]: "Public address",
   [edgeId(NODE.internet, NODE.tunnelWired)]: "Tunnel 1",
   [edgeId(NODE.internet, NODE.tunnelWifi)]: "Tunnel 2",
+  [SCAN_EDGE]: "Scans",
 };
 
-type Spec = { id: string; x: number; y: number; tone: Tone; title: string; lines: string[] };
+type Spec = { id: string; x: number; y: number; tone: Tone; title: string; lines: string[]; passive?: boolean };
 
-function specs(monitor: MonitorDetail | undefined): Spec[] {
+function specs(monitor: MonitorDetail | undefined, rf: RfOverview | null | undefined): Spec[] {
   const name = monitor?.name || "Pi";
   const clean = (lines: (string | null | undefined)[]) => lines.filter((line): line is string => Boolean(line));
   return [
@@ -272,27 +300,48 @@ function specs(monitor: MonitorDetail | undefined): Spec[] {
         monitor?.wireless_tunnel_address,
       ]),
     },
+    {
+      id: NODE.piRadio,
+      x: 0,
+      y: 350,
+      tone: "neutral",
+      passive: true,
+      title: `${name} · Monitor radio`,
+      lines: clean([monitor?.wifi_radio_iface ? `Monitor mode ${monitor.wifi_radio_iface}` : "Monitor mode", "Wi-Fi scans"]),
+    },
+    {
+      id: NODE.nearby,
+      x: 250,
+      y: 350,
+      tone: "neutral",
+      passive: true,
+      title: "Nearby Wi-Fi networks",
+      lines: clean([
+        rf ? `${rf.bands.reduce((total, band) => total + band.ap_count, 0)} networks heard` : "",
+        "Scanned, never joined",
+      ]),
+    },
     { id: NODE.router, x: 250, y: 120, tone: "neutral", title: "Home router", lines: ["LAN switch and Wi-Fi access point"] },
     {
       id: NODE.internet,
-      x: 500,
+      x: 570,
       y: 120,
       tone: "neutral",
       title: "Internet",
       lines: clean([monitor?.isp ?? "ISP", monitor?.public_ip]),
     },
-    { id: NODE.web, x: 750, y: -20, tone: "neutral", title: "Web services", lines: ["Public sites", "Not through a tunnel"] },
+    { id: NODE.web, x: 830, y: -20, tone: "neutral", title: "Web services", lines: ["Public sites", "Not through a tunnel"] },
     {
       id: NODE.serverDirect,
-      x: 750,
+      x: 830,
       y: 105,
       tone: "neutral",
       title: "Server · public address",
       lines: ["Application flows and traces"],
     },
-    { id: NODE.tunnelWired, x: 750, y: 235, tone: "wired", title: "WireGuard · wired", lines: ["10.7.0.1 · UDP 51820"] },
-    { id: NODE.tunnelWifi, x: 750, y: 345, tone: "wifi", title: "WireGuard · Wi-Fi", lines: ["10.7.1.1 · UDP 51821"] },
-    { id: NODE.services, x: 1000, y: 290, tone: "neutral", title: "Server services", lines: ["API and File Transfer", "Inside the tunnel"] },
+    { id: NODE.tunnelWired, x: 830, y: 235, tone: "wired", title: "WireGuard · wired", lines: ["10.7.0.1 · UDP 51820"] },
+    { id: NODE.tunnelWifi, x: 830, y: 345, tone: "wifi", title: "WireGuard · Wi-Fi", lines: ["10.7.1.1 · UDP 51821"] },
+    { id: NODE.services, x: 1090, y: 290, tone: "neutral", title: "Server services", lines: ["API and File Transfer", "Inside the tunnel"] },
   ];
 }
 
@@ -302,12 +351,20 @@ const TUNNEL_STATE: Record<string, string> = {
   never_connected: "Not connected yet",
 };
 
+const RADIO_MODE: Record<string, string> = { kismet: "Kismet capture", off: "Off" };
+
 function when(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleString() : "";
 }
 
 /** What is known about one hop, whatever flows pass through it. */
-function factsFor(id: string, monitor: MonitorDetail | undefined, agent: MonitorAdmin | null | undefined, flows: FlowTest[]): Fact[] {
+function factsFor(
+  id: string,
+  monitor: MonitorDetail | undefined,
+  agent: MonitorAdmin | null | undefined,
+  flows: FlowTest[],
+  rf: RfOverview | null | undefined,
+): Fact[] {
   const facts: Fact[] = [];
   const add = (label: string, value: string | null | undefined) => {
     if (value) facts.push([label, value]);
@@ -335,6 +392,17 @@ function factsFor(id: string, monitor: MonitorDetail | undefined, agent: Monitor
         "Tunnel",
         agent?.wireless_tunnel_state ? (TUNNEL_STATE[agent.wireless_tunnel_state] ?? agent.wireless_tunnel_state) : "",
       );
+      break;
+    case NODE.piRadio:
+      add("Adapter", monitor?.wifi_radio_iface);
+      add("Mode", monitor?.airwave_mode ? (RADIO_MODE[monitor.airwave_mode] ?? monitor.airwave_mode) : "");
+      add("Purpose", "Listens to nearby Wi-Fi; never joins a network");
+      add("Last scan", when(rf?.last_scan_at));
+      break;
+    case NODE.nearby:
+      for (const band of rf?.bands ?? []) add(`${band.band} networks`, String(band.ap_count));
+      add("Last scan", when(rf?.last_scan_at));
+      add("Joined", "No: heard, never joined");
       break;
     case NODE.router:
       add("ISP", monitor?.isp);
@@ -375,14 +443,57 @@ function factsFor(id: string, monitor: MonitorDetail | undefined, agent: Monitor
   return facts;
 }
 
+const NODE_W = 190;
+// A box is as tall as its lines; this is a little over the tallest, so a frame always clears them.
+const NODE_H = 88;
+
+type Rect = { x: number; y: number; w: number; h: number };
+
+function around(rects: Rect[], pad: { left: number; right: number; top: number; bottom: number }): Rect {
+  const left = Math.min(...rects.map((rect) => rect.x)) - pad.left;
+  const top = Math.min(...rects.map((rect) => rect.y)) - pad.top;
+  const right = Math.max(...rects.map((rect) => rect.x + rect.w)) + pad.right;
+  const bottom = Math.max(...rects.map((rect) => rect.y + rect.h)) + pad.bottom;
+  return { x: left, y: top, w: right - left, h: bottom - top };
+}
+
+/**
+ * Two outlines: the Pi's three interfaces in one box, because they are one device, and a
+ * dotted line round everything that lives in the house. Both are sized from the boxes they
+ * hold, so moving a box moves its frame.
+ */
+function frames(list: Spec[], name: string): FrameNodeType[] {
+  const at = (ids: string[]): Rect[] =>
+    list.filter((spec) => ids.includes(spec.id)).map((spec) => ({ x: spec.x, y: spec.y, w: NODE_W, h: NODE_H }));
+  const agent = around(at([NODE.piWired, NODE.piWifi, NODE.piRadio]), { left: 20, right: 20, top: 46, bottom: 20 });
+  const home = around([agent, ...at([NODE.router, NODE.nearby])], { left: 30, right: 30, top: 54, bottom: 30 });
+  const frame = (id: string, rect: Rect, data: FrameData): FrameNodeType => ({
+    id,
+    type: "frame",
+    position: { x: rect.x, y: rect.y },
+    data,
+    draggable: false,
+    connectable: false,
+    selectable: false,
+    focusable: false,
+    style: { width: rect.w, height: rect.h },
+  });
+  return [
+    frame("frame-home", home, { label: "Your home", kind: "home" }),
+    frame("frame-agent", agent, { label: `${name} · remote agent`, kind: "agent" }),
+  ];
+}
+
 export default function FlowDiagram({
   flows,
   monitor,
   agent,
+  rf,
 }: {
   flows: FlowTest[];
   monitor?: MonitorDetail;
   agent?: MonitorAdmin | null;
+  rf?: RfOverview | null;
 }) {
   const { nodes, edges } = useMemo(() => {
     const active = flows.length > 0;
@@ -404,14 +515,17 @@ export default function FlowDiagram({
         }
       }
     });
-    const built: FlowNodeType[] = specs(monitor).map((spec) => ({
+    const list = specs(monitor, rf);
+    const built: FlowNodeType[] = list.map((spec) => ({
       id: spec.id,
       type: "box",
       position: { x: spec.x, y: spec.y },
-      data: { title: spec.title, lines: spec.lines, tone: spec.tone, active: lit.has(spec.id), dim: active && !lit.has(spec.id),
+      data: { title: spec.title, lines: spec.lines, tone: spec.tone, active: lit.has(spec.id), dim: active && !lit.has(spec.id) && !spec.passive,
+        passive: Boolean(spec.passive),
         // The top row opens its card downwards so it is not cut off by the edge of the canvas.
         info: {
-          facts: factsFor(spec.id, monitor, agent, flows),
+          facts: factsFor(spec.id, monitor, agent, flows, rf),
+          passive: Boolean(spec.passive),
           through: through.get(spec.id) ?? [],
           side: spec.y < 150 ? Position.Bottom : Position.Top,
           // The outer columns open their card inwards, so it is not cut off by the side of the canvas.
@@ -434,8 +548,16 @@ export default function FlowDiagram({
         data: { label: EDGE_LABEL[id] ?? "", pulses: pulses.get(id) ?? [], dim: active },
       };
     });
-    return { nodes: built, edges: wires };
-  }, [flows, monitor, agent]);
+    wires.push({
+      id: SCAN_EDGE,
+      type: "route",
+      source: NODE.piRadio,
+      target: NODE.nearby,
+      selectable: false,
+      data: { label: EDGE_LABEL[SCAN_EDGE], pulses: [], dim: false, scan: true },
+    });
+    return { nodes: [...frames(list, monitor?.name || "Pi"), ...built], edges: wires };
+  }, [flows, monitor, agent, rf]);
 
   return (
     <div className="flow-canvas" aria-label="Animated paths of the selected service">

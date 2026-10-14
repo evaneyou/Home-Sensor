@@ -12,7 +12,7 @@ import {
   type FlowProfile,
   type FlowTest,
 } from "../flowPaths";
-import type { MonitorAdmin, MonitorDetail } from "../types";
+import type { MonitorAdmin, MonitorDetail, RfOverview } from "../types";
 import FlowDiagram from "./FlowDiagram";
 
 const STATUS_LABEL: Record<FlowTest["status"], string> = {
@@ -41,6 +41,14 @@ export default function FlowSection({
     queryFn: () => api.syntheticProfiles(monitorId) as Promise<{ profiles: FlowProfile[] }>,
     enabled: Boolean(monitorId),
     refetchInterval: 30000,
+    retry: false,
+  });
+  // What the monitoring radio last heard, for the box that stands for the networks around the house.
+  const rfQ = useQuery({
+    queryKey: ["rf-overview", monitorId],
+    queryFn: () => api.rfOverview(monitorId) as Promise<RfOverview>,
+    enabled: Boolean(monitorId),
+    refetchInterval: 60000,
     retry: false,
   });
   // The newest figures for each application flow, which the checks table does not hold.
@@ -104,7 +112,7 @@ export default function FlowSection({
           )}
         </nav>
         <div className="flow-stage">
-          <FlowDiagram flows={shown} monitor={monitor} agent={agent} />
+          <FlowDiagram flows={shown} monitor={monitor} agent={agent} rf={rfQ.data} />
           <div className="flow-legend" aria-hidden="true">
             <span><i className="flow-key-out" /> out to the destination</span>
             <span><i className="flow-key-back" /> back to the Pi</span>

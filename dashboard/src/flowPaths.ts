@@ -51,6 +51,10 @@ export type FlowProfile = {
 export const NODE = {
   piWired: "pi-wired",
   piWifi: "pi-wifi",
+  /** The Pi's monitor-mode radio: it scans the air and never carries a flow. */
+  piRadio: "pi-radio",
+  /** The Wi-Fi networks around the house that the radio hears. */
+  nearby: "nearby",
   router: "router",
   internet: "internet",
   web: "web",
@@ -71,6 +75,9 @@ export const EDGE_IDS = [
   `${NODE.tunnelWired}>${NODE.services}`,
   `${NODE.tunnelWifi}>${NODE.services}`,
 ] as const;
+
+/** Not a flow edge: the radio listening to the networks around it. */
+export const SCAN_EDGE = `${NODE.piRadio}>${NODE.nearby}`;
 
 /** A result older than this means the Pi is not running the check right now. */
 const STALE_MS = 30 * 60 * 1000;
