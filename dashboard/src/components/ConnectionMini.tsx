@@ -124,7 +124,7 @@ const node = (id: string, x: number, y: number, data: MiniData): MiniNode => ({
   connectable: false,
   selectable: false,
   focusable: false,
-  style: { width: 214 },
+  style: { width: 200 },
 });
 
 /**
@@ -179,27 +179,27 @@ export default function ConnectionMini({ live }: { live: MiniLive }) {
       icon: "house",
       status: live.online === undefined ? undefined : live.online ? "ok" : "fail",
     }),
-    node("wired", 300, 0, {
+    node("wired", 262, 0, {
       title: "Wired",
       lines: linkLines(wired),
       tone: "wired",
       icon: "ethernet",
       status: wired.status,
     }),
-    node("wifi", 300, 130, {
+    node("wifi", 262, 130, {
       title: "Wi-Fi",
       lines: linkLines(wireless),
       tone: "wifi",
       icon: "wifi",
       status: wireless.status,
     }),
-    node("internet", 600, 62, {
+    node("internet", 524, 62, {
       title: "Internet",
       lines: [live.isp || "ISP"],
       tone: "neutral",
       icon: "globe",
     }),
-    node("server", 900, 62, {
+    node("server", 786, 62, {
       title: "HomeNetWatch",
       lines: ["Server", ...[tunnel(live.tunnels?.wired) && `Wired tunnel: ${tunnel(live.tunnels?.wired)}`, tunnel(live.tunnels?.wireless) && `Wi-Fi tunnel: ${tunnel(live.tunnels?.wireless)}`].filter((value): value is string => Boolean(value))],
       tone: "neutral",
