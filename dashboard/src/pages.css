@@ -1361,3 +1361,8 @@
     white-space: nowrap;
   }
 }
+
+/* A network with many hops wraps them onto more rows rather than running off the box. */
+.npf-node .npv-chips {
+  flex-wrap: wrap;
+}
