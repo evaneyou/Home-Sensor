@@ -32,6 +32,8 @@
 	# one-click guest demo. It is plain static files, so it needs no build step.
 	redir /welcome /welcome/ 308
 	handle_path /welcome/* {
+		# Check with the server on every visit (cheap, thanks to ETag) so an edit shows up right away.
+		header Cache-Control "no-cache"
 		root * /srv/site
 		file_server
 	}
@@ -52,6 +54,7 @@
 homenetwatch.com, www.homenetwatch.com {
 	encode zstd gzip
 	import secure_headers
+	header Cache-Control "no-cache"
 	root * /srv/site
 	file_server
 }
