@@ -33,6 +33,7 @@ services:
       - "443:443/udp"
     environment:
       DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+      HSTS_MAX_AGE: ${HSTS_MAX_AGE:-300}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
