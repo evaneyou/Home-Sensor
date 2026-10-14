@@ -1113,5 +1113,47 @@ code {
 
 /* About: a single column now that the traits list is gone. */
 .about {
-  grid-template-columns: minmax(0, 860px);
+  grid-template-columns: 1.4fr 0.8fr;
+}
+
+.glance {
+  align-self: start;
+  padding: 8px 26px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+}
+
+.glance dl {
+  margin: 0;
+}
+
+.glance dl > div {
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.glance dl > div:last-child {
+  border-bottom: 0;
+}
+
+.glance dt {
+  color: var(--mint);
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.glance dd {
+  margin: 4px 0 0;
+  color: var(--soft);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+@media (max-width: 960px) {
+  .about {
+    grid-template-columns: 1fr;
+  }
 }
