@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The repository version lives in [`VERSION`](./VERSION). The Pi agent in `monitor/`
 reports its own `AGENT_VERSION` so it can be updated independently of the server.
 
+## [Unreleased]
+
+### Changed
+
+- The Pi agent reports version 0.6.0 (on-demand host traces, and traces bound to a link run over IPv4). Install it on each Pi to update.
+
 ## [0.2.0] - 2026-10-14
 
 ### Added
