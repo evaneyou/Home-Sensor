@@ -18,6 +18,8 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
 - **Zoom:** the real-time application health charts zoom by drag, wheel and double-click.
 - Agent reports its Ethernet, Wi-Fi and radio interface names and a real LAN address.
 - `scripts/deploy.sh`, which recreates `rtnp` whenever `wireguard` is recreated.
+- **Security headers:** HSTS (`HSTS_MAX_AGE`, starting at 300 seconds), an enforced Content-Security-Policy and a Permissions-Policy on every response, set by Caddy. See the Security headers section of `docs/deploy.md`.
+- **Landing page:** `site/`, served at `/welcome/` and on the bare domain and `www`: a short description of the app, documents, an author bio and a one-click read-only guest demo.
 
 ### Changed
 
@@ -25,6 +27,8 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
 - "File Transfer" is now "Bandwidth Test". The product is named HomeNetWatch.
 - A shared monitor tab bar on every monitor page. Home shows Web first and no longer has the Internet chip.
 - Several flows can run at once on a link; Wi-Fi measurements are bound to the Wi-Fi interface.
+- Rows that open a detail view (Internet Connection and the real-time application checks) show a chevron and a hover highlight. Real-Time Application Health is in its own box.
+- A guest who tries a host trace gets the read-only notice instead of an error.
 
 ### Removed
 

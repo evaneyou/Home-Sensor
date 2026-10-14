@@ -1,8 +1,5 @@
-# Caddy obtains and renews a Let's Encrypt certificate for $DOMAIN automatically.
-# The DNS A record for $DOMAIN must point at this server, and ports 80 and 443 must be open.
-{$DOMAIN} {
-	encode zstd gzip
-
+# Security headers shared by every site below.
+(secure_headers) {
 	header {
 		X-Content-Type-Options nosniff
 		X-Frame-Options DENY
@@ -22,6 +19,24 @@
 		# Browser features the dashboard never uses are switched off. Clipboard writes stay allowed (copy buttons).
 		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), accelerometer=(), gyroscope=(), magnetometer=(), midi=(), display-capture=(), interest-cohort=()"
 	}
+}
+
+# Caddy obtains and renews a Let's Encrypt certificate for $DOMAIN automatically.
+# The DNS A record for $DOMAIN must point at this server, and ports 80 and 443 must be open.
+{$DOMAIN} {
+	encode zstd gzip
+
+	import secure_headers
+
+	# The project landing page (site/): a short description of the app, documents, an author bio, and a
+	# one-click guest demo. It is plain static files, so it needs no build step.
+	redir /welcome /welcome/ 308
+	handle_path /welcome/* {
+		# Check with the server on every visit (cheap, thanks to ETag) so an edit shows up right away.
+		header Cache-Control "no-cache"
+		root * /srv/site
+		file_server
+	}
 
 	# API requests go to FastAPI. Everything else is the dashboard.
 	@api path /api/*
@@ -32,4 +47,14 @@
 	handle {
 		reverse_proxy dashboard:3847
 	}
+}
+
+# The project landing page (site/) on the bare domain and www. Point both DNS A records at this server.
+# Both names need DNS A records pointing at this server first; until they do, Caddy cannot get certificates.
+homenetwatch.com, www.homenetwatch.com {
+	encode zstd gzip
+	import secure_headers
+	header Cache-Control "no-cache"
+	root * /srv/site
+	file_server
 }

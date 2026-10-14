@@ -15,6 +15,7 @@ Home network monitoring. Pi remote agents push test results to a FastAPI + Postg
 - `server/`: FastAPI app (`app/`), Alembic migrations (`alembic/`), seed, tests (`tests/`)
 - `dashboard/`: Vite React UI (`src/`)
 - `monitor/`: Raspberry Pi agent package (setup page, enrollment, checks, install scripts)
+- `site/`: the static landing page served at `/welcome/` (description, docs links, bio, one-click guest demo). Plain HTML, CSS and JS; no build.
 - `deploy/`, `docker-compose.yml`, `docker-compose.prod.yml`, `wireguard/`: stack and production deployment
 - `docs/deploy.md`: production deployment guide
 - `scripts/`: backup, local-up, test-server, bump-version
