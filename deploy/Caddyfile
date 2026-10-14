@@ -8,6 +8,18 @@
 		X-Frame-Options DENY
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
+
+		# HSTS. The max-age starts short (5 minutes) so a mistake clears quickly; raise HSTS_MAX_AGE in
+		# .env to 31536000 (one year) once the site and every subdomain you use work over HTTPS.
+		Strict-Transport-Security "max-age={$HSTS_MAX_AGE:300}; includeSubDomains"
+
+		# The CSP is report-only: the browser logs what it would block (see the console) but blocks nothing.
+		# When the console stays quiet, rename this header to Content-Security-Policy to enforce it.
+		# style-src needs 'unsafe-inline' for the inline style attributes React sets.
+		Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://server.arcgisonline.com; connect-src 'self' https://photon.komoot.io; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
+		# Browser features the dashboard never uses are switched off. Clipboard writes stay allowed (copy buttons).
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), accelerometer=(), gyroscope=(), magnetometer=(), midi=(), display-capture=(), interest-cohort=()"
 	}
 
 	# API requests go to FastAPI. Everything else is the dashboard.
