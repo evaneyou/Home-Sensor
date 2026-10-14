@@ -1791,3 +1791,19 @@
 .network-health .health-row-head .mono {
   font-size: 0.95rem;
 }
+
+/* The compact layout sizes panel titles; these keep the two health boxes slightly larger. */
+.app-shell .panel.network-health h2,
+.app-shell.ui-compact .panel.network-health h2 {
+  font-size: 1.2rem;
+}
+
+.app-shell .network-health .health-row-title,
+.app-shell.ui-compact .network-health .health-row-title {
+  font-size: 1.08rem;
+}
+
+.app-shell .network-health .health-row-head .mono,
+.app-shell.ui-compact .network-health .health-row-head .mono {
+  font-size: 0.95rem;
+}
