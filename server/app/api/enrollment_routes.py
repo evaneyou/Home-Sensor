@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.api.routes import _device_name, _home_group, _name_taken, _unique_slug, monitor_admin_out
+from app.api.common import _device_name, _home_group, _name_taken, _unique_slug, monitor_admin_out
 from app.auth import get_current_user, require_admin_csrf
 from app.config import get_settings
 from app.db import get_db

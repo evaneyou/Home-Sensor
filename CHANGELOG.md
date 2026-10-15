@@ -19,6 +19,7 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
 - The connection chart has more room above and below so the bottom row is not clipped.
 - The landing page matches the live copy, including the decisions and the Telegram roadmap item.
 - A guest sees each letter and digit of an identifying field replaced with `#`, so an address still has the shape of an address. The measurements stay visible.
+- Auth, settings, agent check-in, and dashboard readings each have their own API module. The paths are unchanged.
 
 ### Added
 

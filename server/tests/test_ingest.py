@@ -344,9 +344,9 @@ def test_health_cleanup_only_drops_the_reporting_monitor(client: TestClient, db)
 
 
 def test_a_long_metric_range_returns_a_bounded_series(client: TestClient, db, monkeypatch):
-    from app.api import routes as api_routes
+    from app.api import readings_routes
 
-    monkeypatch.setattr(api_routes, "_MAX_METRIC_POINTS", 3)
+    monkeypatch.setattr(readings_routes, "_MAX_METRIC_POINTS", 3)
     login(client)
     monitor = db.scalar(select(Monitor).where(Monitor.slug == db.info["monitor_slug"]))
     test = db.scalar(select(Test).where(Test.monitor_id == monitor.id))
