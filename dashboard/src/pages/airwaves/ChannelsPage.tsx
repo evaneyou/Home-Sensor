@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useOutletContext, useSearchParams } from "react-router-dom";
 import { api } from "../../api";
+import { isAnonymized, stableId } from "../../anonymized";
 import type { RfChannelSnapshot } from "../../types";
 import { type AirContext } from "./shared";
 
@@ -135,7 +136,7 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
               const dim = hover !== null && !on;
               return (
                 <path
-                  key={hill.bssid}
+                  key={stableId(hill, hill.bssid)}
                   d={hill.d}
                   clipPath="url(#air-plotclip)"
                   fill={hill.color}
@@ -159,7 +160,7 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
             const dim = hover !== null && !on;
             return (
               <div
-                key={hill.bssid}
+                key={stableId(hill, `${hill.bssid}-${index}`)}
                 className={on ? "air-net on" : dim ? "air-net dim" : "air-net"}
                 style={{ ["--net" as string]: hill.color }}
                 onMouseEnter={() => setHover(index)}
@@ -167,7 +168,7 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
               >
                 <div className="air-net-row">
                   <span style={{ width: 14, height: 14, borderRadius: "50%", background: hill.color, flex: "none" }} />
-                  <span className="air-net-name">{hill.ssid}</span>
+                  <span className={isAnonymized(hill.ssid) ? "air-net-name anon-mark" : "air-net-name"}>{hill.ssid}</span>
                   <span className="air-net-dbm">{dbmText(hill.rssi_dbm)}</span>
                 </div>
                 <div className="air-meter">

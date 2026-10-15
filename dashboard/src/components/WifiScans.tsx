@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "../api";
+import { isAnonymized, stableId } from "../anonymized";
 import { CHART_COLORS } from "../chartTheme";
 import { formatChartHour } from "../chartTime";
 import { useChartZoom } from "../useChartZoom";
@@ -20,6 +21,7 @@ const RANGES = ["1h", "24h", "7d"] as const;
 const COLORS = CHART_COLORS;
 
 function seriesKey(row: WifiObservation): string {
+  if (isAnonymized(row.ssid) || isAnonymized(row.bssid)) return stableId(row, row.bssid);
   return `${row.ssid} ${row.band} GHz`;
 }
 
@@ -32,6 +34,10 @@ export default function WifiScans({ monitorId }: { monitorId: string }) {
 
   const rows = q.data ?? [];
   const keys = useMemo(() => [...new Set(rows.map(seriesKey))], [rows]);
+  const anonymizedScan = rows.some((row) => isAnonymized(row.ssid) || isAnonymized(row.bssid));
+  const scanLabels = anonymizedScan
+    ? keys.map((key) => rows.find((row) => stableId(row, row.bssid) === key)?.ssid || key)
+    : undefined;
 
   const chart = useMemo(() => {
     const byTime = new Map<string, Record<string, string | number>>();
@@ -50,7 +56,7 @@ export default function WifiScans({ monitorId }: { monitorId: string }) {
 
   const latest = useMemo(() => {
     const byBssid = new Map<string, WifiObservation>();
-    for (const row of rows) byBssid.set(row.bssid, row);
+    for (const row of rows) byBssid.set(stableId(row, row.bssid), row);
     return [...byBssid.values()].sort((a, b) => b.rssi_dbm - a.rssi_dbm);
   }, [rows]);
 
@@ -103,9 +109,9 @@ export default function WifiScans({ monitorId }: { monitorId: string }) {
               </thead>
               <tbody>
                 {latest.map((row) => (
-                  <tr key={row.bssid}>
-                    <td>{row.ssid}</td>
-                    <td className="mono">{row.bssid}</td>
+                  <tr key={stableId(row, row.bssid)}>
+                    <td className={isAnonymized(row.ssid) ? "anon-mark" : undefined}>{row.ssid}</td>
+                    <td className={isAnonymized(row.bssid) ? "anon-mark" : "mono"}>{row.bssid}</td>
                     <td>{row.vendor}</td>
                     <td className="mono">{row.band} GHz</td>
                     <td className="mono">{row.channel}</td>
@@ -125,6 +131,7 @@ export default function WifiScans({ monitorId }: { monitorId: string }) {
             title="Signal change"
             data={rssiChange}
             keys={keys}
+            labels={scanLabels}
             unit=" dB"
             domain={changeDomain}
             zeroLine
@@ -133,7 +140,7 @@ export default function WifiScans({ monitorId }: { monitorId: string }) {
             title="Noise"
             data={chart}
             keys={keys.map((key) => `${key} noise`)}
-            labels={keys}
+            labels={scanLabels ?? keys}
             unit=" dBm"
             domain={[-100, -70]}
           />
@@ -141,7 +148,7 @@ export default function WifiScans({ monitorId }: { monitorId: string }) {
             title="Max link rate"
             data={chart}
             keys={keys.map((key) => `${key} rate`)}
-            labels={keys}
+            labels={scanLabels ?? keys}
             unit=" Mbps"
           />
 
@@ -166,10 +173,10 @@ export default function WifiScans({ monitorId }: { monitorId: string }) {
               </thead>
               <tbody>
                 {recent.map((row) => (
-                  <tr key={`${row.scanned_at}-${row.bssid}`}>
+                  <tr key={`${row.scanned_at}-${stableId(row, row.bssid)}`}>
                     <td className="mono">{new Date(row.scanned_at).toLocaleString()}</td>
-                    <td>{row.ssid}</td>
-                    <td className="mono">{row.bssid}</td>
+                    <td className={isAnonymized(row.ssid) ? "anon-mark" : undefined}>{row.ssid}</td>
+                    <td className={isAnonymized(row.bssid) ? "anon-mark" : "mono"}>{row.bssid}</td>
                     <td>{row.vendor}</td>
                     <td className="mono">{row.band} GHz</td>
                     <td className="mono">{row.channel}</td>

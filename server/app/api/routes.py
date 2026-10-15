@@ -540,11 +540,7 @@ def list_monitors(
     monitors = db.scalars(select(Monitor).order_by(Monitor.name)).all()
     refresh_handshakes(db, list(monitors))
     db.commit()
-    rows = [monitor_admin_out(monitor) for monitor in monitors]
-    if _user.role == UserRole.guest:
-        for row in rows:
-            row.public_ip = None
-    return rows
+    return [monitor_admin_out(monitor) for monitor in monitors]
 
 
 @router.delete("/monitors/{monitor_id}", status_code=204)
@@ -1526,7 +1522,7 @@ def get_monitor(
         "lan_ip": monitor.lan_ip,
         "tunnel_address": monitor.wg_address,
         "wireless_tunnel_address": monitor.wg_wireless_address,
-        "public_ip": None if _user.role == UserRole.guest else monitor.public_ip,
+        "public_ip": monitor.public_ip,
         "isp": monitor.isp,
         "wired_iface": latest_health.wired_iface if latest_health else None,
         "wifi_link_iface": latest_health.wifi_link_iface if latest_health else None,
@@ -1819,7 +1815,7 @@ def get_device(
         "connected": connected,
         "last_seen_at": monitor.last_seen_at.isoformat() if monitor.last_seen_at else None,
         "lan_ip": monitor.lan_ip,
-        "public_ip": None if _user.role == UserRole.guest else monitor.public_ip,
+        "public_ip": monitor.public_ip,
         "isp": monitor.isp,
         "agent_version": monitor.agent_version,
         "hostname": latest.hostname if latest else None,

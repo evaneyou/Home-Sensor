@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOutletContext } from "react-router-dom";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
 import { api } from "../../api";
+import { isAnonymized, joinAnon } from "../../anonymized";
 import { useGuestGate } from "../../guestGate";
 import { CHART_COLORS } from "../../chartTheme";
 import WaitButton from "../../components/WaitButton";
@@ -37,7 +38,7 @@ export default function AirwavesOverview() {
   }
 
   const waiting = scan.isPending || overview.scan_requested;
-  const place = [ctx.agent.name, ctx.agent.location_label].filter(Boolean).join(" · ");
+  const place = joinAnon([ctx.agent.name, ctx.agent.location_label], " · ");
   return (
     <div className="air-overview">
       <div className="air-bands">
@@ -67,10 +68,17 @@ function Alerts({ alerts }: { alerts: RfOverview["alerts"] }) {
   const body = alerts.length === 0 ? (
     <p className="npv-hint">No alerts in this range.</p>
   ) : (
-    alerts.map((alert) => (
-      <p key={`${alert.observed_at}-${alert.alert_type}-${alert.bssid}`}>
+    alerts.map((alert, index) => (
+      <p key={`${alert.observed_at}-${index}`}>
         {alert.alert_type}
-        {alert.bssid ? ` · ${alert.bssid}` : ""} · {alert.text}
+        {alert.bssid ? (
+          <>
+            {" · "}
+            <span className={isAnonymized(alert.bssid) ? "anon-mark" : undefined}>{alert.bssid}</span>
+          </>
+        ) : null}
+        {" · "}
+        {isAnonymized(alert.text) ? <span className="anon-mark">{alert.text}</span> : alert.text}
       </p>
     ))
   );

@@ -17,6 +17,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useMemo, useState } from "react";
+import { isAnonymized } from "../anonymized";
 import { EDGE_IDS, NODE, SCAN_EDGE, edgeId, hostOf, hostsOf, pathsFor, type FlowLink, type FlowTest } from "../flowPaths";
 import type { MonitorAdmin, MonitorDetail, RfOverview } from "../types";
 
@@ -95,8 +96,10 @@ function PathBox({ data }: NodeProps<FlowNodeType>) {
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
       <strong>{data.title}</strong>
-      {data.lines.map((line) => (
-        <span key={line}>{line}</span>
+      {data.lines.map((line, index) => (
+        <span key={`${index}-${line}`} className={isAnonymized(line) ? "anon-mark" : undefined}>
+          {line}
+        </span>
       ))}
       <NodeToolbar isVisible={open} position={side} align={align} offset={12}>
         <div className="flow-tip" role="tooltip">
@@ -106,7 +109,7 @@ function PathBox({ data }: NodeProps<FlowNodeType>) {
               {facts.map(([label, value]) => (
                 <div key={label}>
                   <dt>{label}</dt>
-                  <dd>{value}</dd>
+                  <dd className={isAnonymized(value) ? "anon-mark" : undefined}>{value}</dd>
                 </div>
               ))}
             </dl>
@@ -493,7 +496,10 @@ function factsFor(
   // The agent works its "LAN IP" out from the route to the server, which now runs through the
   // tunnel, so it can report the tunnel address. Showing that as a LAN address would be wrong.
   const reported = agent?.lan_ip ?? monitor?.lan_ip;
-  const lan = reported && reported !== monitor?.tunnel_address && reported !== monitor?.wireless_tunnel_address ? reported : null;
+  const sameAsTunnel =
+    !isAnonymized(reported) &&
+    (reported === monitor?.tunnel_address || reported === monitor?.wireless_tunnel_address);
+  const lan = reported && !sameAsTunnel ? reported : null;
   switch (id) {
     case NODE.piWired:
       add("Status", monitor?.status);

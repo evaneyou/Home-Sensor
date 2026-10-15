@@ -11,6 +11,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useMemo } from "react";
+import { isAnonymized } from "../anonymized";
 import { useElementWidth, useNarrow } from "../useNarrow";
 import type { AsChip, PathTrace } from "./NetworkPathView";
 
@@ -48,6 +49,7 @@ function LaneTitle({ data }: NodeProps<LaneNode>) {
 const nodeTypes = { as: AsBox, lane: LaneTitle };
 
 function sameNetwork(a: AsChip, b: AsChip): boolean {
+  if (isAnonymized(a.asn) || isAnonymized(b.asn)) return Boolean(a.anon_key) && a.anon_key === b.anon_key;
   return a.asn != null && a.asn === b.asn;
 }
 
@@ -129,7 +131,9 @@ function Lanes({ trace, vertical, width }: { trace: PathTrace; vertical: boolean
     });
     announced.forEach((item, index) => {
       const matched = partnerOf(item, observed) >= 0;
-      const origin = trace.bgp.origin_asn != null && item.asn === trace.bgp.origin_asn;
+      const origin = isAnonymized(item.asn)
+        ? Boolean(item.anon_key) && item.anon_key === trace.bgp.anon_key
+        : trace.bgp.origin_asn != null && item.asn === trace.bgp.origin_asn;
       built.push(box(`a${index}`, 1, slots[index], item, matched ? "" : whyAlone(item, "announced"), origin));
       if (index > 0) {
         wires.push({ id: `ae${index}`, source: `a${index - 1}`, target: `a${index}`, type: "smoothstep", selectable: false, markerEnd: arrow, style: { stroke: ARROW, strokeWidth: 2 } });

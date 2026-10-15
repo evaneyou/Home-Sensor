@@ -340,7 +340,7 @@ def test_guest_cannot_start_a_check_or_see_the_home_address(client, db, monitor_
     listed = client.get("/api/v1/monitors", headers=guest)
     assert listed.status_code == 200
     mine = next(item for item in listed.json() if item["id"] == str(monitor.id))
-    assert mine["public_ip"] is None
+    assert mine["public_ip"] == "###.#.###.##"
     denied = client.put(
         "/api/v1/synthetic/continuous",
         headers=guest,
@@ -466,10 +466,23 @@ def test_srtp_key_is_a_file_and_never_an_argument(tmp_path, monkeypatch):
 def test_guest_redaction_drops_markings_and_leaves_admin_results():
     from app.redact import redact
 
-    payload = {"public_ip": "203.0.113.9", "metrics": {"tos": 184, "dscp": 46, "rtt_ms": 20}}
+    payload = {
+        "public_ip": "203.0.113.9",
+        "lan_ip": "",
+        "latitude": 40.1,
+        "hostname": "living-room",
+        "metrics": {"tos": 184, "dscp": 46, "rtt_ms": 20},
+        "aps": [{"ssid": "Home", "bssid": "aa:bb"}, {"ssid": "Cafe", "bssid": "cc:dd"}],
+    }
     hidden = redact(payload, UserRole.guest)
-    assert hidden["public_ip"] is None
+    assert hidden["public_ip"] == "###.#.###.#"
+    assert hidden["lan_ip"] == ""
+    assert hidden["latitude"] == "##.#"
+    assert hidden["hostname"] == "######-####"
     assert hidden["metrics"] == {"rtt_ms": 20}
+    assert hidden["aps"][0]["ssid"] == "####"
+    assert hidden["aps"][0]["bssid"] == "##:##"
+    assert hidden["aps"][0]["anon_key"] != hidden["aps"][1]["anon_key"]
     visible = redact(payload, UserRole.admin)
     assert visible["metrics"]["tos"] == 184
     assert visible["public_ip"] == "203.0.113.9"

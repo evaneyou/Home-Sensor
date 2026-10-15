@@ -13,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "../api";
+import { isAnonymized } from "../anonymized";
 import { CHART_COLORS } from "../chartTheme";
 import { formatChartTick, chartTicks, chartWindow, zoomedDomain } from "../chartTime";
 import type { MetricsResponse, MonitorDetail } from "../types";
@@ -841,7 +842,7 @@ function InternetDetail({
                   {latestHops.map((hop) => (
                     <tr key={hop.hop}>
                       <td className="mono">{hop.hop}</td>
-                      <td className="mono">{hop.host}</td>
+                      <td className={isAnonymized(hop.host) ? "anon-mark" : "mono"}>{hop.host}</td>
                       <td className="mono">{fmt(hop.loss_pct)}%</td>
                       <td className="mono">{fmt(hop.best_ms)} ms</td>
                       <td className="mono">{fmt(hop.avg_ms)} ms</td>

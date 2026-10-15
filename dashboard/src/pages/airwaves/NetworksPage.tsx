@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api } from "../../api";
+import { isAnonymized, stableId } from "../../anonymized";
 import { useGuestGate } from "../../guestGate";
 import SelectMenu from "../../components/SelectMenu";
 import type { RfAp, User } from "../../types";
@@ -55,7 +56,7 @@ export default function AirwavesNetworks() {
   }, [all, band, security, hidden, needle]);
   const shown = filtered.slice(0, limit);
   const open = new Set(openIds);
-  const allOpen = filtered.length > 0 && filtered.every((ap) => open.has(ap.bssid));
+  const allOpen = filtered.length > 0 && filtered.every((ap) => open.has(stableId(ap, ap.bssid)));
 
   if (!ctx.overviewLoading && !ctx.overview?.last_scan_at) {
     return <p className="npv-card air-empty-note">No data yet. {ctx.agent.name} has not uploaded a scan.</p>;
@@ -104,7 +105,7 @@ export default function AirwavesNetworks() {
         <button
           className="air-text-btn"
           type="button"
-          onClick={() => setOpenIds(allOpen ? [] : filtered.map((ap) => ap.bssid))}
+          onClick={() => setOpenIds(allOpen ? [] : filtered.map((ap) => stableId(ap, ap.bssid)))}
         >
           {allOpen ? "Collapse all" : "Expand all"}
         </button>
@@ -116,12 +117,12 @@ export default function AirwavesNetworks() {
         previousBand = ap.band;
         const count = filtered.filter((item) => item.band === ap.band).length;
         return (
-          <div key={ap.bssid}>
+          <div key={stableId(ap, ap.bssid)}>
             {header ? <h2 className="air-group">{ap.band} GHz · {count}</h2> : null}
             <NetworkRow
               ap={ap}
-              expanded={open.has(ap.bssid)}
-              onToggle={() => toggle(ap.bssid)}
+              expanded={open.has(stableId(ap, ap.bssid))}
+              onToggle={() => toggle(stableId(ap, ap.bssid))}
               ctx={ctx}
               pending={trust.isPending}
               onTrust={() => run(() => trust.mutate(ap))}
@@ -194,7 +195,9 @@ function NetworkRow({
   return (
     <div className="air-list-item">
       <button className="air-row air-ap-row" type="button" aria-expanded={expanded} onClick={onToggle}>
-        <span className="air-row-device"><strong>{name}</strong></span>
+        <span className="air-row-device">
+          <strong className={isAnonymized(name) ? "anon-mark" : undefined}>{name}</strong>
+        </span>
         <span className="air-row-signal">{`−${Math.abs(Math.round(ap.rssi_dbm))} dBm`}</span>
         <span className="air-chevron" aria-hidden="true">{expanded ? "▾" : "▸"}</span>
         <span className="air-row-sub">
@@ -241,7 +244,7 @@ function NetworkDetails({
         {facts.map((fact) => (
           <div className="air-tile" key={fact.label}>
             <span>{fact.label}</span>
-            <strong>{fact.value}</strong>
+            <strong className={isAnonymized(fact.value) ? "anon-mark" : undefined}>{fact.value}</strong>
           </div>
         ))}
       </div>

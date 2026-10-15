@@ -9,6 +9,7 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "../api";
+import { AnonPlate, AnonText, coordinate, isAnonymized, joinAnon } from "../anonymized";
 import CityMap from "./CityMap";
 import { formatChartHour } from "../chartTime";
 import { useChartZoom } from "../useChartZoom";
@@ -77,17 +78,18 @@ export default function DevicePanel({ monitorId }: { monitorId: string }) {
 
   const report = deviceQ.data;
   const latest = report.latest;
-  const place = [report.location_label, report.region, report.country].filter(Boolean).join(", ");
-  const savedPin =
-    report.latitude != null && report.longitude != null
-      ? { latitude: report.latitude, longitude: report.longitude }
-      : null;
+  const place = joinAnon([report.location_label, report.region, report.country]);
+  const latitude = coordinate(report.latitude);
+  const longitude = coordinate(report.longitude);
+  const savedPin = latitude != null && longitude != null ? { latitude, longitude } : null;
+  const pinMark = [report.latitude, report.longitude].filter(isAnonymized).map(String).join("  ");
+  const placeHidden = isAnonymized(place) || pinMark.length > 0;
 
   return (
     <>
       <section className="panel device-panel">
         <h2>Location</h2>
-        <p className="muted">{place || "No location saved."}</p>
+        {placeHidden ? <p className="anon-mark">{place || pinMark}</p> : <p className="muted">{place || "No location saved."}</p>}
         {savedPin ? (
           <CityMap
             className="location-map"
@@ -96,6 +98,8 @@ export default function DevicePanel({ monitorId }: { monitorId: string }) {
             label={place || report.name}
             zoomControl={false}
           />
+        ) : placeHidden ? (
+          <AnonPlate value={pinMark || place} />
         ) : null}
       </section>
       <section className="panel device-panel">
@@ -133,11 +137,15 @@ export default function DevicePanel({ monitorId }: { monitorId: string }) {
             </div>
             <div>
               <span>Address</span>
-              <strong>{report.lan_ip || latest.lan_ip || "—"}</strong>
+              <strong>
+                <AnonText value={report.lan_ip || latest.lan_ip} />
+              </strong>
             </div>
             <div>
               <span>Host</span>
-              <strong>{report.hostname || "—"}</strong>
+              <strong>
+                <AnonText value={report.hostname} />
+              </strong>
             </div>
             <div>
               <span>Agent</span>
