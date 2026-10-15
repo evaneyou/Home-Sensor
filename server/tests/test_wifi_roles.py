@@ -91,6 +91,8 @@ def test_lan_reenroll_requires_the_current_device_key():
     import sys
 
     sys.path.insert(0, str(path.parent))
+    for name in ("agent_state", "enrollment", "health", "radio", "scheduler"):
+        sys.modules.pop(name, None)
     spec = importlib.util.spec_from_file_location("monitor_agent_setup", path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None

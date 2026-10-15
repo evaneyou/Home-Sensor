@@ -185,14 +185,19 @@ def test_kismet_http_failure_is_kept_on_the_agent(tmp_path: Path):
     here = Path(__file__).resolve()
     path = next(item for item in (here.parents[2] / "monitor" / "agent.py", Path("/monitor/agent.py")) if item.is_file())
     sys.path.insert(0, str(path.parent))
+    for name in ("agent_state", "enrollment", "health", "radio", "scheduler"):
+        sys.modules.pop(name, None)
     spec = importlib.util.spec_from_file_location("monitor_agent_kismet_error", path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
     creds = tmp_path / "kismet.json"
     creds.write_text('{"url":"http://127.0.0.1:2501","username":"k","password":"p"}', encoding="utf-8")
-    module.KISMET_PATH = creds
-    module._last_error = ""
+    import agent_state
+    import radio
+
+    agent_state.KISMET_PATH = creds
+    agent_state._last_error = ""
 
     def reject(*_args, **_kwargs):
         raise urllib.error.HTTPError(
@@ -203,11 +208,11 @@ def test_kismet_http_failure_is_kept_on_the_agent(tmp_path: Path):
             fp=io.BytesIO(b'{"error":"invalid field"}'),
         )
 
-    module.kismet_get = reject
-    module.kismet_once({"server_url": "http://127.0.0.1", "token": "t", "name": "Pi"})
-    assert module._last_error.startswith("Kismet HTTP 400:")
-    assert "invalid field" in module._last_error
-    assert module._airwave_mode == "off"
+    radio.kismet_get = reject
+    radio.kismet_once({"server_url": "http://127.0.0.1", "token": "t", "name": "Pi"})
+    assert agent_state._last_error.startswith("Kismet HTTP 400:")
+    assert "invalid field" in agent_state._last_error
+    assert agent_state._airwave_mode == "off"
 
 
 def test_real_kismet_json_maps_an_ap_a_channel_and_an_alert():

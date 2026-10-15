@@ -26,6 +26,8 @@ from app.wireguard_tunnel import client_config
 def _load_agent(tmp_path: Path):
     os.environ["MONITOR_CONFIG"] = str(tmp_path / "config.json")
     os.environ["MONITOR_WIREGUARD_DIR"] = str(tmp_path / "wireguard")
+    for name in ("agent_state", "enrollment", "health", "radio", "scheduler"):
+        sys.modules.pop(name, None)
     here = Path(__file__).resolve()
     candidates = [here.parents[2] / "monitor" / "agent.py", Path("/monitor/agent.py")]
     path = next(item for item in candidates if item.is_file())
@@ -126,7 +128,11 @@ def test_tls_pin_matches_the_server_key_and_rejects_another(tmp_path: Path):
 
 def test_approval_writes_the_tunnel_and_drops_the_installer_code(tmp_path: Path):
     agent = _load_agent(tmp_path)
-    agent.ensure_health_loop = lambda: None
+    import agent_state
+    import enrollment
+    import health
+
+    agent_state.ensure_health_loop = lambda: None
     code = agent.new_installer_code()
     agent.save_config(
         {
@@ -160,8 +166,8 @@ def test_approval_writes_the_tunnel_and_drops_the_installer_code(tmp_path: Path)
             ],
         }
 
-    agent.post_pinned = fake_post
-    agent.lan_ip = lambda _url: "192.168.1.40"
+    enrollment.post_pinned = fake_post
+    health.lan_ip = lambda _url: "192.168.1.40"
     agent.enroll_once(agent.load_config())
     check = seen[0]
     assert verify_signature(

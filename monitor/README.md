@@ -5,7 +5,7 @@ setup page on the LAN, reports device health to the server, and runs the connect
 server assigns to it: HTTP, ICMP ping, MTR, and Bandwidth Test.
 
 The agent uses only the Python 3 standard library. Its version is `AGENT_VERSION` in
-[`agent.py`](./agent.py).
+[`agent_state.py`](./agent_state.py).
 
 ## Requirements
 
@@ -61,7 +61,12 @@ Setup accepts HTTPS, or HTTP to a private LAN address.
 
 | File | Purpose |
 |------|---------|
-| `agent.py` | Setup page, enrollment, health reporting, test scheduling |
+| `agent.py` | Setup page, and the loops that start the rest |
+| `agent_state.py` | Shared paths, locks, and `AGENT_VERSION` |
+| `enrollment.py` | Identity, TLS pins, WireGuard keys, and enrollment |
+| `health.py` | Device health and the report loop |
+| `radio.py` | Wi-Fi survey upload and Kismet capture |
+| `scheduler.py` | Due tests, on-demand traces, and synthetic traffic |
 | `checks.py` | HTTP, ping, MTR, and Bandwidth Test checks |
 | `install.sh` | Installs the package and `systemd` unit |
 | `monitor.service` | `systemd` unit (runs with `CAP_NET_RAW` and `CAP_NET_BIND_SERVICE` only) |
