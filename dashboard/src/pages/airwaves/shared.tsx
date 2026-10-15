@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { api } from "../../api";
+import { joinAnon } from "../../anonymized";
 import SelectMenu from "../../components/SelectMenu";
 import type { MonitorAdmin, RfOverview, User } from "../../types";
 
@@ -98,7 +99,7 @@ export default function AirwavesLayout() {
     { path: "/airwaves/channels", label: "Channel graph" },
   ];
   const band = params.get("band") === "5" ? "5" : "2.4";
-  const place = [agent.name, agent.location_label].filter(Boolean).join(" · ");
+  const place = joinAnon([agent.name, agent.location_label], " · ");
 
   return (
     <div className="npv airwaves">

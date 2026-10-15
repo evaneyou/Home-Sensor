@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../api";
+import { AnonText } from "../anonymized";
 import { canOperate, useGuestGate } from "../guestGate";
 import ConfirmDialog from "../components/ConfirmDialog";
 import SelectMenu from "../components/SelectMenu";
@@ -145,9 +146,20 @@ export default function RemoteAgentPage() {
     : legacy
       ? `Rename “${monitor.name}” to “${name.trim()}”? This agent was added before installer codes and must use “${name.trim()}” exactly, including capital letters, or it will stop connecting.`
       : `Rename “${monitor.name}” to “${name.trim()}”? The agent picks up the new name on its next report.`;
-  const tunnelText = monitor.tunnel_state
-    ? `${TUNNEL_STATE[monitor.tunnel_state]}${monitor.tunnel_address ? ` · ${monitor.tunnel_address}` : ""}`
-    : monitor.tunnel_address || "Not issued";
+  const tunnelLine = (state: string | null | undefined, address: string | null | undefined) =>
+    state ? (
+      <>
+        {TUNNEL_STATE[state] ?? state}
+        {address ? (
+          <>
+            {" · "}
+            <AnonText value={address} />
+          </>
+        ) : null}
+      </>
+    ) : (
+      <AnonText value={address} fallback="Not issued" />
+    );
 
   return (
     <div>
@@ -171,27 +183,29 @@ export default function RemoteAgentPage() {
           </div>
           <div>
             <span>Address</span>
-            <strong>{report?.lan_ip || monitor.lan_ip || "—"}</strong>
-          </div>
-          <div>
-            <span>Wired tunnel</span>
-            <strong>{tunnelText}</strong>
-          </div>
-          <div>
-            <span>Wi-Fi tunnel</span>
             <strong>
-              {monitor.wireless_tunnel_state
-                ? `${TUNNEL_STATE[monitor.wireless_tunnel_state]}${monitor.wireless_tunnel_address ? ` · ${monitor.wireless_tunnel_address}` : ""}`
-                : monitor.wireless_tunnel_address || "Not issued"}
+              <AnonText value={report?.lan_ip || monitor.lan_ip} />
             </strong>
           </div>
           <div>
+            <span>Wired tunnel</span>
+            <strong>{tunnelLine(monitor.tunnel_state, monitor.tunnel_address)}</strong>
+          </div>
+          <div>
+            <span>Wi-Fi tunnel</span>
+            <strong>{tunnelLine(monitor.wireless_tunnel_state, monitor.wireless_tunnel_address)}</strong>
+          </div>
+          <div>
             <span>External IP</span>
-            <strong className="mono">{report?.public_ip || "—"}</strong>
+            <strong>
+              <AnonText value={report?.public_ip} className="mono" />
+            </strong>
           </div>
           <div>
             <span>Service provider</span>
-            <strong>{report?.isp || "—"}</strong>
+            <strong>
+              <AnonText value={report?.isp} />
+            </strong>
           </div>
         </div>
         {applying ? <p className="muted">The agent applies a new report interval on its next check-in.</p> : null}

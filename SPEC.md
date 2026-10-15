@@ -31,7 +31,7 @@ The Pi stays on the LAN and reaches the server over outbound HTTPS. Only server 
 - `tests` — `http`, `dns`, `ping`, `wifi`, … bound to a remote agent and network
 - `test_results` — staged timings + metrics + status (`ok` / `degraded` / `fail`)
 - Retention for `test_results` and `wifi_observations`: raw for 6 months, hourly averages from 6 to 12 months, daily averages from 12 months to 2 years, then deleted. The server runs this once a day. Issues are kept as written.
-- `users` — admin, viewer, and guest with a password hash. A guest can read every page. Changes stay admin-only, and a guest session ends after 3 minutes idle.
+- `users` — admin, viewer, and guest with a password hash. A guest can read every page. Changes stay admin-only, and a guest session ends after 3 minutes idle. Identifying fields in a guest response, including coordinates, keep their shape but each letter and digit is replaced with `#` (addresses, place, provider, host name, interface names, and wireless names) so the map cannot plot the house.
 - `issues` — open/resolved problems with optional `root_cause_stage`
 
 ## API surface (dashboard-first)

@@ -53,6 +53,7 @@ export type WifiObservation = {
   scanned_at: string;
   ssid: string;
   bssid: string;
+  anon_key?: string;
   vendor: string;
   band: string;
   channel: number;
@@ -87,6 +88,7 @@ export type RfOverview = {
 
 export type RfAp = {
   bssid: string;
+  anon_key?: string;
   ssid: string;
   hidden: boolean;
   band: string;
@@ -106,6 +108,7 @@ export type RfHistoryPoint = { t: string; rssi_dbm: number; channel: number };
 
 export type RfClient = {
   mac: string;
+  anon_key?: string;
   bssid: string;
   ssid: string;
   vendor: string;
@@ -138,6 +141,7 @@ export type RfChannelSnapshot = {
   }[];
   series: {
     bssid: string;
+    anon_key?: string;
     ssid: string;
     hidden: boolean;
     trusted: boolean;
@@ -258,8 +262,8 @@ export type DeviceReport = {
   location_label: string | null;
   region: string | null;
   country: string | null;
-  latitude: number | null;
-  longitude: number | null;
+  latitude: number | string | null;
+  longitude: number | string | null;
   latest: DeviceSample | null;
   points: {
     t: string;
@@ -338,8 +342,8 @@ export type MonitorDetail = {
   name: string;
   status: string;
   last_seen_at: string | null;
-  latitude: number | null;
-  longitude: number | null;
+  latitude: number | string | null;
+  longitude: number | string | null;
   location_label: string | null;
   lan_ip?: string | null;
   tunnel_address?: string | null;

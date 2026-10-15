@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { Line, LineChart, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useOutletContext } from "react-router-dom";
 import { api } from "../../api";
+import { isAnonymized, stableId } from "../../anonymized";
 import { CHART_COLORS } from "../../chartTheme";
 import type { RfClient } from "../../types";
 import { type AirContext } from "./shared";
@@ -40,7 +41,7 @@ export default function AirwavesClients() {
   );
   const shown = filtered.slice(0, limit);
   const open = new Set(openIds);
-  const allOpen = filtered.length > 0 && filtered.every((client) => open.has(client.mac));
+  const allOpen = filtered.length > 0 && filtered.every((client) => open.has(stableId(client, client.mac)));
 
   if (clientsQ.isLoading) return <div className="state-box">Loading clients…</div>;
   if (clientsQ.isError) return <div className="state-box">Could not load clients.</div>;
@@ -89,7 +90,7 @@ export default function AirwavesClients() {
         <button
           className="air-text-btn"
           type="button"
-          onClick={() => setOpenIds(allOpen ? [] : filtered.map((client) => client.mac))}
+          onClick={() => setOpenIds(allOpen ? [] : filtered.map((client) => stableId(client, client.mac)))}
         >
           {allOpen ? "Collapse all" : "Expand all"}
         </button>
@@ -106,10 +107,10 @@ export default function AirwavesClients() {
       {shown.length === 0 ? <p className="air-caption">No clients match this filter.</p> : null}
       {shown.map((client) => (
         <ClientRow
-          key={client.mac}
+          key={stableId(client, client.mac)}
           client={client}
-          expanded={open.has(client.mac)}
-          onToggle={() => toggle(client.mac)}
+          expanded={open.has(stableId(client, client.mac))}
+          onToggle={() => toggle(stableId(client, client.mac))}
         />
       ))}
       {shown.length < filtered.length ? (
@@ -131,12 +132,12 @@ function ClientRow({ client, expanded, onToggle }: { client: RfClient; expanded:
     <div className="air-list-item">
       <button className="air-row" type="button" aria-expanded={expanded} onClick={onToggle}>
         <span className="air-row-device">
-          <strong>{title}</strong>
-          <em>{client.mac}</em>
+          <strong className={isAnonymized(title) ? "anon-mark" : undefined}>{title}</strong>
+          <em className={isAnonymized(client.mac) ? "anon-mark" : undefined}>{client.mac}</em>
         </span>
         <span className="air-row-net">
-          <strong>{network}</strong>
-          <em>{client.bssid}</em>
+          <strong className={isAnonymized(network) ? "anon-mark" : undefined}>{network}</strong>
+          <em className={isAnonymized(client.bssid) ? "anon-mark" : undefined}>{client.bssid}</em>
         </span>
         <span className="air-row-band">{band} · {channel}</span>
         <span className="air-row-signal">
@@ -162,7 +163,7 @@ function ClientDetails({ client }: { client: RfClient }) {
         {clientFacts(client).map((fact) => (
           <div className="air-tile" key={fact.label}>
             <span>{fact.label}</span>
-            <strong>{fact.value}</strong>
+            <strong className={isAnonymized(fact.value) ? "anon-mark" : undefined}>{fact.value}</strong>
           </div>
         ))}
       </div>

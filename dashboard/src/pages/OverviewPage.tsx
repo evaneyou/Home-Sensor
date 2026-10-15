@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../api";
+import { joinAnon } from "../anonymized";
 import type { HealthCell, MonitorAdmin, Summary } from "../types";
 import "../overview.css";
 
@@ -161,10 +162,11 @@ function viewOf(data: Summary, regionById: Map<string, string | null>) {
         (ok.length > 0 ? `${join(ok)} ${ok.length === 1 ? "is" : "are"} fine. ` : "") +
         `${join(unknown)} ${unknown.length === 1 ? "hasn't" : "haven't"} been tested yet.`;
     }
-    const place = [monitor.location_label, monitor.region ?? regionById.get(monitor.id)]
-      .map((part) => part?.trim() || "")
-      .filter((part, index, all) => part !== "" && part !== monitor.name && all.indexOf(part) === index)
-      .join(", ");
+    const place = joinAnon(
+      [monitor.location_label, monitor.region ?? regionById.get(monitor.id)]
+        .map((part) => part?.trim() || "")
+        .filter((part, index, all) => part !== "" && part !== monitor.name && all.indexOf(part) === index),
+    );
     return {
       id: monitor.id,
       name: monitor.name,

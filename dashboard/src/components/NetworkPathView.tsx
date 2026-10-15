@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../api";
+import { isAnonymized } from "../anonymized";
 import { useGuestGate } from "../guestGate";
 import type { User } from "../types";
 import BgpFlow from "./BgpFlow";
@@ -17,7 +18,8 @@ export type PathHop = {
   best_ms: number | null;
   avg_ms: number | null;
   worst_ms: number | null;
-  asn: number | null;
+  asn: number | string | null;
+  anon_key?: string;
   as_name: string | null;
   prefix: string | null;
   registry: string | null;
@@ -31,7 +33,8 @@ export type PathHop = {
 
 export type PathGroup = {
   role: string;
-  asn: number | null;
+  asn: number | string | null;
+  anon_key?: string;
   name: string;
   asn_label: string;
   role_label: string;
@@ -41,7 +44,8 @@ export type PathGroup = {
 
 export type AsChip = {
   type: string;
-  asn: number | null;
+  asn: number | string | null;
+  anon_key?: string;
   name: string;
   role: string;
   label: string;
@@ -74,7 +78,8 @@ export type PathTrace = {
   };
   as_path_observed: AsChip[];
   bgp: {
-    origin_asn: number | null;
+    origin_asn: number | string | null;
+    anon_key?: string;
     prefix: string | null;
     rpki: string | null;
     as_path_announced: AsChip[];
@@ -556,7 +561,7 @@ function HopDetail({ trace, hop, headless = false }: { trace: PathTrace; hop: Pa
         {rows.map(([label, value, mono]) => (
           <div className="npv-kv" key={label}>
             <span className="k">{label}</span>
-            <span className={mono ? "v mono" : "v"}>{value}</span>
+            <span className={isAnonymized(value) ? "v anon-mark" : mono ? "v mono" : "v"}>{value}</span>
           </div>
         ))}
       </div>

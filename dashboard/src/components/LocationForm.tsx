@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../api";
+import { AnonPlate, AnonText, coordinate, isAnonymized } from "../anonymized";
 import { useGuestGate } from "../guestGate";
 import { cityPlace, lookupCities, type CityMatch } from "../geocode";
 import { regionsFor } from "../regions";
@@ -174,10 +175,37 @@ export default function LocationForm({ monitorId }: { monitorId: string }) {
   if (deviceQ.isLoading) return <p className="muted">Loading location…</p>;
   if (!report) return <p className="muted">Could not load location.</p>;
 
-  const savedPin =
-    report.latitude != null && report.longitude != null
-      ? { latitude: report.latitude, longitude: report.longitude }
-      : null;
+  const latitude = coordinate(report.latitude);
+  const longitude = coordinate(report.longitude);
+  const savedPin = latitude != null && longitude != null ? { latitude, longitude } : null;
+  const anonymized =
+    isAnonymized(report.location_label) ||
+    isAnonymized(report.region) ||
+    isAnonymized(report.country) ||
+    isAnonymized(report.latitude) ||
+    isAnonymized(report.longitude);
+
+  if (anonymized) {
+    return (
+      <div className="device-form">
+        <div className="field">
+          <label>City</label>
+          <AnonText value={report.location_label} />
+        </div>
+        <div className="field">
+          <label>State/Province</label>
+          <AnonText value={report.region} />
+        </div>
+        <div className="field">
+          <label>Country</label>
+          <AnonText value={report.country} />
+        </div>
+        <AnonPlate
+          value={[report.latitude, report.longitude].filter(isAnonymized).map(String).join("  ") || undefined}
+        />
+      </div>
+    );
+  }
   const locationDirty =
     syncedLocation === locationKey &&
     (location.trim() !== (report.location_label ?? "") ||

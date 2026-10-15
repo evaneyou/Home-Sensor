@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
+import { AnonText, joinAnon } from "../anonymized";
 import { canOperate, useGuestGate } from "../guestGate";
 import ConfirmDialog from "../components/ConfirmDialog";
 import SelectMenu from "../components/SelectMenu";
@@ -50,8 +51,7 @@ function tunnelLabel(monitor: MonitorAdmin): string {
 }
 
 function placeLabel(city: string | null, region: string | null, country: string | null): string {
-  const parts = [city?.trim(), region?.trim(), country?.trim()].filter(Boolean);
-  return parts.join(", ") || "No location";
+  return joinAnon([city?.trim(), region?.trim(), country?.trim()]) || "No location";
 }
 
 function formatSeen(iso: string | null): string {
@@ -471,10 +471,15 @@ export default function MonitorOnboardingPage() {
                     {count === 0 ? <p className="muted">Waiting for the Pi to check in.</p> : null}
                     {registration.checkins.map((checkin) => (
                       <p key={checkin.id} className="muted">
-                        <span className="mono">{checkin.hostname}</span>
+                        <AnonText value={checkin.hostname} className="mono" />
                         {" · "}
-                        <span className="mono">{checkin.lan_ip}</span>
-                        {checkin.observed_ip ? ` · seen from ${checkin.observed_ip}` : ""}
+                        <AnonText value={checkin.lan_ip} className="mono" />
+                        {checkin.observed_ip ? (
+                          <>
+                            {" · seen from "}
+                            <AnonText value={checkin.observed_ip} className="mono" />
+                          </>
+                        ) : null}
                       </p>
                     ))}
                     {operate ? (
@@ -591,8 +596,12 @@ export default function MonitorOnboardingPage() {
                       <strong>{monitor.name}</strong>
                       <StatusMark status={monitor.status} />
                     </span>
-                    <span className="muted">{placeLabel(monitor.location_label, monitor.region, monitor.country)}</span>
-                    <span className="mono">{monitor.lan_ip || "No address yet"}</span>
+                    <span className="muted">
+                      <AnonText value={placeLabel(monitor.location_label, monitor.region, monitor.country)} fallback="No location" />
+                    </span>
+                    <span className="mono">
+                      <AnonText value={monitor.lan_ip} fallback="No address yet" />
+                    </span>
                     <span className="muted">{formatSeen(monitor.last_seen_at)}</span>
                   </button>
                   {open ? (

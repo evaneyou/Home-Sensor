@@ -12,6 +12,7 @@ from app.api.rf_routes import router as rf_router
 from app.api.routes import router
 from app.api.synthetic_routes import router as synthetic_router
 from app.config import get_settings
+from app.redact import GuestAnonymizeMiddleware
 
 log = logging.getLogger(__name__)
 
@@ -68,6 +69,8 @@ async def _lifespan(_app: FastAPI):
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title="HomeNetWatch", version=__version__, lifespan=_lifespan)
+    # Added first so it sits inside CORS and rewrites the body before headers are copied.
+    app.add_middleware(GuestAnonymizeMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
