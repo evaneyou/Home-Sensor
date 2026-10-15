@@ -30,6 +30,7 @@ services:
     volumes:
       - wgstate:/var/lib/hns-wireguard
       - rtnpstate:/var/lib/hns-rtnp
+      - ./geoip:/geoip:ro
     depends_on:
       db:
         condition: service_healthy

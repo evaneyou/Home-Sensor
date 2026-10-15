@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The repository version lives in [`VERSION`](./VERSION). The Pi agent in `monitor/`
 reports its own `AGENT_VERSION` so it can be updated independently of the server.
 
+## [Unreleased]
+
+### Added
+
+- **Guest visits dashboard:** a summary (sign-ins, different addresses, countries, busiest day), sign-ins per day, sign-ins by country, and a country and city for each visit, looked up in a local DB-IP City Lite file. Install it with `scripts/update-geoip.sh`.
+
 ## [0.2.0] - 2026-10-14
 
 ### Added

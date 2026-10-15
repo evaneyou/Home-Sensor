@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     session_cookie_name: str = "hns_session"
     session_max_age: int = 60 * 60 * 24 * 7
     guest_idle_seconds: int = 180
+    # DB-IP City Lite file used to place guest visitors (see scripts/update-geoip.sh). Empty or missing: no places.
+    geoip_db: str = "/geoip/dbip-city-lite.mmdb"
 
     bootstrap_admin_username: str = "admin"
     bootstrap_admin_password: str = "admin-change-me"

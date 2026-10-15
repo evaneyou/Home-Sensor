@@ -244,6 +244,32 @@ class ProbeCommandOut(BaseModel):
 class GuestVisitOut(BaseModel):
     created_at: datetime
     address: str
+    country: str = ""
+    country_code: str = ""
+    region: str = ""
+    city: str = ""
+
+
+class GuestDayOut(BaseModel):
+    date: str
+    count: int
+
+
+class GuestCountryOut(BaseModel):
+    country: str
+    country_code: str
+    count: int
+
+
+class GuestSummaryOut(BaseModel):
+    total: int
+    unique_addresses: int
+    countries: int
+    first_at: Optional[datetime] = None
+    last_at: Optional[datetime] = None
+    by_day: list[GuestDayOut]
+    by_country: list[GuestCountryOut]
+    located: bool
 
 
 class UserOut(BaseModel):

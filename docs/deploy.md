@@ -142,6 +142,19 @@ Caddy sets these on every response (`deploy/Caddyfile`):
 
 **If a page breaks under the CSP.** Open the browser console: a line starting "Refused to ..." names the blocked source. Add it to the policy in `deploy/Caddyfile` and run `docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile`. To log violations without blocking while you investigate, rename the header to `Content-Security-Policy-Report-Only`.
 
+## Guest visit locations
+
+Settings, Guest visits shows where each guest sign-in came from. The lookup reads a local copy of the free
+[DB-IP City Lite](https://db-ip.com/db/download/ip-to-city-lite) database, so no address is sent to a third party. Install it once, then refresh it monthly:
+
+```bash
+./scripts/update-geoip.sh                      # downloads ./geoip/dbip-city-lite.mmdb (about 130 MB)
+# crontab -e, on the 5th of each month:
+# 0 4 5 * * cd ~/Home-Sensor && ./scripts/update-geoip.sh
+```
+
+The server picks up a replaced file on the next request. Without the file the page still works and shows "Unknown". The data is licensed CC BY 4.0 and credited on the page.
+
 ## Updating
 
 ```bash

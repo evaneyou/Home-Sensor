@@ -41,6 +41,7 @@ from app.internet_tests import (
     scheduled_tests,
     stability_config,
 )
+from app import geoip
 from app.path_enrich import enrich_hops
 from app.path_view import build_trace, clean_trace_target
 from app.services.stability import cell_quorum, preset_name, service_status
@@ -81,6 +82,9 @@ from app.schemas import (
     IngestResponse,
     IssueOut,
     IssueSummary,
+    GuestCountryOut,
+    GuestDayOut,
+    GuestSummaryOut,
     GuestVisitOut,
     LoginRequest,
     MetricsPoint,
@@ -292,7 +296,64 @@ def guest_visits(
         .order_by(desc(AuditEvent.created_at))
         .limit(100)
     ).all()
-    return [GuestVisitOut(created_at=row.created_at, address=row.detail) for row in rows]
+    out: list[GuestVisitOut] = []
+    for row in rows:
+        place = geoip.lookup(row.detail) or {}
+        out.append(
+            GuestVisitOut(
+                created_at=row.created_at,
+                address=row.detail,
+                country=place.get("country", ""),
+                country_code=place.get("country_code", ""),
+                region=place.get("region", ""),
+                city=place.get("city", ""),
+            )
+        )
+    return out
+
+
+@router.get("/settings/guest-visits/summary", response_model=GuestSummaryOut)
+def guest_visit_summary(
+    db: Annotated[Session, Depends(get_db)],
+    _admin: Annotated[User, Depends(require_admin)],
+) -> GuestSummaryOut:
+    """Every guest sign-in so far: totals, a count per day (UTC) and a count per country."""
+    per_address = db.execute(
+        select(AuditEvent.detail, func.count())
+        .where(AuditEvent.action == "guest_login")
+        .group_by(AuditEvent.detail)
+    ).all()
+    total = sum(count for _address, count in per_address)
+    countries: dict[tuple[str, str], int] = {}
+    for address, count in per_address:
+        place = geoip.lookup(address)
+        key = (place["country"], place["country_code"]) if place else ("Unknown", "")
+        countries[key] = countries.get(key, 0) + count
+    ranked = sorted(countries.items(), key=lambda item: (-item[1], item[0][0]))
+    day = func.date(func.timezone("UTC", AuditEvent.created_at))
+    day_rows = db.execute(
+        select(day, func.count()).where(AuditEvent.action == "guest_login").group_by(day).order_by(day)
+    ).all()
+    first_at, last_at = db.execute(
+        select(func.min(AuditEvent.created_at), func.max(AuditEvent.created_at)).where(AuditEvent.action == "guest_login")
+    ).one()
+    counts = {row[0]: row[1] for row in day_rows}
+    by_day: list[GuestDayOut] = []
+    if counts:
+        cursor, end = min(counts), max(counts)
+        while cursor <= end:
+            by_day.append(GuestDayOut(date=cursor.isoformat(), count=counts.get(cursor, 0)))
+            cursor += timedelta(days=1)
+    return GuestSummaryOut(
+        total=total,
+        unique_addresses=len(per_address),
+        countries=len([key for key in countries if key[0] not in ("Unknown", "Private network")]),
+        first_at=first_at,
+        last_at=last_at,
+        by_day=by_day[-90:],
+        by_country=[GuestCountryOut(country=name, country_code=code, count=count) for (name, code), count in ranked],
+        located=geoip.available(),
+    )
 
 
 @router.get("/auth/me", response_model=UserOut)
