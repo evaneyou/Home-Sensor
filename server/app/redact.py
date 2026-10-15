@@ -138,8 +138,17 @@ def _request_is_guest(request: Request) -> bool:
     return user is not None and user.is_active and user.role == UserRole.guest
 
 
+async def _single_body(body: bytes):
+    yield body
+
+
 class GuestAnonymizeMiddleware(BaseHTTPMiddleware):
-    """Replace identifying fields in every JSON body a guest session receives."""
+    """Replace identifying fields in every JSON body a guest session receives.
+
+    The middleware hands back a stream, not the original response object, so the
+    bytes have to be read from that stream. Replacing ``response.body`` never
+    reaches the browser.
+    """
 
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
@@ -148,14 +157,19 @@ class GuestAnonymizeMiddleware(BaseHTTPMiddleware):
         content_type = response.headers.get("content-type", "")
         if "application/json" not in content_type:
             return response
-        body = getattr(response, "body", None)
-        if not isinstance(body, (bytes, bytearray)):
-            # Keep the original response, including its refreshed session cookie.
-            return response
+        chunks: list[bytes] = []
+        async for chunk in response.body_iterator:
+            if isinstance(chunk, bytes):
+                chunks.append(chunk)
+        body = b"".join(chunks)
         try:
             payload = json.loads(body)
         except json.JSONDecodeError:
+            response.body_iterator = _single_body(body)
             return response
-        response.body = json.dumps(redact(payload, UserRole.guest)).encode()
-        response.headers["content-length"] = str(len(response.body))
+        masked = json.dumps(redact(payload, UserRole.guest)).encode()
+        response.body_iterator = _single_body(masked)
+        raw = [(key, value) for key, value in response.raw_headers if key.lower() != b"content-length"]
+        raw.append((b"content-length", str(len(masked)).encode("latin-1")))
+        response.raw_headers = raw
         return response
