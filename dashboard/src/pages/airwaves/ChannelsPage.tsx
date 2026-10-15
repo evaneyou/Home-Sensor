@@ -33,6 +33,7 @@ export default function AirwavesChannels() {
 
 function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirContext }) {
   const [hover, setHover] = useState<number | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const shown = snapshot.series.slice(0, 12);
   const advice = ctx.overview?.bands.find((item) => item.band === snapshot.band);
   const recommended = advice?.recommended_channel ?? snapshot.recommended_channel;
@@ -155,7 +156,7 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
       <section className="aw-card aw-nets-card">
         <h2>Networks in range</h2>
         <div className="air-nets">
-          {hills.map((hill, index) => {
+          {(showAll ? hills : hills.slice(0, 4)).map((hill, index) => {
             const on = hover === index;
             const dim = hover !== null && !on;
             return (
@@ -183,6 +184,11 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
             );
           })}
         </div>
+        {hills.length > 4 ? (
+          <button className="air-text-btn aw-see-all" type="button" onClick={() => setShowAll((value) => !value)}>
+            {showAll ? "Show fewer" : `See all ${hills.length}`}
+          </button>
+        ) : null}
       </section>
     </div>
   );
