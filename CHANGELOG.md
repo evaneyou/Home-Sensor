@@ -20,14 +20,13 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
 - The landing page matches the live copy, including the decisions and the Telegram roadmap item.
 - A guest sees each letter and digit of an identifying field replaced with `#`, so an address still has the shape of an address. The measurements stay visible.
 - Auth, settings, agent check-in, and dashboard readings each have their own API module. The paths are unchanged.
+- The Pi agent is split into enrollment, health, radio, and the test scheduler. The setup page stays in `agent.py`. The agent reports version 0.6.1.
+- The internet path screen keeps the service grid in one file and the detail charts in another.
+- The Pi agent reports version 0.6.0 (on-demand host traces, and traces bound to a link run over IPv4). Install it on each Pi to update.
 
 ### Added
 
 - **Guest visits dashboard:** a summary (sign-ins, different addresses, countries, busiest day), sign-ins per day, sign-ins by country, and a country and city for each visit, looked up in a local DB-IP City Lite file. Install it with `scripts/update-geoip.sh`.
-
-### Changed
-
-- The Pi agent reports version 0.6.0 (on-demand host traces, and traces bound to a link run over IPv4). Install it on each Pi to update.
 
 ## [0.2.0] - 2026-10-14
 

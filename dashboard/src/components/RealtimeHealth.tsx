@@ -5,7 +5,7 @@ import { api } from "../api";
 import { CHART_COLORS } from "../chartTheme";
 import { chartWindow, formatChartTick, zoomedDomain } from "../chartTime";
 import { useChartZoom } from "../useChartZoom";
-import { TimeAxis } from "./InternetPath";
+import { TimeAxis } from "./InternetDetail";
 
 const RANGES = ["1h", "6h", "12h", "24h", "7d", "30d"] as const;
 type Range = (typeof RANGES)[number];

@@ -91,7 +91,7 @@ git commit -am "chore: release v0.2.0"
 git tag v0.2.0
 ```
 
-The Pi agent in `monitor/` carries its own `AGENT_VERSION` in `monitor/agent.py`. Bump it when
+The Pi agent in `monitor/` carries its own `AGENT_VERSION` in `monitor/agent_state.py`. Bump it when
 you change the agent.
 
 ## License
