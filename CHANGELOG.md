@@ -24,6 +24,10 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
 
 - **Guest visits dashboard:** a summary (sign-ins, different addresses, countries, busiest day), sign-ins per day, sign-ins by country, and a country and city for each visit, looked up in a local DB-IP City Lite file. Install it with `scripts/update-geoip.sh`.
 
+### Changed
+
+- The Pi agent reports version 0.6.0 (on-demand host traces, and traces bound to a link run over IPv4). Install it on each Pi to update.
+
 ## [0.2.0] - 2026-10-14
 
 ### Added
