@@ -1,9 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { api } from "../../api";
-import { joinAnon } from "../../anonymized";
 import SelectMenu from "../../components/SelectMenu";
+import WaitButton from "../../components/WaitButton";
+import { useGuestGate } from "../../guestGate";
+import "../../airwaves.css";
 import type { MonitorAdmin, RfOverview, User } from "../../types";
 
 /** Sparklines and history charts. Lists use the server default, which is the same window. */
@@ -21,6 +23,55 @@ export type AirContext = {
 export function scanLabel(lastScan: string | null | undefined): string {
   if (!lastScan) return "No scans yet";
   return `Last scan ${new Date(lastScan).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
+}
+
+/** "Scanned 6:57 PM" today, "Scanned Oct 14, 6:57 PM" on another day. */
+export function scannedShort(lastScan: string | null | undefined): string {
+  if (!lastScan) return "No scans yet";
+  const when = new Date(lastScan);
+  const today = new Date().toDateString() === when.toDateString();
+  const time = when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return today ? `Scanned ${time}` : `Scanned ${when.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
+}
+
+/** Four bars that fill with signal strength, the way a phone shows Wi-Fi. */
+export function SignalBars({ dbm }: { dbm: number }) {
+  const level = dbm >= -55 ? 4 : dbm >= -65 ? 3 : dbm >= -75 ? 2 : 1;
+  return (
+    <svg className="aw-bars" width="24" height="18" viewBox="0 0 24 18" aria-hidden="true">
+      {[0, 1, 2, 3].map((index) => (
+        <rect key={index} x={index * 6} y={12 - index * 4} width="4" height={6 + index * 4} rx="1" className={index < level ? "on" : undefined} />
+      ))}
+    </svg>
+  );
+}
+
+/** Asks the agent for a fresh scan. Admins and guests see it; a guest gets the read-only notice. */
+export function ScanNowButton({ ctx }: { ctx: AirContext }) {
+  const run = useGuestGate();
+  const qc = useQueryClient();
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api.me() as Promise<User> });
+  const scan = useMutation({
+    mutationFn: () => {
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+      return api.rfScanNow(ctx.agent.id, csrf);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["rf-overview", ctx.agent.id] });
+    },
+  });
+  if (!ctx.operate) return null;
+  const waiting = scan.isPending || Boolean(ctx.overview?.scan_requested);
+  return (
+    <WaitButton
+      className="aw-scan"
+      busy={waiting}
+      label="Scan"
+      busyLabel="Scanning"
+      onClick={() => run(() => scan.mutate())}
+    />
+  );
 }
 
 export function useAirwaves(): AirContext | "loading" | "error" | "empty" {
@@ -94,91 +145,75 @@ export default function AirwavesLayout() {
 
   const pages = [
     { path: "/airwaves", label: "Overview" },
-    { path: "/airwaves/networks", label: "Nearby networks" },
+    { path: "/airwaves/networks", label: "Networks" },
     { path: "/airwaves/clients", label: "Clients" },
-    { path: "/airwaves/channels", label: "Channel graph" },
+    { path: "/airwaves/channels", label: "Channels" },
   ];
   const band = params.get("band") === "5" ? "5" : "2.4";
-  const place = joinAnon([agent.name, agent.location_label], " · ");
 
   return (
-    <div className="npv airwaves">
-      <header className="air-titlebar">
-        <div className="air-title">
-          <h1>Airwaves</h1>
-        </div>
-        <p className="air-sub">What's in the air around {place}</p>
+    <div className="npv airwaves aw">
+      <div className="aw-top">
+      <header className="aw-head">
+        <h1>Airwaves</h1>
+        <p className="aw-scanned" role="status">
+          <i aria-hidden="true" />
+          {overviewLoading ? "Checking scans…" : scannedShort(overview?.last_scan_at)}
+        </p>
       </header>
-      <div className="npv-card air-controls">
-        <div className="air-agent">
-          <span className="air-label" id="air-agent-label">Remote agent</span>
-          <div className="air-select-wrap">
-            {coarse ? (
-              <select
-                className="air-select"
-                aria-labelledby="air-agent-label"
-                value={agent.id}
-                onChange={(event) => setQuery({ agent: event.target.value })}
-              >
-                <AgentOptions />
-              </select>
-            ) : (
-              <SelectMenu
-                className="air-select"
-                aria-labelledby="air-agent-label"
-                value={agent.id}
-                onChange={(event) => setQuery({ agent: event.target.value })}
-              >
-                <AgentOptions />
-              </SelectMenu>
-            )}
-          </div>
+
+      <div className="aw-bar">
+        <div className="aw-agent">
+          {coarse ? (
+            <select className="aw-select" aria-label="Remote agent" value={agent.id} onChange={(event) => setQuery({ agent: event.target.value })}>
+              <AgentOptions />
+            </select>
+          ) : (
+            <SelectMenu className="aw-select" aria-label="Remote agent" value={agent.id} onChange={(event) => setQuery({ agent: event.target.value })}>
+              <AgentOptions />
+            </SelectMenu>
+          )}
         </div>
-        <div className="air-live">
-          <button
-            className={state.refresh ? "air-switch on" : "air-switch"}
-            type="button"
-            aria-label="Refresh every 15 seconds"
-            aria-pressed={state.refresh}
-            onClick={() => setQuery({ refresh: state.refresh ? "off" : "on" })}
-          >
-            <i />
-          </button>
-          <span>Refresh every 15 s</span>
-        </div>
-        <p className="air-scan-time">{overviewLoading ? "Checking scans…" : scanLabel(overview?.last_scan_at)}</p>
+        <button
+          className={state.refresh ? "aw-toggle on" : "aw-toggle"}
+          type="button"
+          aria-label="Refresh every 15 seconds"
+          aria-pressed={state.refresh}
+          onClick={() => setQuery({ refresh: state.refresh ? "off" : "on" })}
+        >
+          <i aria-hidden="true" />
+          <span>15 s</span>
+        </button>
+        <ScanNowButton ctx={state} />
       </div>
+      </div>
+
       {overviewError ? <div className="error">Could not load the latest scan.</div> : null}
-      <div className="air-tabs">
-        <div className="air-tab-grid" role="tablist">
-          {pages.map((page) => (
-            <Link
-              key={page.path}
-              to={pageHref(page.path)}
-              className={loc.pathname === page.path ? "air-pill active" : "air-pill"}
-              role="tab"
-              aria-selected={loc.pathname === page.path}
-            >
-              {page.label}
-            </Link>
+
+      <nav className="aw-tabs" aria-label="Airwaves sections">
+        {pages.map((page) => (
+          <Link
+            key={page.path}
+            to={pageHref(page.path)}
+            className={loc.pathname === page.path ? "aw-tab active" : "aw-tab"}
+            aria-current={loc.pathname === page.path ? "page" : undefined}
+          >
+            {page.label}
+          </Link>
+        ))}
+      </nav>
+
+      {loc.pathname === "/airwaves/channels" ? (
+        <div className="aw-pills" role="group" aria-label="Band">
+          {["2.4", "5"].map((item) => (
+            <button key={item} className={band === item ? "aw-pill active" : "aw-pill"} type="button" aria-pressed={band === item} onClick={() => setQuery({ band: item })}>
+              {item} GHz
+            </button>
           ))}
         </div>
-        {loc.pathname === "/airwaves/channels" ? (
-          <div className="air-band-picks" role="group" aria-label="Band">
-            {["2.4", "5"].map((item) => (
-              <button
-                key={item}
-                className={band === item ? "air-pill active" : "air-pill"}
-                type="button"
-                onClick={() => setQuery({ band: item })}
-              >
-                {item} GHz
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
-      {overview?.headline ? <p className="air-headline">{overview.headline}</p> : null}
+      ) : null}
+
+      {overview?.headline ? <p className="aw-advice">{overview.headline}</p> : null}
       <Outlet context={state} />
     </div>
   );
