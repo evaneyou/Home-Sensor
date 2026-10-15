@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.api.routes import _resolve_monitor_identity
 from app.link_trust import note_new_ap
-from app.auth import get_current_user, require_admin
+from app.auth import get_current_user, require_admin_csrf
 from app.db import get_db
 from app.models import (
     ApInventory,
@@ -717,7 +717,7 @@ def rf_clients(
 @router.post("/rf/scan-now", response_model=RfScanRequestOut)
 def rf_scan_now(
     db: Annotated[Session, Depends(get_db)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _admin: Annotated[User, Depends(require_admin_csrf)],
     agent_id: UUID = Query(...),
 ) -> RfScanRequestOut:
     monitor = _monitor_or_404(db, agent_id)
@@ -750,7 +750,7 @@ def _set_trust(db: Session, agent_id: UUID, bssid: str, trusted: bool) -> RfApOu
 def trust_ap(
     bssid: str,
     db: Annotated[Session, Depends(get_db)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _admin: Annotated[User, Depends(require_admin_csrf)],
     agent_id: UUID = Query(...),
 ) -> RfApOut:
     return _set_trust(db, agent_id, bssid, True)
@@ -760,7 +760,7 @@ def trust_ap(
 def untrust_ap(
     bssid: str,
     db: Annotated[Session, Depends(get_db)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _admin: Annotated[User, Depends(require_admin_csrf)],
     agent_id: UUID = Query(...),
 ) -> RfApOut:
     return _set_trust(db, agent_id, bssid, False)

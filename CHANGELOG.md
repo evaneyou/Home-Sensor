@@ -10,6 +10,15 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
 
 ## [Unreleased]
 
+### Changed
+
+- Sign-in limits attempts per address and always checks the password hash, so a missing name is not faster than a wrong password.
+- A trace name is resolved on the server, and refused when it does not point at a public address.
+- Health cleanup, the monitor page, and metrics queries stay bounded to the monitor or a capped series.
+- Admin changes send the same CSRF token that delete and trace already required.
+- The connection chart has more room above and below so the bottom row is not clipped.
+- The landing page matches the live copy, including the decisions and the Telegram roadmap item.
+
 ### Added
 
 - **Guest visits dashboard:** a summary (sign-ins, different addresses, countries, busiest day), sign-ins per day, sign-ins by country, and a country and city for each visit, looked up in a local DB-IP City Lite file. Install it with `scripts/update-geoip.sh`.

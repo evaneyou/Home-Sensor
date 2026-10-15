@@ -143,7 +143,11 @@ export default function InternetServicePage() {
   }, [settingQ.data, signature, synced]);
 
   const save = useMutation({
-    mutationFn: () => api.saveInternetService(row) as Promise<InternetServiceSetting>,
+    mutationFn: () => {
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+      return api.saveInternetService(row, csrf) as Promise<InternetServiceSetting>;
+    },
     onSuccess: async (saved) => {
       setError(null);
       setConfirming(false);

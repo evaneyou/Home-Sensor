@@ -1,19 +1,24 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOutletContext } from "react-router-dom";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
 import { api } from "../../api";
 import { useGuestGate } from "../../guestGate";
 import { CHART_COLORS } from "../../chartTheme";
 import WaitButton from "../../components/WaitButton";
-import type { RfBandAdvice, RfOverview } from "../../types";
+import type { RfBandAdvice, RfOverview, User } from "../../types";
 import { type AirContext, scanLabel } from "./shared";
 
 export default function AirwavesOverview() {
   const ctx = useOutletContext<AirContext>();
   const run = useGuestGate();
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api.me() as Promise<User> });
   const qc = useQueryClient();
   const scan = useMutation({
-    mutationFn: () => api.rfScanNow(ctx.agent.id),
+    mutationFn: () => {
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+      return api.rfScanNow(ctx.agent.id, csrf);
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["rf-overview", ctx.agent.id] });
     },

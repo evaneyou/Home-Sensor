@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+import socket
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -46,6 +47,45 @@ def clean_trace_target(raw: str) -> str | None:
     if not address.is_global or address.is_multicast:
         return None
     return str(address)
+
+
+def resolved_public_target(raw: str) -> str | None:
+    """The typed target, after this server has resolved a name.
+
+    The agent would otherwise resolve the name itself, and a public-looking name
+    can still point at an address inside the house.
+    """
+    target = clean_trace_target(raw)
+    if target is None:
+        return None
+    try:
+        ipaddress.ip_address(target)
+    except ValueError:
+        if not _name_points_at_public_addresses(target):
+            return None
+    return target
+
+
+def _name_points_at_public_addresses(hostname: str) -> bool:
+    previous = socket.getdefaulttimeout()
+    socket.setdefaulttimeout(3)
+    try:
+        try:
+            answers = socket.getaddrinfo(hostname, None)
+        except socket.gaierror:
+            return False
+    finally:
+        socket.setdefaulttimeout(previous)
+    seen = False
+    for info in answers:
+        try:
+            address = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            return False
+        seen = True
+        if not address.is_global or address.is_multicast:
+            return False
+    return seen
 
 
 _SILENT_HOSTS = {"", "?", "???", "*", "***"}

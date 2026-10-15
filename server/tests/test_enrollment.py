@@ -398,7 +398,7 @@ def test_issue_adds_the_missing_wireless_tunnel_without_replacing_wired(client, 
     db.commit()
     (state_dir / "psk" / f"{monitor_id}-wireless.key").unlink(missing_ok=True)
 
-    issued = client.post(f"/api/v1/monitors/{created['id']}/tunnel")
+    issued = client.post(f"/api/v1/monitors/{created['id']}/tunnel", headers=csrf)
     assert issued.status_code == 200, issued.text
     body = issued.json()
     assert body["config"] == ""
@@ -417,7 +417,7 @@ def test_issue_adds_the_missing_wireless_tunnel_without_replacing_wired(client, 
 def test_onboarding_issues_a_wired_and_a_wireless_tunnel(client, room, state_dir):
     csrf = login(client)
     _agent, created = _enroll(client, csrf, f"{room}Dual")
-    issued = client.post(f"/api/v1/monitors/{created['id']}/tunnel")
+    issued = client.post(f"/api/v1/monitors/{created['id']}/tunnel", headers=csrf)
     assert issued.status_code == 200, issued.text
     body = issued.json()
     assert body["address"].startswith("10.7.0.")

@@ -5,7 +5,7 @@ import { api } from "../api";
 import { useGuestGate } from "../guestGate";
 import { cityPlace, lookupCities, type CityMatch } from "../geocode";
 import { regionsFor } from "../regions";
-import type { DeviceReport } from "../types";
+import type { DeviceReport, User } from "../types";
 import CityMap from "./CityMap";
 import ConfirmDialog from "./ConfirmDialog";
 import SelectMenu from "./SelectMenu";
@@ -25,6 +25,7 @@ function errorText(error: Error, fallback: string): string {
 export default function LocationForm({ monitorId }: { monitorId: string }) {
   const qc = useQueryClient();
   const run = useGuestGate();
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api.me() as Promise<User> });
   const deviceQ = useQuery({
     queryKey: ["monitor-device", monitorId],
     queryFn: () => api.monitorDevice(monitorId) as Promise<DeviceReport>,
@@ -55,6 +56,8 @@ export default function LocationForm({ monitorId }: { monitorId: string }) {
 
   const saveLocation = useMutation({
     mutationFn: () => {
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
       if (!pendingPlace) {
         return api.updateMonitorLocation(monitorId, {
           location_label: null,
@@ -62,7 +65,7 @@ export default function LocationForm({ monitorId }: { monitorId: string }) {
           country: null,
           latitude: null,
           longitude: null,
-        });
+        }, csrf);
       }
       return api.updateMonitorLocation(monitorId, {
         location_label: pendingPlace.name,
@@ -70,7 +73,7 @@ export default function LocationForm({ monitorId }: { monitorId: string }) {
         country: country.trim() || null,
         latitude: pendingPlace.latitude,
         longitude: pendingPlace.longitude,
-      });
+      }, csrf);
     },
     onSuccess: async () => {
       setLocationError(null);

@@ -212,7 +212,11 @@ export default function MonitorOnboardingPage() {
   });
 
   const tunnel = useMutation({
-    mutationFn: (id: string) => api.issueMonitorTunnel(id) as Promise<TunnelIssue>,
+    mutationFn: (id: string) => {
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+      return api.issueMonitorTunnel(id, csrf) as Promise<TunnelIssue>;
+    },
     onSuccess: (created) => {
       setError(null);
       setPending(null);
@@ -230,10 +234,12 @@ export default function MonitorOnboardingPage() {
   const save = useMutation({
     mutationFn: () => {
       if (!selected) throw new Error("Choose a device");
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
       return api.updateMonitorLocation(selected.id, {
         name: name.trim(),
         health_interval_seconds: intervalSeconds,
-      });
+      }, csrf);
     },
     onSuccess: async () => {
       setError(null);

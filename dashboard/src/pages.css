@@ -648,7 +648,7 @@
 .connection-diagram-link {
   display: block;
   margin: 0 0 14px;
-  padding: 16px 12px;
+  padding: 28px 12px 36px;
   border: 1px solid var(--line);
   border-radius: 14px;
   overflow: hidden;
@@ -661,7 +661,7 @@
 
 /* The overview is a picture inside a link: let the link take every click. */
 .connection-mini {
-  height: 230px;
+  height: 300px;
   pointer-events: none;
 }
 

@@ -41,6 +41,7 @@
           <a href="#pilot">The pilot</a>
           <a href="#about">About</a>
         </nav>
+        <a class="btn btn-primary" href="https://live.homenetwatch.com/" data-demo>Open the Live system</a>
       </div>
     </header>
 
@@ -193,45 +194,46 @@
         <div class="wrap">
           <p class="eyebrow">Judgment</p>
           <h2>Decisions and trade-offs</h2>
-          <p class="sub">What I decided, why, and what I gave up. Real projects run on real budgets.</p>
+          <p class="sub">What I chose, why, and what I gave up. Real systems run on architectural discipline, not unchecked complexity.</p>
           <div class="decisions">
             <article class="decision">
-              <h3>Spread AI work across several coding agents, coordinated through Git</h3>
+              <h3>Emulated an engineering squad across multiple AI tools, coordinated via Git</h3>
               <dl>
-                <div><dt>Why</dt><dd>AI-assisted development is not cheap. A branch per task, pull requests as the hand-off and written rules every agent follows kept the work in step.</dd></div>
-                <div><dt>Gave up</dt><dd>The simplicity of a single tool.</dd></div>
+                <div><dt>Why</dt><dd>In the real world, I would lead a team of specialized engineers. Replicating that solo with AI meant being smart about cost and context: leaning on a single model for an entire build burns through expensive tokens and quickly turns code into spaghetti. Instead, I assigned specific features to different AI coding tools on isolated Git branches, using pull requests and strict review rules to keep the work modular and disciplined.</dd></div>
+                <div><dt>Gave up</dt><dd>The quick convenience of single-prompt "vibe coding." Managing multiple tools through Git takes real operational overhead, but it is the only way to build software that lasts.</dd></div>
               </dl>
             </article>
             <article class="decision">
-              <h3>Chose Oracle Cloud's free tier over AWS or GCP</h3>
+              <h3>Chose portable architecture over familiar cloud ecosystems</h3>
               <dl>
-                <div><dt>Why</dt><dd>The goal was to keep cost as close to zero as possible, and the server is deliberately small.</dd></div>
-                <div><dt>Gave up</dt><dd>The platforms I know best.</dd></div>
+                <div><dt>Why</dt><dd>It is easy to create accidental vendor lock-in when you build in the clouds you know best. Deploying a clean Docker Compose, Caddy, and PostgreSQL stack on Oracle Cloud forced the architecture to stay strictly portable, proving the entire system can migrate back to AWS, GCP, or bare metal without rewriting code.</dd></div>
+                <div><dt>Gave up</dt><dd>The muscle memory and familiarity of AWS and GCP, trading the platforms I know inside out to prove true cloud portability.</dd></div>
               </dl>
             </article>
             <article class="decision">
-              <h3>Controlled how limited home hardware is used</h3>
+              <h3>Designed around edge hardware and residential bandwidth limits</h3>
               <dl>
-                <div><dt>Why</dt><dd>A home router and a Raspberry Pi are not enterprise grade. Checks are spaced out, heavy tests never overlap, and only one trace runs at a time.</dd></div>
-                <div><dt>Gave up</dt><dd>Maximum test concurrency.</dd></div>
+                <div><dt>Why</dt><dd>A Raspberry Pi is not an enterprise appliance, and a home broadband connection is not a dedicated corporate circuit. If you fire off parallel bandwidth tests, you will peg the Pi's CPU, choke the uplink, and create the very lag you are trying to measure. Spacing tests out and serializing heavy traces keeps the monitor completely non-intrusive to normal household traffic.</dd></div>
+                <div><dt>Gave up</dt><dd>Instant, all-at-once telemetry. Heavy tests run in a staggered queue rather than all in parallel.</dd></div>
               </dl>
             </article>
             <article class="decision">
-              <h3>Waited to buy a second Raspberry Pi until one proved the concept</h3>
+              <h3>Simulated the fleet in software instead of building a physical home lab</h3>
               <dl>
-                <div><dt>Why</dt><dd>A separate non-production environment is a must, but I would not spend on hardware before the idea was proven. It has been, so the next Pi is an easier decision.</dd></div>
-                <div><dt>Gave up</dt><dd>A true test environment for now. Virtual Pis cover most of it, but cannot reproduce real Wi-Fi radios or a real home network.</dd></div>
+                <div><dt>Why</dt><dd>In an enterprise, a dedicated hardware lab with proper test gear is a must. In a house, turning your living room into a staging rack makes zero sense. Running containerized virtual agents on the server let me stress-test fleet check-ins, network drops, and dashboard load without cabling up a pile of hardware.</dd></div>
+                <div><dt>Gave up</dt><dd>Real-world RF testing across multiple rooms. Software simulation validates the platform logic, but Wi-Fi attenuation, wall interference, and antenna quirks can only be verified on physical hardware.</dd></div>
               </dl>
             </article>
             <article class="decision decision-roadmap">
               <span class="tag-roadmap">Roadmap</span>
-              <h3>Held back an AI operations team (Phase 2.0)</h3>
+              <h3>Held back autonomous AI operations to avoid runaway inference costs (Phase 2.0)</h3>
               <dl>
-                <div><dt>The plan</dt><dd>AI agents that read logs, find the root cause of an outage, restore service, fix the problem and even contact the ISP.</dd></div>
-                <div><dt>Why not yet</dt><dd>It costs real money and is not practical yet. It is a plan, not a build.</dd></div>
+                <div><dt>The plan</dt><dd>Autonomous agents that continuously monitor logs, diagnose dropouts, restart interfaces, and open ISP escalation tickets.</dd></div>
+                <div><dt>Why not yet</dt><dd>Anyone who has actually built autonomous agents knows they burn through money fast. Having an LLM continuously parse high-volume streaming logs and chain reasoning loops causes massive budget shock in an enterprise, and at home it is financially reckless. Until the telemetry is tightly pre-filtered into lean, deterministic triggers that keep token consumption bounded, 24/7 agentic operations stay on the drawing board.</dd></div>
               </dl>
             </article>
           </div>
+
         </div>
       </section>
 
@@ -343,6 +345,13 @@
             <li class="roadmap-label">
               <span></span>
               <div>On the roadmap: planned or in development, not shipped yet</div>
+            </li>
+            <li class="next">
+              <time>Roadmap</time>
+              <div>
+                <h3>Push notifications via Telegram</h3>
+                <p>Real-time mobile alerts when thresholds breach. Telegram is secure, dead simple to integrate via webhooks, and delivers instant operational awareness without heavy alerting overhead.</p>
+              </div>
             </li>
             <li class="next">
               <time>Roadmap</time>

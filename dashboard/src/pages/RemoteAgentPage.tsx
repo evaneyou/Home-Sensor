@@ -72,11 +72,14 @@ export default function RemoteAgentPage() {
   }, [monitor, serverKey, syncedKey]);
 
   const save = useMutation({
-    mutationFn: () =>
-      api.updateMonitorLocation(id, {
+    mutationFn: () => {
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+      return api.updateMonitorLocation(id, {
         name: name.trim(),
         health_interval_seconds: intervalSeconds,
-      }),
+      }, csrf);
+    },
     onSuccess: async () => {
       setError(null);
       setConfirming(false);
@@ -91,7 +94,11 @@ export default function RemoteAgentPage() {
   });
 
   const restart = useMutation({
-    mutationFn: () => api.restartMonitor(id),
+    mutationFn: () => {
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+      return api.restartMonitor(id, csrf);
+    },
     onSuccess: async () => {
       setError(null);
       setConfirmingRestart(false);

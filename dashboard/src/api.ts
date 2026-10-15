@@ -93,8 +93,10 @@ export const api = {
       method: "DELETE",
       headers: csrfHeaders(csrf),
     }),
-  issueMonitorTunnel: (id: string) => request(`/api/v1/monitors/${id}/tunnel`, { method: "POST" }),
-  restartMonitor: (id: string) => request(`/api/v1/monitors/${id}/restart`, { method: "POST" }),
+  issueMonitorTunnel: (id: string, csrf: string) =>
+    request(`/api/v1/monitors/${id}/tunnel`, { method: "POST", headers: csrfHeaders(csrf) }),
+  restartMonitor: (id: string, csrf: string) =>
+    request(`/api/v1/monitors/${id}/restart`, { method: "POST", headers: csrfHeaders(csrf) }),
   monitor: (id: string) => request(`/api/v1/monitors/${id}`),
   monitorPath: (id: string, link: "wired" | "wireless", destination = "server") =>
     request(`/api/v1/monitors/${id}/path?link=${link}&destination=${encodeURIComponent(destination)}`),
@@ -114,9 +116,11 @@ export const api = {
       name?: string;
       health_interval_seconds?: number;
     },
+    csrf: string,
   ) =>
     request(`/api/v1/monitors/${id}`, {
       method: "PATCH",
+      headers: csrfHeaders(csrf),
       body: JSON.stringify(body),
     }),
   monitorDevice: (id: string) => request(`/api/v1/monitors/${id}/device`),
@@ -126,31 +130,34 @@ export const api = {
     request(`/api/v1/wifi-scans?monitor_id=${monitorId}&range=${range}`),
   test: (id: string) => request(`/api/v1/tests/${id}`),
   webServices: () => request("/api/v1/settings/web-services"),
-  saveWebServices: (services: WebServiceSetting[]) =>
+  saveWebServices: (services: WebServiceSetting[], csrf: string) =>
     request("/api/v1/settings/web-services", {
       method: "PUT",
+      headers: csrfHeaders(csrf),
       body: JSON.stringify({ services }),
     }),
   webStability: () => request<WebStability>("/api/v1/settings/web-stability"),
-  saveWebStability: (setting: WebStability) =>
+  saveWebStability: (setting: WebStability, csrf: string) =>
     request<WebStability>("/api/v1/settings/web-stability", {
       method: "PUT",
+      headers: csrfHeaders(csrf),
       body: JSON.stringify(setting),
     }),
   guestVisits: () => request("/api/v1/settings/guest-visits"),
   guestVisitSummary: () => request("/api/v1/settings/guest-visits/summary"),
   internetService: () => request("/api/v1/settings/internet-service"),
-  saveInternetService: (setting: InternetServiceSetting) =>
+  saveInternetService: (setting: InternetServiceSetting, csrf: string) =>
     request("/api/v1/settings/internet-service", {
       method: "PUT",
+      headers: csrfHeaders(csrf),
       body: JSON.stringify(setting),
     }),
   syntheticProfiles: (monitorId: string) =>
     request(`/api/v1/synthetic/profiles?monitor_id=${monitorId}`),
-  saveSyntheticContinuous: (body: unknown) =>
-    request("/api/v1/synthetic/continuous", { method: "PUT", body: JSON.stringify(body) }),
-  startSyntheticManual: (body: unknown) =>
-    request("/api/v1/synthetic/manual", { method: "POST", body: JSON.stringify(body) }),
+  saveSyntheticContinuous: (body: unknown, csrf: string) =>
+    request("/api/v1/synthetic/continuous", { method: "PUT", headers: csrfHeaders(csrf), body: JSON.stringify(body) }),
+  startSyntheticManual: (body: unknown, csrf: string) =>
+    request("/api/v1/synthetic/manual", { method: "POST", headers: csrfHeaders(csrf), body: JSON.stringify(body) }),
   syntheticRuns: (monitorId: string) => request(`/api/v1/synthetic/runs?monitor_id=${monitorId}`),
   syntheticReport: (runId: string) => request(`/api/v1/synthetic/runs/${runId}/report`),
   syntheticHealth: (monitorId: string, link: string, range: string) =>
@@ -171,10 +178,11 @@ export const api = {
     request<RfChannelSnapshot>(
       `/api/v1/rf/channel-snapshot?agent_id=${agentId}&band=${encodeURIComponent(band)}`,
     ),
-  rfScanNow: (agentId: string) =>
-    request(`/api/v1/rf/scan-now?agent_id=${agentId}`, { method: "POST" }),
-  rfTrust: (agentId: string, bssid: string, trusted: boolean) =>
+  rfScanNow: (agentId: string, csrf: string) =>
+    request(`/api/v1/rf/scan-now?agent_id=${agentId}`, { method: "POST", headers: csrfHeaders(csrf) }),
+  rfTrust: (agentId: string, bssid: string, trusted: boolean, csrf: string) =>
     request<RfAp>(`/api/v1/rf/aps/${encodeURIComponent(bssid)}/trust?agent_id=${agentId}`, {
       method: trusted ? "POST" : "DELETE",
+      headers: csrfHeaders(csrf),
     }),
 };

@@ -79,19 +79,25 @@ export function PresetForm({
   const action: "on" | "save" | "off" = !running ? "on" : dirty ? "save" : "off";
   const actionLabel = action === "on" ? "Turn on continuous" : action === "save" ? "Save changes" : "Turn off";
   const save = useMutation({
-    mutationFn: (links: string[]) =>
-      api.saveSyntheticContinuous({ monitor_id: monitorId, profile_slug: profile.slug, links, options }),
+    mutationFn: (links: string[]) => {
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+      return api.saveSyntheticContinuous({ monitor_id: monitorId, profile_slug: profile.slug, links, options }, csrf);
+    },
     onSuccess: onSaved,
   });
   const manual = useMutation({
-    mutationFn: () =>
-      api.startSyntheticManual({
+    mutationFn: () => {
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+      return api.startSyntheticManual({
         monitor_id: monitorId,
         profile_slug: profile.slug,
         links: linksFor(manualPath),
         duration_seconds: duration,
         options,
-      }),
+      }, csrf);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["synthetic-runs", monitorId] }),
   });
 

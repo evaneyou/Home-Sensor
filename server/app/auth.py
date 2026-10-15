@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import threading
+import time
+from collections import deque
 from typing import Annotated, Optional
 from uuid import UUID
 
@@ -23,6 +26,55 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, password_hash: str) -> bool:
     return pwd_context.verify(password, password_hash)
+
+
+# A real bcrypt hash so a missing account costs the same as a wrong password.
+DUMMY_PASSWORD_HASH = pwd_context.hash("hns-login-timing-pad")
+LOGIN_FAILURE_LIMIT = 8
+
+
+class _FailureWindow:
+    """Failed sign-ins from one address. A success drops that address's count."""
+
+    def __init__(self, limit: int, window_seconds: int) -> None:
+        self.limit = limit
+        self._window = window_seconds
+        self._hits: dict[str, deque[float]] = {}
+        self._lock = threading.Lock()
+
+    def blocked(self, key: str) -> bool:
+        now = time.monotonic()
+        with self._lock:
+            return len(self._prune(key, now)) >= self.limit
+
+    def record(self, key: str) -> None:
+        now = time.monotonic()
+        with self._lock:
+            hits = self._prune(key, now)
+            hits.append(now)
+            self._hits[key] = hits
+            if len(self._hits) > 10_000:
+                for stale in [item for item, values in self._hits.items() if not values or values[-1] <= now - self._window]:
+                    del self._hits[stale]
+
+    def forget(self, key: str) -> None:
+        with self._lock:
+            self._hits.pop(key, None)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._hits.clear()
+
+    def _prune(self, key: str, now: float) -> deque[float]:
+        hits = self._hits.get(key, deque())
+        while hits and hits[0] <= now - self._window:
+            hits.popleft()
+        if not hits and key in self._hits:
+            del self._hits[key]
+        return hits
+
+
+login_failures = _FailureWindow(LOGIN_FAILURE_LIMIT, 15 * 60)
 
 
 def _serializer(settings: Settings) -> URLSafeTimedSerializer:
