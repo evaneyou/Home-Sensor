@@ -463,6 +463,31 @@ def test_srtp_key_is_a_file_and_never_an_argument(tmp_path, monkeypatch):
         get_settings.cache_clear()
 
 
+def test_guest_middleware_hashes_the_streamed_json_body(monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.responses import JSONResponse
+    from fastapi.testclient import TestClient
+
+    from app import redact as redact_mod
+    from app.redact import GuestAnonymizeMiddleware
+
+    monkeypatch.setattr(redact_mod, "_request_is_guest", lambda _request: True)
+    mini = FastAPI()
+    mini.add_middleware(GuestAnonymizeMiddleware)
+
+    @mini.get("/probe")
+    def probe():
+        response = JSONResponse({"public_ip": "203.0.113.9", "rtt_ms": 12})
+        response.set_cookie("hns_session", "refreshed", max_age=180, path="/")
+        return response
+
+    client = TestClient(mini)
+    response = client.get("/probe")
+    assert response.status_code == 200, response.text
+    assert response.json() == {"public_ip": "###.#.###.#", "rtt_ms": 12}
+    assert response.cookies.get("hns_session") == "refreshed"
+
+
 def test_guest_redaction_drops_markings_and_leaves_admin_results():
     from app.redact import redact
 
