@@ -110,13 +110,6 @@ function tracedWhen(iso: string): string {
   return when.toLocaleString();
 }
 
-function PlayIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z" />
-    </svg>
-  );
-}
 
 export type PathChoice = { id: string; label: string };
 
@@ -132,6 +125,7 @@ export default function NetworkPathView({
   agentOnline,
   onAgent,
   onDestination,
+  onLink,
 }: {
   monitorId: string;
   link: "wired" | "wireless";
@@ -141,11 +135,12 @@ export default function NetworkPathView({
   agentOnline: boolean;
   onAgent: (id: string) => void;
   onDestination: (id: string) => void;
+  onLink: (link: "wired" | "wireless") => void;
 }) {
   const [running, setRunning] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
   const [group, setGroup] = useState<number | null>(null);
-  const [bgpOpen, setBgpOpen] = useState(false);
+  const [bgpOpen, setBgpOpen] = useState(true);
   // A host someone typed in, traced on demand, instead of one of the usual destinations.
   const [hostMode, setHostMode] = useState(false);
   const [hostText, setHostText] = useState("");
@@ -267,29 +262,29 @@ export default function NetworkPathView({
   }
 
   return (
-    <div className="npv pv">
-      <header className="pv-head">
-        <h1>Path View</h1>
-        <p className="pv-status" role="status">
-          {status}
-        </p>
-      </header>
+    <div className="npv airwaves aw pv">
+      <div className="aw-top">
+        <header className="aw-head">
+          <h1>Path View</h1>
+          <p className="aw-scanned" role="status">
+            <i aria-hidden="true" />
+            {status}
+          </p>
+        </header>
 
-      <div className="pv-controls">
-        <div className="pv-pickers">
-          <label className={agentOnline ? "pv-pick" : "pv-pick offline"}>
-            <i className="pv-dot" aria-hidden="true" />
-            <SelectMenu className="pv-select" value={monitorId} onChange={(event) => onAgent(event.target.value)} aria-label="Remote agent">
+        <div className="aw-bar">
+          <div className="aw-agent">
+            <SelectMenu className="aw-select" value={monitorId} onChange={(event) => onAgent(event.target.value)} aria-label="Remote agent">
               {agents.map((agent) => (
                 <option key={agent.id} value={agent.id}>
                   {agent.name}
                 </option>
               ))}
             </SelectMenu>
-          </label>
-          <div className="pv-pick">
+          </div>
+          <div className="aw-agent">
             <SelectMenu
-              className="pv-select"
+              className="aw-select"
               value={hostMode ? HOST_CHOICE : destinations.some((item) => item.id === destination) ? destination : "server"}
               onChange={(event) => chooseDestination(event.target.value)}
               aria-label="Destination"
@@ -302,38 +297,64 @@ export default function NetworkPathView({
               <option value={HOST_CHOICE}>Type host or IP</option>
             </SelectMenu>
           </div>
-        </div>
-        <div className="pv-run">
-          {hostMode ? (
-            <input
-              className="pv-host"
-              type="text"
-              value={hostText}
-              placeholder="Host name or IP, e.g. cloudflare.com"
-              aria-label="Host name or IP address to trace"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              maxLength={300}
-              // eslint-disable-next-line jsx-a11y/no-autofocus
-              autoFocus
-              onChange={(event) => setHostText(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") void runTrace();
-              }}
+          {!hostMode ? (
+            <WaitButton
+              className="aw-scan"
+              busy={running || waiting}
+              disabled={!agentOnline || !monitorId}
+              label="Trace"
+              busyLabel="Tracing"
+              onClick={() => void runTrace()}
             />
           ) : null}
-          <WaitButton
-            className="pv-trace"
-            busy={running || waiting}
-            disabled={!agentOnline || !monitorId}
-            label={hostMode ? "Trace" : "Run trace"}
-            busyLabel="Tracing…"
-            icon={<PlayIcon />}
-            onClick={() => void runTrace()}
-          />
         </div>
+
+        {hostMode ? (
+          <div className="aw-bar">
+            <div className="aw-agent">
+              <input
+                className="pv-host"
+                type="text"
+                value={hostText}
+                placeholder="Host name or IP, e.g. cloudflare.com"
+                aria-label="Host name or IP address to trace"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                maxLength={300}
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus
+                onChange={(event) => setHostText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void runTrace();
+                }}
+              />
+            </div>
+            <WaitButton
+              className="aw-scan"
+              busy={running || waiting}
+              disabled={!agentOnline || !monitorId}
+              label="Trace"
+              busyLabel="Tracing"
+              onClick={() => void runTrace()}
+            />
+          </div>
+        ) : null}
       </div>
+
+      <nav className="aw-tabs" aria-label="Link">
+        {(["wired", "wireless"] as const).map((item) => (
+          <button
+            key={item}
+            type="button"
+            className={link === item ? "aw-tab active" : "aw-tab"}
+            aria-pressed={link === item}
+            onClick={() => onLink(item)}
+          >
+            {item === "wired" ? "Wired" : "Wi-Fi"}
+          </button>
+        ))}
+      </nav>
       {traceError ? (
         <div className="npv-notice silent" role="alert">
           {traceError}

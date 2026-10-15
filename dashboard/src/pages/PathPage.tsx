@@ -25,10 +25,10 @@ export default function PathPage() {
   const destinations = [SERVER_DESTINATION];
   const destination = "server";
 
-  function update(next: { agent?: string; destination?: string }) {
+  function update(next: { agent?: string; destination?: string; link?: "wired" | "wireless" }) {
     const query = new URLSearchParams(params);
     query.set("agent", next.agent ?? agent.id);
-    query.set("link", link);
+    query.set("link", next.link ?? link);
     query.set("destination", next.destination ?? destination);
     setParams(query);
   }
@@ -43,6 +43,7 @@ export default function PathPage() {
       agentOnline={agent.status === "online"}
       onAgent={(id) => update({ agent: id })}
       onDestination={(id) => update({ destination: id })}
+      onLink={(value) => update({ link: value })}
     />
   );
 }
