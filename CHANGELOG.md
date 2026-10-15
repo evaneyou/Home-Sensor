@@ -23,6 +23,7 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
 - The Pi agent is split into enrollment, health, radio, and the test scheduler. The setup page stays in `agent.py`. The agent reports version 0.6.1.
 - The internet path screen keeps the service grid in one file and the detail charts in another.
 - The Pi agent reports version 0.6.0 (on-demand host traces, and traces bound to a link run over IPv4). Install it on each Pi to update.
+- `monitor/update.sh` replaces the agent code and restarts `monitor`. Enrollment, tunnels, and `/etc/monitor` stay as they are.
 
 ### Added
 

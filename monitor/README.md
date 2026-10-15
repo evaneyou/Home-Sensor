@@ -39,6 +39,20 @@ and `iw` when a tunnel config is present.
 5. Enter the device name, the server address and the device key, then choose **Connect**. The
    device name must match the dashboard exactly, including capital letters.
 
+## Update
+
+When the agent code changes, pack it again and copy `monitor.tar.gz` to the Pi. Unpack it in a new directory and run the update. This replaces the Python files and restarts `monitor`. It does not touch enrollment, the WireGuard tunnels, or `/etc/monitor`.
+
+```bash
+./monitor/pack.sh
+# copy monitor/dist/monitor.tar.gz to the Pi, then:
+mkdir -p monitor-update && tar -xzf monitor.tar.gz -C monitor-update
+cd monitor-update
+sudo ./update.sh
+```
+
+A first install still uses `sudo ./install.sh`.
+
 The agent starts at boot as the `monitor` user under `systemd`. Check it with:
 
 ```bash
@@ -68,7 +82,8 @@ Setup accepts HTTPS, or HTTP to a private LAN address.
 | `radio.py` | Wi-Fi survey upload and Kismet capture |
 | `scheduler.py` | Due tests, on-demand traces, and synthetic traffic |
 | `checks.py` | HTTP, ping, MTR, and Bandwidth Test checks |
-| `install.sh` | Installs the package and `systemd` unit |
+| `install.sh` | First install: packages, systemd unit, and tunnels when configs are present |
+| `update.sh` | Replaces the agent code and restarts `monitor` |
 | `monitor.service` | `systemd` unit (runs with `CAP_NET_RAW` and `CAP_NET_BIND_SERVICE` only) |
 | `avahi-monitor.service` | Advertises the setup page as `<hostname>.local` |
 | `synthetic.py` | Real-time application traffic on the physical NIC |
