@@ -1575,3 +1575,263 @@ h3 {
     padding-top: 0;
   }
 }
+
+/* The figure now sits right under the hero. */
+.under {
+  padding: 30px 0 8px;
+}
+
+.under .figure {
+  max-width: 920px;
+  margin: 14px 0 0;
+}
+
+/* Roadmap items are marked as not shipped. */
+.timeline li.roadmap-label {
+  display: grid;
+  padding: 14px 0 2px;
+}
+
+.timeline li.roadmap-label::before {
+  display: none;
+}
+
+.timeline li.roadmap-label div {
+  color: var(--amber);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.story-roadmap {
+  border-style: dashed;
+  border-left-style: solid;
+  border-left-color: var(--amber);
+}
+
+.tag-roadmap {
+  display: inline-block;
+  margin-bottom: 6px;
+  padding: 1px 10px;
+  background: color-mix(in srgb, var(--amber) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 50%, transparent);
+  border-radius: 999px;
+  color: var(--amber);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 720px) {
+  .timeline li.roadmap-label {
+    padding-left: 34px;
+  }
+}
+
+/* Evidence: each claim sits with the place to check it. */
+.evidence {
+  padding: 36px 0 12px;
+}
+
+.proof {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proof li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--mint);
+  border-radius: 14px;
+}
+
+.proof b {
+  font-size: 16px;
+}
+
+.proof span {
+  flex: 1;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.proof a {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+@media (max-width: 960px) {
+  .proof {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .proof {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Leadership layout: operating model, decisions, the pilot, the appendix. */
+.concern {
+  display: inline-block;
+  margin-bottom: 6px;
+  padding: 1px 10px;
+  background: color-mix(in srgb, var(--mint) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mint) 40%, var(--line));
+  border-radius: 999px;
+  color: var(--mint);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.model {
+  margin-top: 18px;
+}
+
+.model .card p {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.decisions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.decision {
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--mint);
+  border-radius: 14px;
+}
+
+.decision:nth-child(2) {
+  border-left-color: var(--amber);
+}
+
+.decision:nth-child(3) {
+  border-left-color: #6aa8ff;
+}
+
+.decision:nth-child(4) {
+  border-left-color: #ff8a7a;
+}
+
+.decision h3 {
+  margin-bottom: 8px;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.decision dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.decision dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.decision dd {
+  margin: 2px 0 0;
+  color: var(--soft);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.decision-roadmap {
+  grid-column: 1 / -1;
+  border-style: dashed;
+  border-left-style: solid;
+  border-left-color: var(--amber);
+}
+
+.verify {
+  margin-top: 20px;
+}
+
+.verify h3 {
+  font-size: 20px;
+}
+
+.verify p {
+  margin: 4px 0 0;
+  color: var(--soft);
+  font-size: 15px;
+}
+
+.fold {
+  margin-top: 12px;
+  padding: 0 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.fold > summary {
+  padding: 14px 0;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.fold[open] > summary {
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 14px;
+}
+
+.fold .timeline,
+.fold .figure,
+.fold .docs {
+  margin-top: 0;
+}
+
+.fold .figure {
+  margin-bottom: 16px;
+  max-width: 100%;
+}
+
+.fold .docs {
+  margin-bottom: 0;
+}
+
+.fold .stack {
+  padding-bottom: 18px;
+}
+
+.fold .timeline {
+  padding-bottom: 14px;
+}
+
+.experience {
+  margin-top: 0;
+}
+
+@media (max-width: 800px) {
+  .decisions {
+    grid-template-columns: 1fr;
+  }
+}

@@ -138,6 +138,7 @@ export const api = {
       body: JSON.stringify(setting),
     }),
   guestVisits: () => request("/api/v1/settings/guest-visits"),
+  guestVisitSummary: () => request("/api/v1/settings/guest-visits/summary"),
   internetService: () => request("/api/v1/settings/internet-service"),
   saveInternetService: (setting: InternetServiceSetting) =>
     request("/api/v1/settings/internet-service", {

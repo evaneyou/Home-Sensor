@@ -39,3 +39,6 @@ backups/
 # The rtnp measurement engine is its own project (evaneyou/RTN_PackGen).
 # deploy/rtnp.Dockerfile builds from a copy placed here; it is not vendored.
 /rtnp/
+
+# GeoIP database (downloaded by scripts/update-geoip.sh)
+geoip/

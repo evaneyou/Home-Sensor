@@ -1807,3 +1807,130 @@
 .app-shell.ui-compact .network-health .health-row-head .mono {
   font-size: 0.95rem;
 }
+
+/* Guest visits: a summary row, two charts and a table. */
+.gv {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.gv-cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.gv-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.gv-card .k {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.gv-card .v {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.gv-card .n {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.gv-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 14px;
+}
+
+.gv-panel {
+  min-width: 0;
+}
+
+.gv-panel h3 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.gv-countries {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gv-countries li {
+  display: grid;
+  grid-template-columns: 34px minmax(80px, 1.2fr) 2fr 34px;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.92rem;
+}
+
+.gv-code {
+  padding: 1px 0;
+  background: var(--bg-inset, var(--bg-soft));
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: center;
+}
+
+.gv-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gv-bar {
+  height: 10px;
+  background: var(--bg-inset, var(--bg-soft));
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.gv-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.gv-count {
+  text-align: right;
+  font-weight: 700;
+}
+
+.gv-table-wrap {
+  overflow-x: auto;
+}
+
+.gv-credit {
+  margin: 0;
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .gv-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gv-grid {
+    grid-template-columns: 1fr;
+  }
+}
