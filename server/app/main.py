@@ -7,9 +7,13 @@ from importlib.metadata import PackageNotFoundError, version
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.agent_routes import router as agent_router
+from app.api.auth_routes import router as auth_router
 from app.api.enrollment_routes import router as enrollment_router
+from app.api.readings_routes import router as readings_router
 from app.api.rf_routes import router as rf_router
 from app.api.routes import router
+from app.api.settings_routes import router as settings_router
 from app.api.synthetic_routes import router as synthetic_router
 from app.config import get_settings
 from app.redact import GuestAnonymizeMiddleware
@@ -78,7 +82,13 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # The agent command path is /monitors/command. It has to be registered before
+    # /monitors/{monitor_id}, or that parameter swallows the word "command".
+    app.include_router(agent_router)
     app.include_router(router)
+    app.include_router(auth_router)
+    app.include_router(settings_router)
+    app.include_router(readings_router)
     app.include_router(rf_router)
     app.include_router(enrollment_router)
     app.include_router(synthetic_router)

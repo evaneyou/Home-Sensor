@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.routes import _resolve_monitor_identity
+from app.api.common import _resolve_monitor_identity
 from app.link_trust import note_new_ap
 from app.auth import get_current_user, require_admin_csrf
 from app.db import get_db
