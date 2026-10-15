@@ -6,7 +6,7 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "rec
 import { api } from "../../api";
 import { useGuestGate } from "../../guestGate";
 import SelectMenu from "../../components/SelectMenu";
-import type { RfAp } from "../../types";
+import type { RfAp, User } from "../../types";
 import { AIR_TREND_RANGE, type AirContext } from "./shared";
 
 const PAGE = 25;
@@ -14,6 +14,7 @@ const PAGE = 25;
 export default function AirwavesNetworks() {
   const ctx = useOutletContext<AirContext>();
   const run = useGuestGate();
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api.me() as Promise<User> });
   const [band, setBand] = useState("all");
   const [security, setSecurity] = useState("all");
   const [hidden, setHidden] = useState("all");
@@ -27,7 +28,11 @@ export default function AirwavesNetworks() {
     refetchInterval: ctx.refresh ? 15_000 : false,
   });
   const trust = useMutation({
-    mutationFn: (ap: RfAp) => api.rfTrust(ctx.agent.id, ap.bssid, !ap.trusted),
+    mutationFn: (ap: RfAp) => {
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+      return api.rfTrust(ctx.agent.id, ap.bssid, !ap.trusted, csrf);
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["rf-aps", ctx.agent.id] });
       void qc.invalidateQueries({ queryKey: ["rf-channels", ctx.agent.id] });

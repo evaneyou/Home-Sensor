@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 import urllib.parse
 from datetime import datetime, timedelta, timezone
@@ -7,7 +8,7 @@ from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Request, Response, status
-from sqlalchemy import Select, and_, delete, desc, func, literal, select, union_all
+from sqlalchemy import Select, and_, delete, desc, func, literal, or_, select, union_all
 from sqlalchemy.orm import Session, joinedload
 
 from app.auth import (
@@ -20,6 +21,7 @@ from app.auth import (
     set_session_cookie,
     verify_password,
 )
+from app.auth import DUMMY_PASSWORD_HASH, login_failures
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.enrollment import CONNECTED_WITHIN, is_token_hash, token_hash
@@ -43,7 +45,7 @@ from app.internet_tests import (
 )
 from app import geoip
 from app.path_enrich import enrich_hops
-from app.path_view import build_trace, clean_trace_target
+from app.path_view import build_trace, clean_trace_target, resolved_public_target
 from app.services.stability import cell_quorum, preset_name, service_status
 from app.regions import REGIONS_BY_COUNTRY
 from app.models import (
@@ -151,7 +153,7 @@ def get_web_services(
 def put_web_services(
     body: WebServiceSettingsIn,
     db: Annotated[Session, Depends(get_db)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _admin: Annotated[User, Depends(require_admin_csrf)],
 ) -> list[WebServiceSettingOut]:
     try:
         rows = save_web_services(db, [item.model_dump() for item in body.services])
@@ -191,7 +193,7 @@ def get_web_stability(
 def put_web_stability(
     body: WebStabilityIn,
     db: Annotated[Session, Depends(get_db)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _admin: Annotated[User, Depends(require_admin_csrf)],
 ) -> WebStabilityOut:
     try:
         row = save_web_stability(db, body.model_dump())
@@ -228,7 +230,7 @@ def get_internet_service(
 def put_internet_service(
     body: InternetServiceSettingIn,
     db: Annotated[Session, Depends(get_db)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _admin: Annotated[User, Depends(require_admin_csrf)],
 ) -> InternetServiceSettingOut:
     row = save_internet_service(db, body.model_dump())
     db.commit()
@@ -264,8 +266,19 @@ def login(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> UserOut:
     user = db.scalar(select(User).where(User.username == body.username))
-    if user is None or not verify_password(body.password, user.password_hash):
+    address = _visitor_address(request)
+    # Hash even when the name is missing, so the two answers take the same time.
+    password_ok = verify_password(body.password, user.password_hash if user is not None else DUMMY_PASSWORD_HASH)
+    if login_failures.blocked(address) or user is None or not password_ok:
+        if user is None or not password_ok:
+            login_failures.record(address)
+        if login_failures.blocked(address):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many sign-in attempts. Wait a few minutes and try again.",
+            )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    login_failures.forget(address)
     token = create_session_token(user.id, settings)
     if user.role == UserRole.guest:
         db.add(AuditEvent(username=user.username, action="guest_login", detail=_visitor_address(request)))
@@ -567,7 +580,7 @@ def delete_monitor(
 def issue_tunnels(
     monitor_id: UUID,
     db: Annotated[Session, Depends(get_db)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _admin: Annotated[User, Depends(require_admin_csrf)],
 ) -> TunnelIssueOut:
     """Create the wired and wireless WireGuard configs. Private keys are shown once."""
     monitor = db.get(Monitor, monitor_id)
@@ -688,7 +701,12 @@ def post_device_health(
             bssid_set="link_bssid" in body.model_fields_set,
         )
     cutoff = now - timedelta(days=7)
-    db.execute(delete(MonitorHealth).where(MonitorHealth.reported_at < cutoff))
+    db.execute(
+        delete(MonitorHealth).where(
+            MonitorHealth.monitor_id == monitor.id,
+            MonitorHealth.reported_at < cutoff,
+        )
+    )
     ensure_internet_tests(db, monitor)
     db.commit()
     return _config_out(db, monitor)
@@ -753,7 +771,7 @@ def ack_probe_command(
 def request_probe_restart(
     monitor_id: UUID,
     db: Annotated[Session, Depends(get_db)],
-    admin: Annotated[User, Depends(require_admin)],
+    admin: Annotated[User, Depends(require_admin_csrf)],
 ) -> dict:
     monitor = db.get(Monitor, monitor_id)
     if monitor is None:
@@ -1278,6 +1296,35 @@ def _metric_throughput(metrics: Optional[dict]) -> Optional[ThroughputMbps]:
     )
 
 
+_MAX_METRIC_POINTS = 720
+
+
+def _bounded_metric_rows(db: Session, test_id: UUID, since: datetime) -> list[TestResult]:
+    """Evenly spaced samples once a range would pull in more than the chart can show.
+
+    A month of checks is tens of thousands of rows, and each row carries its hop list.
+    """
+    window = (TestResult.test_id == test_id, TestResult.started_at >= since)
+    total = db.scalar(select(func.count()).select_from(TestResult).where(*window)) or 0
+    if total <= _MAX_METRIC_POINTS:
+        return list(
+            db.scalars(select(TestResult).where(*window).order_by(TestResult.started_at)).all()
+        )
+    step = max(1, math.ceil(total / _MAX_METRIC_POINTS))
+    numbered = (
+        select(
+            TestResult.id.label("id"),
+            func.row_number().over(order_by=TestResult.started_at).label("n"),
+        )
+        .where(*window)
+        .subquery()
+    )
+    chosen = select(numbered.c.id).where(or_((numbered.c.n - 1) % step == 0, numbered.c.n == total))
+    return list(
+        db.scalars(select(TestResult).where(TestResult.id.in_(chosen)).order_by(TestResult.started_at)).all()
+    )
+
+
 @router.get("/metrics", response_model=MetricsResponse)
 def metrics(
     db: Annotated[Session, Depends(get_db)],
@@ -1300,11 +1347,7 @@ def metrics(
     if test is None:
         raise HTTPException(status_code=404, detail="Test not found")
 
-    rows = db.scalars(
-        select(TestResult)
-        .where(TestResult.test_id == test_id, TestResult.started_at >= since)
-        .order_by(TestResult.started_at)
-    ).all()
+    rows = _bounded_metric_rows(db, test_id, since)
 
     points = [
         MetricsPoint(
@@ -1443,24 +1486,27 @@ def get_monitor(
         .options(joinedload(Test.network))
     ).unique().all()
 
-    latest_subq = (
-        select(TestResult.test_id, func.max(TestResult.started_at).label("max_started"))
-        .group_by(TestResult.test_id)
-        .subquery()
-    )
-    latest = {
-        r.test_id: r
-        for r in db.scalars(
-            select(TestResult).join(
-                latest_subq,
-                and_(
-                    TestResult.test_id == latest_subq.c.test_id,
-                    TestResult.started_at == latest_subq.c.max_started,
-                ),
-            )
-        ).all()
-        if r.test_id in {t.id for t in tests}
-    }
+    test_ids = [t.id for t in tests]
+    latest: dict = {}
+    if test_ids:
+        latest_subq = (
+            select(TestResult.test_id, func.max(TestResult.started_at).label("max_started"))
+            .where(TestResult.test_id.in_(test_ids))
+            .group_by(TestResult.test_id)
+            .subquery()
+        )
+        latest = {
+            r.test_id: r
+            for r in db.scalars(
+                select(TestResult).join(
+                    latest_subq,
+                    and_(
+                        TestResult.test_id == latest_subq.c.test_id,
+                        TestResult.started_at == latest_subq.c.max_started,
+                    ),
+                )
+            ).all()
+        }
     latest_health = db.scalar(
         select(MonitorHealth)
         .where(MonitorHealth.monitor_id == monitor_id)
@@ -1610,7 +1656,7 @@ def request_trace(
     monitor = db.get(Monitor, monitor_id)
     if monitor is None:
         raise HTTPException(status_code=404, detail="Remote agent not found")
-    target = clean_trace_target(body.target)
+    target = resolved_public_target(body.target)
     if target is None:
         raise HTTPException(status_code=422, detail="Enter a public host name or IP address")
     now = datetime.now(timezone.utc)
@@ -1805,7 +1851,7 @@ def update_monitor_location(
     monitor_id: UUID,
     body: MonitorLocationIn,
     db: Annotated[Session, Depends(get_db)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _admin: Annotated[User, Depends(require_admin_csrf)],
 ) -> dict:
     monitor = db.get(Monitor, monitor_id)
     if monitor is None:

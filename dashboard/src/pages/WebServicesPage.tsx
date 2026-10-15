@@ -137,7 +137,11 @@ export default function WebServicesPage() {
   }, [stabilityQ.data, loadedSignature, synced]);
 
   const save = useMutation({
-    mutationFn: () => api.saveWebStability(stability),
+    mutationFn: () => {
+      const csrf = me.data?.csrf_token;
+      if (!csrf) throw new Error("The session is missing a CSRF token. Reload the page.");
+      return api.saveWebStability(stability, csrf);
+    },
     onSuccess: async (savedStability) => {
       setError(null);
       setConfirming(false);

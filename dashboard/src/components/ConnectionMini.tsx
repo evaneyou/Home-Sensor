@@ -222,7 +222,8 @@ export default function ConnectionMini({ live }: { live: MiniLive }) {
         edges={edges}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: 0.14 }}
+        fitViewOptions={{ padding: { top: "18%", bottom: "22%", x: "6%" } }}
+        minZoom={0.2}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}

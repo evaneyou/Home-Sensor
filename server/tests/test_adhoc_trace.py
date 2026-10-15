@@ -1,10 +1,11 @@
+import socket
 import uuid
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.path_view import clean_trace_target
+from app.path_view import clean_trace_target, resolved_public_target
 from tests.conftest import login
 from tests.test_ingest import _make_monitor, _token_headers
 
@@ -32,7 +33,19 @@ def test_trace_target_is_a_public_host(raw, expected):
     assert clean_trace_target(raw) == expected
 
 
-def test_trace_on_demand_round_trip(client: TestClient, db):
+def _answer(ip: str):
+    def fake(*_args, **_kwargs):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))]
+    return fake
+
+
+def test_a_name_that_resolves_inside_is_refused():
+    assert resolved_public_target("192.168.1.1") is None
+    assert resolved_public_target("8.8.8.8") == "8.8.8.8"
+
+
+def test_trace_on_demand_round_trip(client: TestClient, db, monkeypatch):
+    monkeypatch.setattr("app.path_view.socket.getaddrinfo", _answer("93.184.216.34"))
     monitor, token = _make_monitor(db, f"Trace {uuid.uuid4().hex[:6]}")
     headers = _token_headers(token)
     admin = login(client)
@@ -71,7 +84,20 @@ def test_trace_on_demand_round_trip(client: TestClient, db):
     assert body["target"]["name"] == "example.com"
 
 
-def test_trace_result_needs_the_agent_that_was_asked(client: TestClient, db):
+def test_trace_refuses_a_hostname_that_resolves_inside(client: TestClient, db, monkeypatch):
+    monkeypatch.setattr("app.path_view.socket.getaddrinfo", _answer("10.1.2.3"))
+    monitor, _token = _make_monitor(db, f"Inside {uuid.uuid4().hex[:6]}")
+    admin = login(client)
+    refused = client.post(
+        f"/api/v1/monitors/{monitor.id}/traces",
+        json={"link": "wired", "target": "printer.example.com"},
+        headers=admin,
+    )
+    assert refused.status_code == 422
+
+
+def test_trace_result_needs_the_agent_that_was_asked(client: TestClient, db, monkeypatch):
+    monkeypatch.setattr("app.path_view.socket.getaddrinfo", _answer("93.184.216.34"))
     monitor, _token = _make_monitor(db, f"Own {uuid.uuid4().hex[:6]}")
     other, other_token = _make_monitor(db, f"Other {uuid.uuid4().hex[:6]}")
     admin = login(client)

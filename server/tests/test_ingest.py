@@ -5,12 +5,12 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import func, select, text
 
 from app.enrollment import new_token
 from app.internet_tests import public_trace_host
 from app.main import app
-from app.models import Monitor, MonitorStatus
+from app.models import Monitor, MonitorHealth, MonitorStatus, ResultStatus, Test, TestResult
 from conftest import login
 
 
@@ -224,8 +224,10 @@ def test_admin_can_queue_a_probe_restart(client: TestClient, db):
     login(viewer, "viewer", "viewer-change-me")
     assert viewer.post(f"/api/v1/monitors/{monitor.id}/restart").status_code == 403
 
-    login(client)
-    queued = client.post(f"/api/v1/monitors/{monitor.id}/restart")
+    admin = login(client)
+    refused = client.post(f"/api/v1/monitors/{monitor.id}/restart")
+    assert refused.status_code == 403
+    queued = client.post(f"/api/v1/monitors/{monitor.id}/restart", headers=admin)
     assert queued.status_code == 200, queued.text
     assert queued.json()["restart_requested_at"]
 
@@ -297,3 +299,70 @@ def test_health_stores_link_interfaces(client: TestClient, db):
     assert cleared.json()["wifi_radio_iface"] is None
     assert cleared.json()["airwave_mode"] == "scan"
 
+
+
+def test_health_cleanup_only_drops_the_reporting_monitor(client: TestClient, db):
+    login(client)
+    one, token = _make_monitor(db, f"Keep {uuid.uuid4().hex[:6]}")
+    other, _other_token = _make_monitor(db, f"Other {uuid.uuid4().hex[:6]}")
+    old = datetime.now(timezone.utc) - timedelta(days=8)
+    for monitor in (one, other):
+        db.add(
+            MonitorHealth(
+                monitor_id=monitor.id,
+                reported_at=old,
+                hostname="old-row",
+                uptime_seconds=1,
+                cpu_percent=1,
+                load_1=0.1,
+                mem_used_mb=1,
+                mem_total_mb=2,
+                disk_used_mb=1,
+                disk_total_mb=2,
+            )
+        )
+    db.commit()
+    posted = client.post("/api/v1/monitors/health", headers=_token_headers(token), json=_health_body())
+    assert posted.status_code == 200, posted.text
+    still_there = db.scalar(
+        select(func.count()).select_from(MonitorHealth).where(
+            MonitorHealth.monitor_id == other.id, MonitorHealth.hostname == "old-row"
+        )
+    )
+    removed = db.scalar(
+        select(func.count()).select_from(MonitorHealth).where(
+            MonitorHealth.monitor_id == one.id, MonitorHealth.hostname == "old-row"
+        )
+    )
+    assert still_there == 1
+    assert removed == 0
+
+
+def test_a_long_metric_range_returns_a_bounded_series(client: TestClient, db, monkeypatch):
+    from app.api import routes as api_routes
+
+    monkeypatch.setattr(api_routes, "_MAX_METRIC_POINTS", 3)
+    login(client)
+    monitor = db.scalar(select(Monitor).where(Monitor.slug == db.info["monitor_slug"]))
+    test = db.scalar(select(Test).where(Test.monitor_id == monitor.id))
+    now = datetime.now(timezone.utc)
+    for index in range(5):
+        started = now - timedelta(minutes=40 - index)
+        db.add(
+            TestResult(
+                external_id=f"bound-{uuid.uuid4().hex}",
+                test_id=test.id,
+                started_at=started,
+                finished_at=started + timedelta(seconds=1),
+                status=ResultStatus.ok,
+                stages=[],
+                metrics={"rtt_ms": float(index)},
+            )
+        )
+    db.commit()
+    body = client.get(f"/api/v1/metrics?test_id={test.id}&range=1h")
+    assert body.status_code == 200, body.text
+    points = body.json()["points"]
+    assert len(points) == 3
+    assert points[0]["rtt_ms"] == 0
+    assert points[-1]["rtt_ms"] == 4

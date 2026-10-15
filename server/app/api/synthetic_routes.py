@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.routes import _resolve_monitor_identity
-from app.auth import get_current_user, require_admin
+from app.auth import get_current_user, require_admin_csrf
 from app.config import get_settings
 from app.db import get_db
 from app.models import Monitor, SyntheticProfile, SyntheticRun, SyntheticSample, User
@@ -150,7 +150,7 @@ def list_profiles(
 def save_continuous(
     body: ContinuousIn,
     db: Annotated[Session, Depends(get_db)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _admin: Annotated[User, Depends(require_admin_csrf)],
 ) -> dict[str, Any]:
     _monitor(db, body.monitor_id)
     profile = _profile(db, body.profile_slug)
@@ -195,7 +195,7 @@ def save_continuous(
 def start_manual(
     body: ManualIn,
     db: Annotated[Session, Depends(get_db)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _admin: Annotated[User, Depends(require_admin_csrf)],
 ) -> dict[str, Any]:
     _monitor(db, body.monitor_id)
     profile = _profile(db, body.profile_slug)

@@ -22,7 +22,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey 
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey  # noqa: E402
 
 from app.api.enrollment_routes import CHECK_IN_PATH, NONCE_PATH, POLL_PATH  # noqa: E402
-from app.auth import hash_password  # noqa: E402
+from app.auth import hash_password, login_failures  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.db import get_db  # noqa: E402
 from app.enrollment import limiter, nonces, signed_message  # noqa: E402
@@ -136,9 +136,13 @@ def state_dir(tmp_path, monkeypatch):
 def _fresh_agent_limits():
     nonces.clear()
     limiter.clear()
+    login_failures.limit = 8
+    login_failures.clear()
     yield
     nonces.clear()
     limiter.clear()
+    login_failures.limit = 8
+    login_failures.clear()
 
 
 def login(client: TestClient, username: str = "admin", password: str = "admin-change-me") -> dict[str, str]:
