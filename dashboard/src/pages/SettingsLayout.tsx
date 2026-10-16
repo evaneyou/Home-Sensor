@@ -5,6 +5,7 @@ const PAGES = [
   { to: "/settings/internet-service", label: "Internet Service" },
   { to: "/settings/synthetic", label: "Real-Time Application Health" },
   { to: "/settings/web-services", label: "Web Services" },
+  { to: "/settings/telegram", label: "Configure Telegram" },
 ];
 
 export default function SettingsLayout() {
