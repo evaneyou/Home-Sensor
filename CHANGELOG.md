@@ -27,6 +27,7 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
 
 ### Added
 
+- **Airwaves redesign:** a compact header (agent, refresh, scan), one row of tabs, one-line band stats, a fixed-height alerts list that scrolls, pill filters with search, one-line network rows with signal bars, and a channel graph that keeps the strongest four networks with a See all button. A phone gets a segmented tab bar; a wide screen gets an underline bar, a three-column overview and a two-column channel graph.
 - **Guest visits dashboard:** a summary (sign-ins, different addresses, countries, busiest day), sign-ins per day, sign-ins by country, and a country and city for each visit, looked up in a local DB-IP City Lite file. Install it with `scripts/update-geoip.sh`.
 
 ## [0.2.0] - 2026-10-14

@@ -47,7 +47,7 @@ export default function AirwavesClients() {
   if (clientsQ.isError) return <div className="state-box">Could not load clients.</div>;
   if (clients.length === 0) {
     return (
-      <section className="npv-card air-empty">
+      <section className="aw-card air-empty">
         <h2>No clients yet</h2>
         <p>Devices show up here when they join an access point you marked trusted.</p>
       </section>
@@ -64,7 +64,7 @@ export default function AirwavesClients() {
   }
 
   return (
-    <section className="npv-card air-list-card">
+    <section className="aw-card air-list-card">
       <div className="air-list-tools">
         <input
           className="air-filter"
