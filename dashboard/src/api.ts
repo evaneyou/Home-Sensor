@@ -143,8 +143,12 @@ export const api = {
       headers: csrfHeaders(csrf),
       body: JSON.stringify(setting),
     }),
-  guestVisits: () => request("/api/v1/settings/guest-visits"),
-  guestVisitSummary: () => request("/api/v1/settings/guest-visits/summary"),
+  guestVisits: (query: { limit: number; before?: string; range: string }) => {
+    const q = new URLSearchParams({ limit: String(query.limit), range: query.range });
+    if (query.before) q.set("before", query.before);
+    return request(`/api/v1/settings/guest-visits?${q.toString()}`);
+  },
+  guestVisitSummary: (range: string) => request(`/api/v1/settings/guest-visits/summary?range=${encodeURIComponent(range)}`),
   internetService: () => request("/api/v1/settings/internet-service"),
   saveInternetService: (setting: InternetServiceSetting, csrf: string) =>
     request("/api/v1/settings/internet-service", {
