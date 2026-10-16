@@ -428,6 +428,28 @@ class AuditEvent(Base):
     detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
 
+class GuestVisit(Base):
+    """One guest sign-in. The place is looked up when it happens, so it stays correct if the map file changes.
+
+    Kept for a year (see services.retention). The Pi's own address is never stored here.
+    """
+
+    __tablename__ = "guest_visits"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    visited_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    address: Mapped[str] = mapped_column(String(64), nullable=False)
+    country: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    country_code: Mapped[str] = mapped_column(String(8), nullable=False, default="")
+    region: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    city: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+
+    __table_args__ = (
+        Index("ix_guest_visits_visited_at", "visited_at"),
+        Index("ix_guest_visits_country_visited", "country_code", "visited_at"),
+    )
+
+
 class WebServiceSetting(Base):
     __tablename__ = "web_service_settings"
 

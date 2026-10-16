@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
-from sqlalchemy import desc, func, select
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth import (
@@ -22,9 +22,9 @@ from app.auth import (
 )
 from app.config import Settings, get_settings
 from app.db import get_db
-from app import geoip
+from app import guest_visits as guest_visits_module
 from app.models import AuditEvent, User, UserRole
-from app.schemas import GuestCountryOut, GuestDayOut, GuestSummaryOut, GuestVisitOut, LoginRequest, UserOut
+from app.schemas import GuestSummaryOut, GuestVisitOut, LoginRequest, UserOut
 
 router = APIRouter(prefix="/api/v1")
 
@@ -72,7 +72,8 @@ def login(
     login_failures.forget(address)
     token = create_session_token(user.id, settings)
     if user.role == UserRole.guest:
-        db.add(AuditEvent(username=user.username, action="guest_login", detail=_visitor_address(request)))
+        db.add(AuditEvent(username=user.username, action="guest_login", detail=address))
+        guest_visits_module.record(db, address)
         db.commit()
         set_session_cookie(response, token, settings, max_age=settings.guest_idle_seconds)
     else:
@@ -93,71 +94,34 @@ def logout(
 def guest_visits(
     db: Annotated[Session, Depends(get_db)],
     _admin: Annotated[User, Depends(require_admin)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    before: Optional[datetime] = None,
+    range: Annotated[str, Query(pattern="^(7d|30d|90d|1y)$")] = guest_visits_module.DEFAULT_RANGE,
 ) -> list[GuestVisitOut]:
-    rows = db.scalars(
-        select(AuditEvent)
-        .where(AuditEvent.action == "guest_login")
-        .order_by(desc(AuditEvent.created_at))
-        .limit(100)
-    ).all()
-    out: list[GuestVisitOut] = []
-    for row in rows:
-        place = geoip.lookup(row.detail) or {}
-        out.append(
-            GuestVisitOut(
-                created_at=row.created_at,
-                address=row.detail,
-                country=place.get("country", ""),
-                country_code=place.get("country_code", ""),
-                region=place.get("region", ""),
-                city=place.get("city", ""),
-            )
+    """Newest first. Pass the last row's time as `before` to read the next page."""
+    since = datetime.now(timezone.utc) - timedelta(days=guest_visits_module.range_days(range))
+    rows = guest_visits_module.latest(db, limit=limit, before=before, since=since)
+    return [
+        GuestVisitOut(
+            created_at=row.visited_at,
+            address=row.address,
+            country=row.country,
+            country_code=row.country_code,
+            region=row.region,
+            city=row.city,
         )
-    return out
+        for row in rows
+    ]
 
 
 @router.get("/settings/guest-visits/summary", response_model=GuestSummaryOut)
 def guest_visit_summary(
     db: Annotated[Session, Depends(get_db)],
     _admin: Annotated[User, Depends(require_admin)],
+    range: Annotated[str, Query(pattern="^(7d|30d|90d|1y)$")] = guest_visits_module.DEFAULT_RANGE,
 ) -> GuestSummaryOut:
-    """Every guest sign-in so far: totals, a count per day (UTC) and a count per country."""
-    per_address = db.execute(
-        select(AuditEvent.detail, func.count())
-        .where(AuditEvent.action == "guest_login")
-        .group_by(AuditEvent.detail)
-    ).all()
-    total = sum(count for _address, count in per_address)
-    countries: dict[tuple[str, str], int] = {}
-    for address, count in per_address:
-        place = geoip.lookup(address)
-        key = (place["country"], place["country_code"]) if place else ("Unknown", "")
-        countries[key] = countries.get(key, 0) + count
-    ranked = sorted(countries.items(), key=lambda item: (-item[1], item[0][0]))
-    day = func.date(func.timezone("UTC", AuditEvent.created_at))
-    day_rows = db.execute(
-        select(day, func.count()).where(AuditEvent.action == "guest_login").group_by(day).order_by(day)
-    ).all()
-    first_at, last_at = db.execute(
-        select(func.min(AuditEvent.created_at), func.max(AuditEvent.created_at)).where(AuditEvent.action == "guest_login")
-    ).one()
-    counts = {row[0]: row[1] for row in day_rows}
-    by_day: list[GuestDayOut] = []
-    if counts:
-        cursor, end = min(counts), max(counts)
-        while cursor <= end:
-            by_day.append(GuestDayOut(date=cursor.isoformat(), count=counts.get(cursor, 0)))
-            cursor += timedelta(days=1)
-    return GuestSummaryOut(
-        total=total,
-        unique_addresses=len(per_address),
-        countries=len([key for key in countries if key[0] not in ("Unknown", "Private network")]),
-        first_at=first_at,
-        last_at=last_at,
-        by_day=by_day[-90:],
-        by_country=[GuestCountryOut(country=name, country_code=code, count=count) for (name, code), count in ranked],
-        located=geoip.available(),
-    )
+    """Totals, a series (days up to 90 days, weeks for a year), and the top countries and cities for a range."""
+    return GuestSummaryOut(**guest_visits_module.summary(db, range))
 
 
 @router.get("/auth/me", response_model=UserOut)

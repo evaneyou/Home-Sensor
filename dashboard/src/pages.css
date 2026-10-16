@@ -1934,3 +1934,96 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Guest visits: range pills, cities, and a scrolling latest list. */
+.gv-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.gv-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gv-range {
+  height: 36px;
+  padding: 0 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.gv-range.active {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.gv-cities li {
+  grid-template-columns: minmax(80px, 1.2fr) minmax(60px, 0.8fr) 2fr 34px;
+}
+
+.gv-sub {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gv-panel h3 small {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.gv-scroll {
+  max-height: 380px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.gv-scroll:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.gv-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-elevated);
+}
+
+.gv-more {
+  margin: 0;
+  padding: 10px;
+  text-align: center;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .gv-scroll {
+    max-height: 320px;
+  }
+
+  .gv-cities li {
+    grid-template-columns: minmax(70px, 1fr) 2fr 30px;
+  }
+
+  .gv-cities .gv-sub {
+    display: none;
+  }
+}
