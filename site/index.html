@@ -36,10 +36,10 @@
         </a>
         <nav aria-label="Sections">
           <a href="#model">Operating model</a>
-          <a href="#transform">Transformation</a>
-          <a href="#enterprise">Enterprise</a>
           <a href="#decisions">Decisions</a>
           <a href="#pilot">The project</a>
+          <a href="#enterprise">Enterprise</a>
+          <a href="#transform">Transformation</a>
           <a href="#about">About</a>
         </nav>
         <a class="btn btn-primary" href="https://live.homenetwatch.com/" data-demo>Open the Live system</a>
@@ -153,69 +153,8 @@
         </div>
       </section>
 
-      <!-- Transformation, in business terms -->
-      <section id="transform" class="block alt">
-        <div class="wrap">
-          <p class="eyebrow">Transformation</p>
-          <h2>How I take this to an organization</h2>
-          <p class="sub">I work with leaders and engineering teams to change how an organization designs, secures and delivers IT services.</p>
-          <div class="playbook">
-            <article>
-              <span class="num">01</span>
-              <h3>Assess</h3>
-              <p>Map how work flows today: where time and risk sit, and how ready teams and platforms are.</p>
-            </article>
-            <article>
-              <span class="num">02</span>
-              <h3>Prove</h3>
-              <p>Choose one contained, real system with an executive sponsor, so the evidence is a product, not a slide.</p>
-            </article>
-            <article>
-              <span class="num">03</span>
-              <h3>Govern</h3>
-              <p>Set the rules, review gates, security controls and cost limits that let speed scale without added risk.</p>
-            </article>
-            <article>
-              <span class="num">04</span>
-              <h3>Enable</h3>
-              <p>Upskill managers and engineers by role, and change the engineering culture until the practice is theirs.</p>
-            </article>
-            <article>
-              <span class="num">05</span>
-              <h3>Measure</h3>
-              <p>Track cycle time, change failure rate, cost per change and security findings, and report them upward.</p>
-            </article>
-          </div>
-          <p class="note">HomeNetWatch is steps two and three in public: a real system in production, and the governance that made it repeatable.</p>
-        </div>
-      </section>
-
-      <!-- What this project means for an enterprise -->
-      <section id="enterprise" class="block">
-        <div class="wrap">
-          <p class="eyebrow">What this means for an enterprise</p>
-          <h2>What I would measure in a company</h2>
-          <p class="sub">
-            This is a hobby project on my home network. It is not an enterprise rollout, and I have not proven any savings.
-            If a company used the same approach, these are the things I would measure.
-          </p>
-          <ul class="ticks outcomes-list">
-            <li>How quickly new infrastructure and internal tools get delivered</li>
-            <li>Whether every change can be traced and reviewed</li>
-            <li>What it costs to run, and how many problems reach production</li>
-            <li>Whether building costs less than buying software with features you never use</li>
-          </ul>
-          <p class="note">
-            What this project produced, as of October 16, 2026: built in nine days, 70 merged pull requests, 104 automated
-            tests, and 16 of those 70 pull requests were fixes. One person, one project.
-            <a href="https://github.com/evaneyou/homenetwatch/pulls?q=is%3Apr+is%3Amerged" target="_blank" rel="noopener">See the history &rarr;</a>
-            A company would also have to count support, patching and compliance.
-          </p>
-        </div>
-      </section>
-
       <!-- Decisions and trade-offs -->
-      <section id="decisions" class="block">
+      <section id="decisions" class="block alt">
         <div class="wrap">
           <p class="eyebrow">Judgment</p>
           <h2>Decisions and trade-offs</h2>
@@ -263,7 +202,7 @@
       </section>
 
       <!-- The pilot: evidence and a way to verify -->
-      <section id="pilot" class="block alt">
+      <section id="pilot" class="block">
         <div class="wrap">
           <p class="eyebrow">The project</p>
           <h2>HomeNetWatch, in production</h2>
@@ -322,8 +261,69 @@
         </div>
       </section>
 
+      <!-- What this project means for an enterprise -->
+      <section id="enterprise" class="block alt">
+        <div class="wrap">
+          <p class="eyebrow">What this means for an enterprise</p>
+          <h2>What I would measure in a company</h2>
+          <p class="sub">
+            This is a hobby project on my home network. It is not an enterprise rollout, and I have not proven any savings.
+            If a company used the same approach, these are the things I would measure.
+          </p>
+          <ul class="ticks outcomes-list">
+            <li>How quickly new infrastructure and internal tools get delivered</li>
+            <li>Whether every change can be traced and reviewed</li>
+            <li>What it costs to run, and how many problems reach production</li>
+            <li>Whether building costs less than buying software with features you never use</li>
+          </ul>
+          <p class="note">
+            What this project produced, as of October 16, 2026: built in nine days, 70 merged pull requests, 104 automated
+            tests, and 16 of those 70 pull requests were fixes. One person, one project.
+            <a href="https://github.com/evaneyou/homenetwatch/pulls?q=is%3Apr+is%3Amerged" target="_blank" rel="noopener">See the history &rarr;</a>
+            A company would also have to count support, patching and compliance.
+          </p>
+        </div>
+      </section>
+
+      <!-- Transformation, in business terms -->
+      <section id="transform" class="block">
+        <div class="wrap">
+          <p class="eyebrow">Transformation</p>
+          <h2>How I take this to an organization</h2>
+          <p class="sub">I work with leaders and engineering teams to change how an organization designs, secures and delivers IT services.</p>
+          <div class="playbook">
+            <article>
+              <span class="num">01</span>
+              <h3>Assess</h3>
+              <p>Map how work flows today: where time and risk sit, and how ready teams and platforms are.</p>
+            </article>
+            <article>
+              <span class="num">02</span>
+              <h3>Prove</h3>
+              <p>Choose one contained, real system with an executive sponsor, so the evidence is a product, not a slide.</p>
+            </article>
+            <article>
+              <span class="num">03</span>
+              <h3>Govern</h3>
+              <p>Set the rules, review gates, security controls and cost limits that let speed scale without added risk.</p>
+            </article>
+            <article>
+              <span class="num">04</span>
+              <h3>Enable</h3>
+              <p>Upskill managers and engineers by role, and change the engineering culture until the practice is theirs.</p>
+            </article>
+            <article>
+              <span class="num">05</span>
+              <h3>Measure</h3>
+              <p>Track cycle time, change failure rate, cost per change and security findings, and report them upward.</p>
+            </article>
+          </div>
+          <p class="note">HomeNetWatch is steps two and three in public: a real system in production, and the governance that made it repeatable.</p>
+        </div>
+      </section>
+
       <!-- Appendix: builder detail -->
-      <section id="appendix" class="block">
+      <section id="appendix" class="block alt">
         <div class="wrap">
           <p class="eyebrow">Appendix</p>
           <h2>The build record</h2>
@@ -471,7 +471,7 @@
       </section>
 
       <!-- About -->
-      <section id="about" class="block alt">
+      <section id="about" class="block">
         <div class="wrap about">
           <div>
             <p class="eyebrow">About the author</p>
@@ -512,6 +512,7 @@
           </div>
         </div>
       </section>
+
     </main>
 
     <footer class="foot">
