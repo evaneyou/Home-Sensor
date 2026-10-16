@@ -25,6 +25,7 @@ import SyntheticPage from "./pages/SyntheticPage";
 import WebServicesPage from "./pages/WebServicesPage";
 import ConnectionDiagramPage from "./pages/ConnectionDiagramPage";
 import TestPage from "./pages/TestPage";
+import NetworkTestPage from "./pages/NetworkTestPage";
 import UnderConstructionPage from "./pages/UnderConstructionPage";
 import type { User } from "./types";
 
@@ -332,7 +333,7 @@ function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void })
           <Route path="/" element={<OverviewPage />} />
           <Route path="/path" element={<PathPage />} />
           <Route path="/speed-test" element={<UnderConstructionPage title="Speed Test" />} />
-          <Route path="/network-test" element={<UnderConstructionPage title="Network Test" />} />
+          <Route path="/network-test" element={<NetworkTestPage />} />
           <Route path="/airwaves" element={<AirwavesLayout />}>
             <Route index element={<AirwavesOverview />} />
             <Route path="networks" element={<AirwavesNetworks />} />

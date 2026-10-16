@@ -14,6 +14,7 @@ from app.api.readings_routes import router as readings_router
 from app.api.rf_routes import router as rf_router
 from app.api.routes import router
 from app.api.settings_routes import router as settings_router
+from app.api.stress_routes import router as stress_router
 from app.api.synthetic_routes import router as synthetic_router
 from app.config import get_settings
 from app.redact import GuestAnonymizeMiddleware
@@ -92,6 +93,7 @@ def create_app() -> FastAPI:
     app.include_router(rf_router)
     app.include_router(enrollment_router)
     app.include_router(synthetic_router)
+    app.include_router(stress_router)
     return app
 
 
