@@ -34,8 +34,15 @@ def test_trace_target_is_a_public_host(raw, expected):
 
 
 def _answer(ip: str):
-    def fake(*_args, **_kwargs):
+    """Answer every name with `ip`, except the database host: this patch is process-wide, so a
+    new database connection made during the test would otherwise be sent to the fake address."""
+    real = socket.getaddrinfo
+
+    def fake(host, *args, **kwargs):
+        if host in ("db", "localhost"):
+            return real(host, *args, **kwargs)
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))]
+
     return fake
 
 
