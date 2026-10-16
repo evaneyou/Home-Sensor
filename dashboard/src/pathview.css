@@ -1,0 +1,243 @@
+/* Path View redesign: compact header, one-row controls, slim stats, selectable path, detail card.
+   Everything is scoped to .pv so no other page changes. */
+
+.npv.pv {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+/* controls reuse the Airwaves header, bar and tabs (airwaves.css); only the host field is new */
+.pv-host {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--aw-line, #232d49);
+  border-radius: 12px;
+  background: var(--aw-card, #161d2f);
+  color: var(--aw-text, #e8ecf8);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+}
+.pv-host:focus-visible {
+  outline: 2px solid var(--aw-mint, #4fd1b5);
+  outline-offset: 1px;
+}
+.npv.pv .aw-tabs {
+  margin: 0;
+}
+.npv.pv .aw-tab {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+.npv.pv .aw-tab.active {
+  background: var(--aw-mint, #4fd1b5);
+}
+
+/* stat strip */
+.pv-stats {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.pv-stat {
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid #232d49;
+  border-radius: 10px;
+  background: #161d2f;
+}
+.pv-stat.optional {
+  display: none;
+}
+.pv-stat .k {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9aa6c4;
+}
+.pv-stat .v {
+  display: block;
+  font-size: 15px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pv-stat.warn .v {
+  color: #ffc24d;
+}
+@media (min-width: 640px) {
+  .pv-stats {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .pv-stat.optional {
+    display: block;
+  }
+}
+
+/* path card */
+.npv.pv .pv-path {
+  padding: 10px 12px;
+}
+.pv-path-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 6px;
+}
+.npv.pv .pv-path-head h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.pv-path-head p {
+  margin: 0;
+  flex: 1 1 220px;
+  font-size: 12px;
+  color: #9aa6c4;
+}
+@media (max-width: 639px) {
+  .pv-path-head p {
+    display: none;
+  }
+}
+
+/* details and BGP */
+.pv-lower {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+@media (min-width: 1000px) {
+  .pv-lower {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+.npv.pv .pv-detail {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+}
+.pv-dhead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.pv-dhead b {
+  font-size: 16px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pv-role {
+  margin-left: auto;
+  font-size: 12px;
+  color: #9aa6c4;
+  white-space: nowrap;
+}
+.pv-tiles {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.pv-tiles .npv-tile {
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: #10172a;
+}
+.pv-tiles .k {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9aa6c4;
+}
+.pv-tiles .v {
+  display: block;
+  font-size: 15px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.pv-hop {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #232d49;
+}
+.pv-hopnav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 800;
+}
+.pv-hopnav small {
+  font-size: 12px;
+  font-weight: 600;
+  color: #9aa6c4;
+}
+.pv-hopnav button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 36px;
+  border: 1px solid #232d49;
+  border-radius: 10px;
+  background: #10172a;
+  color: #9aa6c4;
+  cursor: pointer;
+}
+.pv-hopnav button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.pv-hopnav button:focus-visible {
+  outline: 2px solid #4fd1b5;
+  outline-offset: 1px;
+}
+.pv-hop .npv-rows {
+  display: grid;
+  gap: 8px 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.pv-hop .npv-kv {
+  display: block;
+  padding: 0;
+  border: 0;
+}
+.pv-hop .npv-kv > :first-child {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9aa6c4;
+}
+.pv-hop .npv-kv > :last-child {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.pv-insight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 194, 77, 0.45);
+  border-radius: 12px;
+  background: rgba(255, 194, 77, 0.1);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.pv-insight svg {
+  flex: none;
+  color: #ffc24d;
+}
