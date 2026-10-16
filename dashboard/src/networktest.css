@@ -331,3 +331,18 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* The run, stop and new-test button sits at the far right of the header row. */
+.nt .aw-bar {
+  flex: 1;
+  min-width: 0;
+}
+.nt .aw-bar .aw-scan,
+.nt .aw-bar .nt-stop {
+  margin-left: auto;
+}
+@media (min-width: 769px) {
+  .nt .aw-head {
+    flex: none;
+  }
+}
