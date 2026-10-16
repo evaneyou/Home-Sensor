@@ -313,7 +313,6 @@ export default function NetworkTestPage() {
             ))}
           </div>
           <label className="nt-duration">
-            <span>Run for</span>
             <SelectMenu className="aw-select" aria-label="Run length" value={String(seconds)} onChange={(event) => setSeconds(Number(event.target.value))}>
               {DURATIONS.filter((item) => item <= catalog.max_seconds).map((item) => (
                 <option key={item} value={item}>
