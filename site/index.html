@@ -183,7 +183,7 @@
             <article>
               <span class="num">05</span>
               <h3>Measure</h3>
-              <p>Track cycle time, change failure rate, cost per change and security findings, and report them upward. <a href="#enterprise">See what the pilot shows.</a></p>
+              <p>Track cycle time, change failure rate, cost per change and security findings, and report them upward.</p>
             </article>
           </div>
           <p class="note">HomeNetWatch is steps two and three in public: a pilot in production, and the governance that made it repeatable.</p>
@@ -196,61 +196,38 @@
           <p class="eyebrow">What this means for an enterprise</p>
           <h2>Four outcomes the pilot points to</h2>
           <p class="sub">
-            HomeNetWatch is the pilot. An enterprise version would be a different project, with its own scale,
-            compliance and support requirements. These are the outcomes this pilot points to, and the evidence behind
-            each.
+            HomeNetWatch is the pilot. An enterprise version would be a separate project. These are outcomes to validate,
+            not proven savings.
           </p>
-          <div class="outcomes">
-            <article class="card outcome">
-              <span class="concern">Delivery</span>
-              <h3>Faster delivery of infrastructure and internal tools</h3>
-              <p class="shows"><b>What HomeNetWatch shows</b>A working monitor, dashboard and Pi agent reached production in nine days, built by one person directing AI. Design changes go from request to live the same day.</p>
-              <p class="confirm"><b>Still to confirm</b>Whether the pace holds across many teams, approvals and shared platforms.</p>
+          <div class="cards cards-4 outcomes">
+            <article class="card">
+              <h3>Faster delivery</h3>
+              <p>A working system in production in nine days, built by one person directing AI.</p>
             </article>
-            <article class="card outcome">
-              <span class="concern">Change control</span>
-              <h3>Better change control and traceability</h3>
-              <p class="shows"><b>What HomeNetWatch shows</b>Every change is a branch and a pull request with automated tests, reviewed before it merges, and recorded in a public changelog.</p>
-              <p class="confirm"><b>Still to confirm</b>How it fits an organization's own change approval and audit process.</p>
+            <article class="card">
+              <h3>Better change control</h3>
+              <p>Every change is a reviewed pull request with tests and a public changelog.</p>
             </article>
-            <article class="card outcome">
-              <span class="concern">Operations and risk</span>
-              <h3>Lower operational overhead, with measurable quality and risk controls</h3>
-              <p class="shows"><b>What HomeNetWatch shows</b>Tests run on every change, backups come before risky ones, and security controls such as server-enforced roles and a content security policy are on from the start.</p>
-              <p class="confirm"><b>Still to confirm</b>Support staffing, patching and compliance at enterprise scale.</p>
+            <article class="card">
+              <h3>Lower operational risk</h3>
+              <p>Tests, backups before risky changes and security controls from the start.</p>
             </article>
-            <article class="card outcome">
-              <span class="concern">Cost</span>
-              <h3>Build what you use instead of buying what you don't</h3>
-              <p class="shows"><b>What HomeNetWatch shows</b>It has the features one home network needs and none it doesn't, and I change them without waiting on a vendor.</p>
-              <p class="confirm"><b>Still to confirm</b>The full cost to own and run it, and which software is still better bought. Commodity and regulated software usually is.</p>
+            <article class="card">
+              <h3>Build what you use</h3>
+              <p>Only the features one home network needs, changed without waiting on a vendor.</p>
             </article>
           </div>
-
-          <h3 class="facts-title">HomeNetWatch in numbers</h3>
-          <p class="facts-note">As of October 16, 2026. One project, one person, not a benchmark.</p>
-          <dl class="facts">
-            <div>
-              <dt>9 days</dt>
-              <dd>First commit to release 0.2.0 <a href="https://github.com/evaneyou/homenetwatch/commits/main" target="_blank" rel="noopener">History &rarr;</a></dd>
-            </div>
-            <div>
-              <dt>70</dt>
-              <dd>Changes merged through pull requests <a href="https://github.com/evaneyou/homenetwatch/pulls?q=is%3Apr+is%3Amerged" target="_blank" rel="noopener">Pull requests &rarr;</a></dd>
-            </div>
-            <div>
-              <dt>104</dt>
-              <dd>Automated test functions <a href="https://github.com/evaneyou/homenetwatch/tree/main/server/tests" target="_blank" rel="noopener">Tests &rarr;</a></dd>
-            </div>
-            <div>
-              <dt>16 of 70</dt>
-              <dd>Pull requests that were fixes, with one revert. Shown on purpose: it is what a skeptical reader looks for.</dd>
-            </div>
-          </dl>
-
+          <ul class="facts" aria-label="HomeNetWatch in numbers">
+            <li><b>9 days</b> to release 0.2.0</li>
+            <li><b>70</b> merged pull requests</li>
+            <li><b>104</b> automated tests</li>
+            <li><b>16 of 70</b> were fixes</li>
+          </ul>
           <p class="note">
-            These are outcomes to validate, not proven enterprise savings. The pilot shows the method works. An
-            enterprise version would be built and measured on its own terms.
+            As of October 16, 2026. One project, not a benchmark.
+            <a href="https://github.com/evaneyou/homenetwatch/pulls?q=is%3Apr+is%3Amerged" target="_blank" rel="noopener">See the history &rarr;</a>
+            Still to confirm at enterprise scale: pace across many teams, audit fit, support and compliance, and the full
+            cost to own and run it.
           </p>
         </div>
       </section>
