@@ -346,3 +346,17 @@
     flex: none;
   }
 }
+.nt .aw-bar .aw-scan,
+.nt .aw-bar .nt-stop {
+  flex: none;
+  white-space: nowrap;
+}
+@media (min-width: 769px) {
+  .nt .aw-agent {
+    margin-left: auto;
+  }
+  .nt .aw-bar .aw-scan,
+  .nt .aw-bar .nt-stop {
+    margin-left: 0;
+  }
+}

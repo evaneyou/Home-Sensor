@@ -301,29 +301,29 @@ export default function NetworkTestPage() {
             />
           )}
         </div>
-
-        {!running && !ended ? (
-          <div className="nt-setup">
-            <div className="aw-pills" role="group" aria-label="Links to stress">
-              {(["wired", "wireless"] as const).map((link) => (
-                <button key={link} className={links.includes(link) ? "aw-pill active" : "aw-pill"} type="button" aria-pressed={links.includes(link)} onClick={() => toggleLink(link)}>
-                  {NAMES[link]}
-                </button>
-              ))}
-            </div>
-            <label className="nt-duration">
-              <span>Run for</span>
-              <SelectMenu className="aw-select" aria-label="Run length" value={String(seconds)} onChange={(event) => setSeconds(Number(event.target.value))}>
-                {DURATIONS.filter((item) => item <= catalog.max_seconds).map((item) => (
-                  <option key={item} value={item}>
-                    {item < 60 ? `${item} seconds` : `${item / 60} minute${item === 60 ? "" : "s"}`}
-                  </option>
-                ))}
-              </SelectMenu>
-            </label>
-          </div>
-        ) : null}
       </div>
+
+      {!running && !ended ? (
+        <div className="nt-setup">
+          <div className="aw-pills" role="group" aria-label="Links to stress">
+            {(["wired", "wireless"] as const).map((link) => (
+              <button key={link} className={links.includes(link) ? "aw-pill active" : "aw-pill"} type="button" aria-pressed={links.includes(link)} onClick={() => toggleLink(link)}>
+                {NAMES[link]}
+              </button>
+            ))}
+          </div>
+          <label className="nt-duration">
+            <span>Run for</span>
+            <SelectMenu className="aw-select" aria-label="Run length" value={String(seconds)} onChange={(event) => setSeconds(Number(event.target.value))}>
+              {DURATIONS.filter((item) => item <= catalog.max_seconds).map((item) => (
+                <option key={item} value={item}>
+                  {item < 60 ? `${item} seconds` : `${item / 60} minute${item === 60 ? "" : "s"}`}
+                </option>
+              ))}
+            </SelectMenu>
+          </label>
+        </div>
+      ) : null}
 
       {error ? <div className="error">{error}</div> : null}
       {failed && stressId ? <div className="error">Lost contact with the server. Retrying.</div> : null}
