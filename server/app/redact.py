@@ -7,8 +7,11 @@ The real value never leaves the server.
 from __future__ import annotations
 
 import json
+import threading
+import time
 from uuid import UUID
 
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
@@ -118,11 +121,35 @@ def _token(ids: dict, value) -> str:
     return token
 
 
+# Whether a user is a guest, remembered briefly so most requests never touch the database.
+_GUEST_TTL_SECONDS = 15.0
+_GUEST_CACHE_MAX = 1000
+_guest_cache: dict[UUID, tuple[float, bool]] = {}
+_guest_cache_lock = threading.Lock()
+
+
+def _user_is_guest(user_id: UUID) -> bool:
+    from app.db import SessionLocal
+    from app.models import User
+
+    now = time.monotonic()
+    with _guest_cache_lock:
+        hit = _guest_cache.get(user_id)
+    if hit is not None and now - hit[0] < _GUEST_TTL_SECONDS:
+        return hit[1]
+    with SessionLocal() as db:
+        user = db.get(User, user_id)
+    result = user is not None and user.is_active and user.role == UserRole.guest
+    with _guest_cache_lock:
+        if len(_guest_cache) >= _GUEST_CACHE_MAX:
+            _guest_cache.clear()
+        _guest_cache[user_id] = (now, result)
+    return result
+
+
 def _request_is_guest(request: Request) -> bool:
     from app.auth import _serializer
     from app.config import get_settings
-    from app.db import SessionLocal
-    from app.models import User
 
     settings = get_settings()
     token = request.cookies.get(settings.session_cookie_name)
@@ -133,9 +160,7 @@ def _request_is_guest(request: Request) -> bool:
         user_id = UUID(data["uid"])
     except Exception:
         return False
-    with SessionLocal() as db:
-        user = db.get(User, user_id)
-    return user is not None and user.is_active and user.role == UserRole.guest
+    return _user_is_guest(user_id)
 
 
 async def _single_body(body: bytes):
@@ -151,8 +176,12 @@ class GuestAnonymizeMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
+        # Decide before the endpoint runs. Doing it afterwards opened a second pooled connection
+        # while the endpoint still held its own, and under load every connection was held by a
+        # request waiting for another one. The lookup runs off the event loop for the same reason.
+        is_guest = await run_in_threadpool(_request_is_guest, request)
         response = await call_next(request)
-        if not _request_is_guest(request):
+        if not is_guest:
             return response
         content_type = response.headers.get("content-type", "")
         if "application/json" not in content_type:
