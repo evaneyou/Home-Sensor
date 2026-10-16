@@ -360,3 +360,16 @@
     margin-left: 0;
   }
 }
+
+/* The run-length list keeps each choice on one line. */
+.nt-duration .select-menu {
+  min-width: 190px;
+}
+.nt-duration .select-menu-panel {
+  min-width: 190px;
+  width: max-content;
+}
+.nt-duration .select-menu-option,
+.nt-duration .select-menu-option-label {
+  white-space: nowrap;
+}
