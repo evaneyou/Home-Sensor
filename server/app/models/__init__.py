@@ -517,8 +517,26 @@ class SyntheticRun(Base):
     finished_links: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    stress_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("stress_runs.id", ondelete="CASCADE"), nullable=True, index=True
+    )
 
     samples: Mapped[list["SyntheticSample"]] = relationship(back_populates="run")
+
+
+class StressRun(Base):
+    """One stress test: a group of sessions that start, change and stop together."""
+
+    __tablename__ = "stress_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    monitor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"), nullable=False)
+    links: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="running")
+    started_by: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
 class SyntheticSample(Base):

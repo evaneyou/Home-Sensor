@@ -185,9 +185,11 @@ def synthetic_loop() -> None:
     while not state._stop.is_set():
         with state._lock:
             config = load_config()
+        fast = False
         if config.get("token") and config.get("name") and config.get("server_url"):
             try:
-                synthetic.sync(dict(config), get_json, post_json)
+                fast = bool(synthetic.sync(dict(config), get_json, post_json))
             except (OSError, urllib.error.URLError, TimeoutError, ValueError, KeyError) as exc:
                 state._last_error = str(exc)
-        state._stop.wait(15)
+        # While a stress test is open, look for added and removed sessions every 2 seconds.
+        state._stop.wait(2 if fast else 15)

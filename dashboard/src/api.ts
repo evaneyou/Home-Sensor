@@ -178,6 +178,19 @@ export const api = {
     request<RfChannelSnapshot>(
       `/api/v1/rf/channel-snapshot?agent_id=${agentId}&band=${encodeURIComponent(band)}`,
     ),
+  stressCatalog: () => request("/api/v1/stress/catalog"),
+  stressActive: (monitorId: string) => request(`/api/v1/stress/active?monitor_id=${monitorId}`),
+  stressStart: (
+    body: { monitor_id: string; links: string[]; duration_seconds: number; sessions: { kind: string; params: Record<string, unknown>; count: number }[] },
+    csrf: string,
+  ) => request("/api/v1/stress", { method: "POST", headers: csrfHeaders(csrf), body: JSON.stringify(body) }),
+  stressAdd: (id: string, body: { kind: string; params: Record<string, unknown>; count: number }, csrf: string) =>
+    request(`/api/v1/stress/${id}/sessions`, { method: "POST", headers: csrfHeaders(csrf), body: JSON.stringify(body) }),
+  stressRemove: (id: string, sessionId: string, csrf: string) =>
+    request(`/api/v1/stress/${id}/sessions/${sessionId}`, { method: "DELETE", headers: csrfHeaders(csrf) }),
+  stressStop: (id: string, csrf: string) => request(`/api/v1/stress/${id}/stop`, { method: "POST", headers: csrfHeaders(csrf) }),
+  stressLive: (id: string, since?: string) =>
+    request(`/api/v1/stress/${id}/live${since ? `?since=${encodeURIComponent(since)}` : ""}`),
   rfScanNow: (agentId: string, csrf: string) =>
     request(`/api/v1/rf/scan-now?agent_id=${agentId}`, { method: "POST", headers: csrfHeaders(csrf) }),
   rfTrust: (agentId: string, bssid: string, trusted: boolean, csrf: string) =>

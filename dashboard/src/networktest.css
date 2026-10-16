@@ -1,0 +1,333 @@
+/* Network Test: stress runs. Builds on the Airwaves header, bar and pills (airwaves.css). */
+.npv.nt {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.nt-setup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+.nt-duration {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--aw-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+.nt-duration .select-menu {
+  min-width: 140px;
+}
+
+.nt-stop {
+  height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  background: #ff8a7a;
+  color: #2a0a05;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.nt-stop:disabled {
+  opacity: 0.6;
+}
+
+.nt-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--aw-line);
+  overflow: hidden;
+}
+.nt-progress i {
+  display: block;
+  height: 100%;
+  background: var(--aw-mint);
+  transition: width 0.5s linear;
+}
+
+.nt-card {
+  padding: 12px 14px;
+  background: var(--aw-card);
+  border: 1px solid var(--aw-line);
+  border-radius: 14px;
+}
+.app-shell .npv.nt .nt-card h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 800;
+}
+.nt-card h2 small {
+  margin-left: 6px;
+  color: var(--aw-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.nt-empty {
+  margin: 0;
+  color: var(--aw-muted);
+  font-size: 13px;
+}
+
+.nt-tiles {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.nt-tile {
+  padding: 7px 10px;
+  background: var(--aw-card);
+  border: 1px solid var(--aw-line);
+  border-radius: 10px;
+}
+.nt-tile .k {
+  display: block;
+  color: var(--aw-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+.nt-tile .v {
+  display: inline-block;
+  margin-right: 10px;
+  font-size: 16px;
+  font-weight: 800;
+}
+.nt-tile .v small {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+.nt-charts {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+}
+.nt-plot {
+  min-height: 170px;
+}
+
+.nt-sessions {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.nt-sessions li {
+  padding: 8px 10px;
+  background: var(--aw-inset);
+  border-radius: 10px;
+}
+.nt-sessions li.is-off {
+  opacity: 0.55;
+}
+.nt-s-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.nt-chip {
+  margin-left: auto;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--aw-line);
+  color: var(--aw-soft);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+.nt-chip.running {
+  background: rgba(79, 209, 181, 0.18);
+  color: var(--aw-mint);
+}
+.nt-chip.failed {
+  background: rgba(255, 138, 122, 0.2);
+  color: #ff8a7a;
+}
+.nt-s-head b + .nt-x {
+  margin-left: auto;
+}
+.nt-chip + .nt-x {
+  margin-left: 0;
+}
+.nt-x {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--aw-line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--aw-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.nt-x:hover {
+  color: #ff8a7a;
+  border-color: #ff8a7a;
+}
+.nt-err {
+  margin: 4px 0 0;
+  color: #ff8a7a;
+  font-size: 12px;
+  font-weight: 600;
+}
+.nt-s-links {
+  display: grid;
+  gap: 2px;
+  margin-top: 4px;
+  color: var(--aw-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.nt-s-links i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+}
+
+.nt-tests {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+}
+.nt-test {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--aw-inset);
+  border-radius: 12px;
+}
+.nt-t-head b {
+  font-size: 15px;
+}
+.nt-t-head p {
+  margin: 2px 0 0;
+  color: var(--aw-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.nt-more {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--aw-mint);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.nt-fields {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.nt-field {
+  display: grid;
+  gap: 3px;
+  color: var(--aw-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.nt-field.bool {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  align-self: end;
+  min-height: 40px;
+}
+.nt-field small {
+  font-weight: 600;
+}
+.nt-field input[type="number"],
+.nt-field select {
+  box-sizing: border-box;
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  background: var(--aw-card);
+  border: 1px solid var(--aw-line);
+  border-radius: 10px;
+  color: var(--aw-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+.nt-field input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  accent-color: #4fd1b5;
+}
+.nt-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nt-count {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--aw-line);
+  border-radius: 10px;
+  background: var(--aw-card);
+}
+.nt-count button {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  background: none;
+  color: var(--aw-text);
+  font-size: 20px;
+  cursor: pointer;
+}
+.nt-count button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.nt-count span {
+  min-width: 28px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 800;
+}
+.nt-addbtn {
+  flex: 1;
+  height: 40px;
+  border: 1px solid var(--aw-mint);
+  border-radius: 10px;
+  background: rgba(79, 209, 181, 0.12);
+  color: var(--aw-mint);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.nt-addbtn:disabled {
+  opacity: 0.6;
+}
+
+@media (min-width: 760px) {
+  .nt-tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .nt-charts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .nt-tests {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1100px) {
+  .nt-tests {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
