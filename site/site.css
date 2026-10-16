@@ -1835,3 +1835,103 @@ h3 {
     grid-template-columns: 1fr;
   }
 }
+
+/* What this means for an enterprise */
+.outcomes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+
+.outcome h3 {
+  margin: 8px 0 14px;
+}
+
+.outcome p {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.outcome p b {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.outcome .shows {
+  color: var(--soft);
+}
+
+.outcome .confirm {
+  margin-bottom: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.outcome .confirm b {
+  color: var(--amber, #ffc24d);
+}
+
+.facts-title {
+  margin: 44px 0 4px;
+}
+
+.facts-note {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  margin: 0 0 28px;
+}
+
+.facts > div {
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.facts dt {
+  margin: 0 0 6px;
+  color: var(--mint);
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.facts dd {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.facts dd a {
+  display: block;
+  margin-top: 6px;
+  font-weight: 800;
+}
+
+@media (max-width: 1000px) {
+  .facts {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .outcomes {
+    grid-template-columns: 1fr;
+  }
+  .facts {
+    grid-template-columns: 1fr;
+  }
+}
