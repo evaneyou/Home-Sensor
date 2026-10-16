@@ -1837,8 +1837,14 @@ h3 {
 }
 
 /* What this means for an enterprise */
-.outcomes .card h3 {
+.outcomes-list {
   margin: 0 0 8px;
+  gap: 10px;
+}
+
+.outcomes-list li {
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .facts {
