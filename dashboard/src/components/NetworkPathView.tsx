@@ -125,7 +125,6 @@ export default function NetworkPathView({
   agentOnline,
   onAgent,
   onDestination,
-  onLink,
 }: {
   monitorId: string;
   link: "wired" | "wireless";
@@ -135,7 +134,6 @@ export default function NetworkPathView({
   agentOnline: boolean;
   onAgent: (id: string) => void;
   onDestination: (id: string) => void;
-  onLink: (link: "wired" | "wireless") => void;
 }) {
   const [running, setRunning] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
@@ -342,19 +340,6 @@ export default function NetworkPathView({
         ) : null}
       </div>
 
-      <nav className="aw-tabs" aria-label="Link">
-        {(["wired", "wireless"] as const).map((item) => (
-          <button
-            key={item}
-            type="button"
-            className={link === item ? "aw-tab active" : "aw-tab"}
-            aria-pressed={link === item}
-            onClick={() => onLink(item)}
-          >
-            {item === "wired" ? "Wired" : "Wi-Fi"}
-          </button>
-        ))}
-      </nav>
       {traceError ? (
         <div className="npv-notice silent" role="alert">
           {traceError}
