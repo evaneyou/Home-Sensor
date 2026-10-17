@@ -22,6 +22,7 @@ import AirwavesClients from "./pages/airwaves/ClientsPage";
 import GuestVisitsPage from "./pages/GuestVisitsPage";
 import InternetServicePage from "./pages/InternetServicePage";
 import SyntheticPage from "./pages/SyntheticPage";
+import TelegramPage from "./pages/TelegramPage";
 import WebServicesPage from "./pages/WebServicesPage";
 import ConnectionDiagramPage from "./pages/ConnectionDiagramPage";
 import TestPage from "./pages/TestPage";
@@ -356,6 +357,7 @@ function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void })
             <Route path="internet-service" element={<InternetServicePage />} />
             <Route path="synthetic" element={<SyntheticPage />} />
             <Route path="web-services" element={<WebServicesPage />} />
+            <Route path="telegram" element={<TelegramPage />} />
             <Route path="guest-visits" element={<GuestVisitsPage />} />
             <Route path="agents/:id" element={<RemoteAgentPage />} />
           </Route>

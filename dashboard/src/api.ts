@@ -195,6 +195,25 @@ export const api = {
   stressStop: (id: string, csrf: string) => request(`/api/v1/stress/${id}/stop`, { method: "POST", headers: csrfHeaders(csrf) }),
   stressLive: (id: string, since?: string) =>
     request(`/api/v1/stress/${id}/live${since ? `?since=${encodeURIComponent(since)}` : ""}`),
+  telegram: () => request("/api/v1/settings/telegram"),
+  telegramEvents: () => request("/api/v1/settings/telegram/events"),
+  telegramSave: (
+    body: {
+      token?: string;
+      chat_id: string;
+      enabled: boolean;
+      notify_network: boolean;
+      notify_pi: boolean;
+      notify_server: boolean;
+      notify_app: boolean;
+      notify_recovery: boolean;
+    },
+    csrf: string,
+  ) => request("/api/v1/settings/telegram", { method: "PUT", headers: csrfHeaders(csrf), body: JSON.stringify(body) }),
+  telegramTest: (csrf: string) => request("/api/v1/settings/telegram/test", { method: "POST", headers: csrfHeaders(csrf) }),
+  telegramDetect: (token: string | undefined, csrf: string) =>
+    request("/api/v1/settings/telegram/detect", { method: "POST", headers: csrfHeaders(csrf), body: JSON.stringify({ token }) }),
+  telegramDisconnect: (csrf: string) => request("/api/v1/settings/telegram", { method: "DELETE", headers: csrfHeaders(csrf) }),
   rfScanNow: (agentId: string, csrf: string) =>
     request(`/api/v1/rf/scan-now?agent_id=${agentId}`, { method: "POST", headers: csrfHeaders(csrf) }),
   rfTrust: (agentId: string, bssid: string, trusted: boolean, csrf: string) =>
