@@ -10,7 +10,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-AGENT_VERSION = "0.6.1"
+AGENT_VERSION = "0.7.0"
 # Latency checks wait on the network, so a few of them run at once.
 # Bandwidth Test stays alone: running it beside others would slow them all down.
 PROBE_WORKERS = 6

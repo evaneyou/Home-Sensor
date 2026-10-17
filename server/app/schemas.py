@@ -250,7 +250,7 @@ class GuestVisitOut(BaseModel):
     city: str = ""
 
 
-class GuestDayOut(BaseModel):
+class GuestPeriodOut(BaseModel):
     date: str
     count: int
 
@@ -259,16 +259,34 @@ class GuestCountryOut(BaseModel):
     country: str
     country_code: str
     count: int
+    unique: int
+
+
+class GuestCityOut(BaseModel):
+    city: str
+    region: str
+    country: str
+    count: int
 
 
 class GuestSummaryOut(BaseModel):
+    range: str
+    days: int
+    since: datetime
+    until: datetime
+    bucket: str
     total: int
+    previous_total: int
     unique_addresses: int
+    previous_unique: int
     countries: int
     first_at: Optional[datetime] = None
     last_at: Optional[datetime] = None
-    by_day: list[GuestDayOut]
+    busiest: Optional[GuestPeriodOut] = None
+    by_period: list[GuestPeriodOut]
     by_country: list[GuestCountryOut]
+    by_city: list[GuestCityOut]
+    retention_days: int
     located: bool
 
 

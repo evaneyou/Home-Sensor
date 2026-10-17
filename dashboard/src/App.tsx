@@ -22,9 +22,11 @@ import AirwavesClients from "./pages/airwaves/ClientsPage";
 import GuestVisitsPage from "./pages/GuestVisitsPage";
 import InternetServicePage from "./pages/InternetServicePage";
 import SyntheticPage from "./pages/SyntheticPage";
+import TelegramPage from "./pages/TelegramPage";
 import WebServicesPage from "./pages/WebServicesPage";
 import ConnectionDiagramPage from "./pages/ConnectionDiagramPage";
 import TestPage from "./pages/TestPage";
+import NetworkTestPage from "./pages/NetworkTestPage";
 import UnderConstructionPage from "./pages/UnderConstructionPage";
 import type { User } from "./types";
 
@@ -332,7 +334,7 @@ function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void })
           <Route path="/" element={<OverviewPage />} />
           <Route path="/path" element={<PathPage />} />
           <Route path="/speed-test" element={<UnderConstructionPage title="Speed Test" />} />
-          <Route path="/network-test" element={<UnderConstructionPage title="Network Test" />} />
+          <Route path="/network-test" element={<NetworkTestPage />} />
           <Route path="/airwaves" element={<AirwavesLayout />}>
             <Route index element={<AirwavesOverview />} />
             <Route path="networks" element={<AirwavesNetworks />} />
@@ -355,6 +357,7 @@ function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void })
             <Route path="internet-service" element={<InternetServicePage />} />
             <Route path="synthetic" element={<SyntheticPage />} />
             <Route path="web-services" element={<WebServicesPage />} />
+            <Route path="telegram" element={<TelegramPage />} />
             <Route path="guest-visits" element={<GuestVisitsPage />} />
             <Route path="agents/:id" element={<RemoteAgentPage />} />
           </Route>

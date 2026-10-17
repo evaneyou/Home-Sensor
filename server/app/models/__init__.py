@@ -16,6 +16,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -428,6 +429,75 @@ class AuditEvent(Base):
     detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
 
+class GuestVisit(Base):
+    """One guest sign-in. The place is looked up when it happens, so it stays correct if the map file changes.
+
+    Kept for a year (see services.retention). The Pi's own address is never stored here.
+    """
+
+    __tablename__ = "guest_visits"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    visited_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    address: Mapped[str] = mapped_column(String(64), nullable=False)
+    country: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    country_code: Mapped[str] = mapped_column(String(8), nullable=False, default="")
+    region: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    city: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+
+    __table_args__ = (
+        Index("ix_guest_visits_visited_at", "visited_at"),
+        Index("ix_guest_visits_country_visited", "country_code", "visited_at"),
+    )
+
+
+class TelegramSetting(Base):
+    """One row: where alerts are sent. The bot token is stored encrypted and is never returned by the API."""
+
+    __tablename__ = "telegram_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    bot_token_enc: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    token_hint: Mapped[str] = mapped_column(String(8), nullable=False, default="", server_default="")
+    bot_username: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
+    chat_id: Mapped[str] = mapped_column(String(32), nullable=False, default="", server_default="")
+    notify_network: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    notify_pi: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    notify_server: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    notify_app: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    notify_recovery: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    last_ok_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str] = mapped_column(String(300), nullable=False, default="", server_default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AlertEvent(Base):
+    """A condition that is, or was, firing. `key` names the condition so it is announced once."""
+
+    __tablename__ = "alert_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    key: Mapped[str] = mapped_column(String(160), nullable=False)
+    category: Mapped[str] = mapped_column(String(16), nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # pending: seen but not long enough to announce. open: announced. resolved: over.
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    opened_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    notified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    resolved_notified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
+    __table_args__ = (
+        Index("ix_alert_events_status", "status", "first_seen_at"),
+        Index("uq_alert_events_active_key", "key", unique=True, postgresql_where=text("status in ('pending','open')")),
+    )
+
+
 class WebServiceSetting(Base):
     __tablename__ = "web_service_settings"
 
@@ -517,8 +587,26 @@ class SyntheticRun(Base):
     finished_links: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    stress_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("stress_runs.id", ondelete="CASCADE"), nullable=True, index=True
+    )
 
     samples: Mapped[list["SyntheticSample"]] = relationship(back_populates="run")
+
+
+class StressRun(Base):
+    """One stress test: a group of sessions that start, change and stop together."""
+
+    __tablename__ = "stress_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    monitor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"), nullable=False)
+    links: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="running")
+    started_by: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
 class SyntheticSample(Base):

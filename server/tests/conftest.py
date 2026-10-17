@@ -109,6 +109,9 @@ def db(engine) -> Generator[Session, None, None]:
     session.execute(
         text("DELETE FROM audit_events WHERE action = 'guest_login' AND detail IN ('testclient', '203.0.113.5')")
     )
+    session.execute(
+        text("DELETE FROM guest_visits WHERE address IN ('testclient', '203.0.113.5') OR address LIKE '198.51.100.%'")
+    )
     session.commit()
     session.close()
 

@@ -44,8 +44,9 @@ def test_summary_counts_visits_by_country_and_day(client: TestClient, db, monkey
     was = {row["country"]: row["count"] for row in before["by_country"]}
     assert by_country["Testland"] - was.get("Testland", 0) == 3
     assert by_country["Otherland"] - was.get("Otherland", 0) == 1
-    assert after["by_day"], "a day series is returned once there are visits"
-    assert after["by_day"][-1]["count"] >= 4
+    assert after["by_period"], "a series is returned once there are visits"
+    assert after["bucket"] == "day"
+    assert after["by_period"][-1]["count"] >= 4
     assert after["first_at"] and after["last_at"]
 
     visits = client.get("/api/v1/settings/guest-visits").json()

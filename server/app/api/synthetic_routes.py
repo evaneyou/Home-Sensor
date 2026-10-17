@@ -15,7 +15,7 @@ from app.api.common import _resolve_monitor_identity
 from app.auth import get_current_user, require_admin_csrf
 from app.config import get_settings
 from app.db import get_db
-from app.models import Monitor, SyntheticProfile, SyntheticRun, SyntheticSample, User
+from app.models import Monitor, StressRun, SyntheticProfile, SyntheticRun, SyntheticSample, User
 from app.synthetic import (
     apply_options,
     build_report,
@@ -27,6 +27,7 @@ from app.synthetic import (
     public_host,
     range_start,
 )
+from app import stress as stress_module
 from app.redact import redact
 from app.wireguard_tunnel import ensure_srtp_key
 
@@ -340,21 +341,31 @@ def assignment(
             SyntheticRun.status.in_(("running", "pending")),
         )
     ).all()
+    # The five-minute cap is enforced here too, so a stale test stops being assigned.
+    ends: dict[uuid.UUID, datetime] = {}
+    for stress_run in db.scalars(select(StressRun).where(StressRun.monitor_id == monitor.id, StressRun.status == "running")).all():
+        stress_module.expire(db, stress_run)
+        if stress_run.status == "running":
+            ends[stress_run.id] = stress_run.ends_at
     jobs = []
     for run in runs:
+        if run.mode == "stress" and (run.stress_id not in ends or run.status not in ("running", "pending")):
+            continue
         for link in run.links:
-            jobs.append(
-                {
-                    "run_id": run.id,
-                    "link": link,
-                    "mode": run.mode,
-                    "profile_slug": run.profile_slug,
-                    "options": run.options,
-                    "duration_seconds": run.duration_seconds,
-                }
-            )
+            job = {
+                "run_id": run.id,
+                "link": link,
+                "mode": run.mode,
+                "profile_slug": run.profile_slug,
+                "options": run.options,
+                "duration_seconds": run.duration_seconds,
+            }
+            if run.mode == "stress":
+                job["ends_in_s"] = max(1, int((ends[run.stress_id] - _now()).total_seconds()))
+            jobs.append(job)
     db.commit()
     return {
+        "fast": bool(ends),
         "target_host": host,
         "udp_port": get_settings().rtnp_udp_port,
         "control_port": get_settings().rtnp_control_port,
@@ -418,6 +429,13 @@ def finish_run(
     if run is None or run.monitor_id != monitor.id:
         raise HTTPException(status_code=404, detail="Run not found")
     if run.mode == "continuous":
+        return {"status": run.status}
+    if run.mode == "stress":
+        if body.status == "failed" and run.status in ("running", "pending"):
+            run.status = "failed"
+            run.finished_at = _now()
+            run.options = {**(run.options or {}), "error": (body.message or "The session stopped")[:200]}
+            db.commit()
         return {"status": run.status}
     done = list(run.finished_links or [])
     if body.link not in done:

@@ -1,4 +1,4 @@
-"""Keep two years of measurements.
+"""Keep two years of measurements, and one year of guest visits.
 
 Raw samples stay for 6 months. From 6 to 12 months they are averaged into one
 row per hour. From 12 months to 2 years they are averaged into one row per day.
@@ -12,14 +12,15 @@ import json
 import logging
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app import guest_visits
 from app.db import SessionLocal
-from app.models import ResultStatus, RfAlert, RfChannelStat, RfClient, TestResult, WifiObservation
+from app.models import GuestVisit, ResultStatus, RfAlert, RfChannelStat, RfClient, TestResult, WifiObservation
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +65,9 @@ def apply_retention(db: Session, now: datetime) -> dict[str, int]:
     ).rowcount
     deleted_clients = db.execute(delete(RfClient).where(RfClient.observed_at < delete_before)).rowcount
     deleted_alerts = db.execute(delete(RfAlert).where(RfAlert.observed_at < delete_before)).rowcount
+    deleted_visits = db.execute(
+        delete(GuestVisit).where(GuestVisit.visited_at < now - timedelta(days=guest_visits.RETENTION_DAYS))
+    ).rowcount
 
     daily_results = _rollup_results(db, delete_before, daily_before, "day")
     hourly_results = _rollup_results(db, daily_before, hourly_before, "hour")
@@ -88,6 +92,7 @@ def apply_retention(db: Session, now: datetime) -> dict[str, int]:
         "deleted_channels": deleted_channels or 0,
         "deleted_clients": deleted_clients or 0,
         "deleted_alerts": deleted_alerts or 0,
+        "deleted_guest_visits": deleted_visits or 0,
         "daily_results": daily_results,
         "hourly_results": hourly_results,
         "daily_wifi": daily_wifi,
