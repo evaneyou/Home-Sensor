@@ -103,7 +103,7 @@ def start(
     admin: Annotated[User, Depends(require_admin_csrf)],
 ) -> dict[str, Any]:
     if body.link not in LINKS:
-        raise HTTPException(status_code=400, detail="Choose the wired (LAN) or Wi-Fi link.")
+        raise HTTPException(status_code=400, detail="Choose the Wired or Wi-Fi link.")
     monitor = db.get(Monitor, body.monitor_id)
     if monitor is None:
         raise HTTPException(status_code=404, detail="Remote agent not found")

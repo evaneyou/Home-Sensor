@@ -123,7 +123,7 @@ def test_an_unreachable_server_fails_with_a_clear_reason(lab, monkeypatch):
     monkeypatch.setattr(lab, "PORT", 1)  # nothing listens here
     posted = _run(lab)
     finish = [body for url, body in posted if url.endswith("/finish")]
-    assert len(finish) == 1 and finish[0]["status"] == "failed" and "LAN" in finish[0]["error"]
+    assert len(finish) == 1 and finish[0]["status"] == "failed" and "Wired" in finish[0]["error"]
     wifi = [body for url, body in _run(lab, link="wireless") if url.endswith("/finish")]
     assert wifi and "Wi-Fi" in wifi[0]["error"]
 

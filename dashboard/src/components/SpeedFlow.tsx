@@ -116,7 +116,7 @@ function Diagram({ link, phase, mbps }: { link: "wired" | "wireless"; phase: Spe
   const pulse = active ? Math.round(Math.min(1.6, Math.max(0.35, 1.6 / (1 + mbps / 80))) * 20) / 20 : 3;
   const { nodes, edges } = useMemo(() => {
     const stages: Omit<StageData, "active" | "pulse" | "tone">[] = [
-      { label: "Raspberry Pi", sub: link === "wired" ? "Fast LAN" : "Wi-Fi", icon: "pi" },
+      { label: "Raspberry Pi", sub: link === "wired" ? "Wired" : "Wi-Fi", icon: "pi" },
       { label: "Home router", sub: "Your network", icon: "router" },
       { label: "Internet provider", sub: "Your ISP", icon: "isp" },
       { label: "Internet", sub: "The path out", icon: "internet" },

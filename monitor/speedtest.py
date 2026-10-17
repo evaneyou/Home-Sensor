@@ -23,7 +23,7 @@ from checks import link_lock
 
 PORT = 8080
 HOSTS = {"wired": "10.7.0.1", "wireless": "10.7.1.1"}
-LINK_NAMES = {"wired": "LAN", "wireless": "Wi-Fi"}
+LINK_NAMES = {"wired": "Wired", "wireless": "Wi-Fi"}
 DOWN_STREAMS = 4
 UP_STREAMS = 3
 TICK_SECONDS = 0.5

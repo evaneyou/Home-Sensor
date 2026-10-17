@@ -30,7 +30,7 @@ type Sample = { seq: number; phase: "download" | "upload"; t_ms: number; mbps: n
 type Live = Test & { samples: Sample[] };
 
 const TICK_MS = 500;
-const LINK_LABEL: Record<Link, string> = { wired: "Fast LAN", wireless: "Wi-Fi" };
+const LINK_LABEL: Record<Link, string> = { wired: "Wired", wireless: "Wi-Fi" };
 
 function fmt(value: number | null | undefined, digits = 1): string {
   if (value == null || Number.isNaN(value)) return "—";
@@ -324,7 +324,7 @@ export default function SpeedTestPage() {
           <div className="st-seg" role="group" aria-label="Connection to test">
             {(["wired", "wireless"] as const).map((item) => (
               <button key={item} type="button" className={link === item ? "active" : ""} aria-pressed={link === item} disabled={running} onClick={() => setLink(item)}>
-                {item === "wired" ? "Fast LAN" : "Wi-Fi"}
+                {item === "wired" ? "Wired" : "Wi-Fi"}
               </button>
             ))}
           </div>
@@ -363,12 +363,27 @@ export default function SpeedTestPage() {
             {headline}
             {testId === DEMO ? <em className="st-badge">Demo, simulated numbers</em> : null}
           </span>
-          <div className="st-number" aria-live="off">
-            {phase === "download" || phase === "upload" ? fmt(shown) : phase === "done" && status === "finished" ? fmt(live?.down_mbps) : "0"}
-            <small>Mbit/s</small>
-          </div>
+          {phase === "done" && status === "finished" ? (
+            <div className="st-pair" aria-label="Final speeds">
+              <div className="down">
+                <small>Download</small>
+                <b>{fmt(live?.down_mbps)}</b>
+                <i>Mbit/s</i>
+              </div>
+              <div className="up">
+                <small>Upload</small>
+                <b>{fmt(live?.up_mbps)}</b>
+                <i>Mbit/s</i>
+              </div>
+            </div>
+          ) : (
+            <div className="st-number" aria-live="off">
+              {phase === "download" || phase === "upload" ? fmt(shown) : "0"}
+              <small>Mbit/s</small>
+            </div>
+          )}
           <span className="st-sub">
-            {running ? `${LINK_LABEL[link]} · ${left} seconds left` : finished && status === "finished" ? `${LINK_LABEL[link]} · download shown, upload below` : `${LINK_LABEL[link]} link to the HomeNetWatch server`}
+            {running ? `${LINK_LABEL[link]} · ${left} seconds left` : finished && status === "finished" ? `${LINK_LABEL[link]} · test complete` : `${LINK_LABEL[link]} link to the HomeNetWatch server`}
           </span>
           <div className="st-progress" role="progressbar" aria-valuemin={0} aria-valuemax={30} aria-valuenow={Math.round(progress * 30)} aria-label="Test progress">
             <i style={{ width: `${progress * 100}%` }} />

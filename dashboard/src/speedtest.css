@@ -492,3 +492,51 @@
     width: 100%;
   }
 }
+
+/* The finished test: both speeds side by side. */
+.st-pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+}
+
+.st-pair > div {
+  display: grid;
+  gap: 0;
+}
+
+.st-pair small {
+  color: var(--s-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.st-pair b {
+  font-size: 56px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.st-pair .down b {
+  color: var(--s-down);
+}
+
+.st-pair .up b {
+  color: var(--s-up);
+}
+
+.st-pair i {
+  color: var(--s-muted);
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+@media (max-width: 560px) {
+  .st-pair b {
+    font-size: 46px;
+  }
+}
