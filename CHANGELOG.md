@@ -24,6 +24,7 @@ reports its own `AGENT_VERSION` so it can be updated independently of the server
 - The internet path screen keeps the service grid in one file and the detail charts in another.
 - The Pi agent reports version 0.6.0 (on-demand host traces, and traces bound to a link run over IPv4). Install it on each Pi to update.
 - `monitor/update.sh` replaces the agent code and restarts `monitor`. Enrollment, tunnels, and `/etc/monitor` stay as they are.
+- Kismet on the Pi drops idle devices sooner, skips keeping EAPOL frames in RAM, caps the service cgroup, and restarts once a day so the capture helper cannot grow until the Pi reboots. Existing installs can run `sudo ./repair-kismet-memory.sh`.
 
 ### Added
 

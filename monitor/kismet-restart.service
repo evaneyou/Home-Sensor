@@ -1,0 +1,7 @@
+[Unit]
+Description=Restart Kismet to clear capture helper memory
+Documentation=file:///opt/monitor
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl restart kismet.service
