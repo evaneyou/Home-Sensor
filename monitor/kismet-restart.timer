@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Kismet restart to bound airwave memory
+Documentation=file:///opt/monitor
+
+[Timer]
+OnCalendar=*-*-* 04:15:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -53,6 +53,14 @@ sudo ./update.sh
 
 A first install still uses `sudo ./install.sh`.
 
+## Airwave memory
+
+Kismet's Linux capture helper grows while it channel-hops. A first install with `--kismet` already caps that cgroup and restarts Kismet once a day. On a Pi that was set up earlier, run the repair from an unpacked package (enrollment and tunnels stay as they are):
+
+```bash
+sudo ./repair-kismet-memory.sh
+```
+
 The agent starts at boot as the `monitor` user under `systemd`. Check it with:
 
 ```bash
@@ -84,6 +92,8 @@ Setup accepts HTTPS, or HTTP to a private LAN address.
 | `checks.py` | HTTP, ping, MTR, and Bandwidth Test checks |
 | `install.sh` | First install: packages, systemd unit, and tunnels when configs are present |
 | `update.sh` | Replaces the agent code and restarts `monitor` |
+| `repair-kismet-memory.sh` | Caps Kismet memory and enables the daily restart on an existing Pi |
+| `kismet-restart.timer` | Restarts Kismet once a day so the capture helper cannot grow without bound |
 | `monitor.service` | `systemd` unit (runs with `CAP_NET_RAW` and `CAP_NET_BIND_SERVICE` only) |
 | `avahi-monitor.service` | Advertises the setup page as `<hostname>.local` |
 | `synthetic.py` | Real-time application traffic on the physical NIC |

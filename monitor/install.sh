@@ -167,6 +167,9 @@ httpd_password=${password}
 source=hnwradio0:name=hnw-radio,hop=true
 enable_logging=false
 tracker_device_timeout=600
+tracker_max_devices=5000
+dot11_keep_eapol=false
+ulimit_mbytes=768
 EOF
   chown root:kismet /etc/kismet/kismet_site.conf
   chmod 0640 /etc/kismet/kismet_site.conf
@@ -196,7 +199,22 @@ User=kismet
 Group=kismet
 WorkingDirectory=/var/lib/kismet
 EOF
-  systemctl daemon-reload
+  cat > /etc/systemd/system/kismet.service.d/memory.conf <<EOF
+[Service]
+# The Linux capture helper grows over days of hopping. Cap the cgroup so a
+# runaway capture is restarted instead of taking the Pi down with it.
+MemoryHigh=768M
+MemoryMax=1G
+KillMode=control-group
+EOF
+  if [ -f kismet-restart.service ] && [ -f kismet-restart.timer ]; then
+    install -m 644 kismet-restart.service /etc/systemd/system/kismet-restart.service
+    install -m 644 kismet-restart.timer /etc/systemd/system/kismet-restart.timer
+    systemctl daemon-reload
+    systemctl enable --now kismet-restart.timer
+  else
+    systemctl daemon-reload
+  fi
   systemctl enable kismet.service
   systemctl restart kismet.service
   echo "Kismet is listening on 127.0.0.1:2501 only."
