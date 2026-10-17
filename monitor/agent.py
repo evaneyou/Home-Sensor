@@ -13,6 +13,7 @@ import agent_state as state
 import health
 import radio
 import scheduler
+import speedtest
 from agent_state import AGENT_VERSION, CHECK_IN_PATH, POLL_PATH
 from enrollment import (
     certificate_pin,
@@ -235,11 +236,13 @@ def ensure_health_loop() -> None:
         start_scan = not state._scan_started
         start_kismet = not state._kismet_started
         start_synthetic = not state._synthetic_started
+        start_speedtest = not state._speedtest_started
         state._health_started = True
         state._tests_started = True
         state._scan_started = True
         state._kismet_started = True
         state._synthetic_started = True
+        state._speedtest_started = True
     if start_health:
         threading.Thread(target=health.health_loop, name="health", daemon=True).start()
     if start_tests:
@@ -250,6 +253,13 @@ def ensure_health_loop() -> None:
         threading.Thread(target=radio.kismet_loop, name="kismet", daemon=True).start()
     if start_synthetic:
         threading.Thread(target=scheduler.synthetic_loop, name="synthetic", daemon=True).start()
+    if start_speedtest:
+        threading.Thread(
+            target=speedtest.poll_loop,
+            args=(state._stop, load_config, health.get_json, health.post_json),
+            name="speedtest",
+            daemon=True,
+        ).start()
 
 
 state.ensure_health_loop = ensure_health_loop

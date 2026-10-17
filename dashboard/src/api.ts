@@ -218,6 +218,12 @@ export const api = {
     request(`/api/v1/kpi?period=${encodeURIComponent(period)}${day ? `&day=${encodeURIComponent(day)}` : ""}`),
   kpiDaily: (first: string, last: string) =>
     request(`/api/v1/kpi/daily?from=${encodeURIComponent(first)}&to=${encodeURIComponent(last)}&limit=1000`),
+  speedtestStart: (body: { monitor_id: string; link: string }, csrf: string) =>
+    request("/api/v1/speedtest", { method: "POST", headers: csrfHeaders(csrf), body: JSON.stringify(body) }),
+  speedtestRead: (id: string, since: number) => request(`/api/v1/speedtest/${id}?since=${since}`),
+  speedtestActive: (monitorId: string) => request(`/api/v1/speedtest/active?monitor_id=${monitorId}`),
+  speedtestHistory: (monitorId: string) => request(`/api/v1/speedtest/history?monitor_id=${monitorId}&limit=8`),
+  speedtestCancel: (id: string, csrf: string) => request(`/api/v1/speedtest/${id}/cancel`, { method: "POST", headers: csrfHeaders(csrf) }),
   rfScanNow: (agentId: string, csrf: string) =>
     request(`/api/v1/rf/scan-now?agent_id=${agentId}`, { method: "POST", headers: csrfHeaders(csrf) }),
   rfTrust: (agentId: string, bssid: string, trusted: boolean, csrf: string) =>

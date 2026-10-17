@@ -1,0 +1,494 @@
+/* Speed Test: a live gauge, a path that speeds up with the traffic, and two bar graphs. */
+.st {
+  --s-card: #161d2f;
+  --s-inset: #10172a;
+  --s-line: #232d49;
+  --s-text: #e8ecf8;
+  --s-soft: #c3cce6;
+  --s-muted: #9aa6c4;
+  --s-down: #4fd1b5;
+  --s-up: #6aa8ff;
+  --s-warn: #ffc24d;
+  --s-bad: #ff8a7a;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.st-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 20px;
+}
+
+.app-shell .st .st-head h1 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.st-head p {
+  margin: 6px 0 0;
+  color: var(--s-muted);
+  font-size: 14px;
+}
+
+.st-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.st-seg {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--s-card);
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+}
+
+.st-seg button {
+  height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--s-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.st-seg button.active {
+  background: var(--s-down);
+  color: #06201b;
+  font-weight: 800;
+}
+
+.st-seg button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.st-go,
+.st-stop {
+  height: 46px;
+  min-width: 132px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.st-go {
+  background: var(--s-down);
+  color: #06201b;
+}
+
+.st-go:disabled {
+  background: #2a3552;
+  color: var(--s-soft);
+  cursor: default;
+}
+
+.st-stop {
+  background: var(--s-bad);
+  color: #2a0a05;
+}
+
+.st-note {
+  padding: 10px 14px;
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.st-note.bad {
+  background: rgba(255, 138, 122, 0.1);
+  border-color: rgba(255, 138, 122, 0.45);
+}
+
+/* The hero: big number on the left, the path on the right. */
+.st-hero {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  padding: 20px 22px;
+  background: radial-gradient(120% 140% at 0% 0%, rgba(79, 209, 181, 0.1), transparent 55%), var(--s-card);
+  border: 1px solid var(--s-line);
+  border-radius: 18px;
+  transition: border-color 0.4s, box-shadow 0.4s;
+}
+
+.st-hero.tone-up {
+  background: radial-gradient(120% 140% at 0% 0%, rgba(106, 168, 255, 0.12), transparent 55%), var(--s-card);
+}
+
+.st-hero.is-running {
+  border-color: var(--s-down);
+  box-shadow: 0 0 0 1px rgba(79, 209, 181, 0.25), 0 0 32px rgba(79, 209, 181, 0.12);
+}
+
+.st-hero.is-running.tone-up {
+  border-color: var(--s-up);
+  box-shadow: 0 0 0 1px rgba(106, 168, 255, 0.25), 0 0 32px rgba(106, 168, 255, 0.14);
+}
+
+.st-gauge {
+  display: grid;
+  gap: 6px;
+}
+
+.st-phase {
+  color: var(--s-soft);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.st-number {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--s-down);
+  font-size: 76px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.tone-up .st-number {
+  color: var(--s-up);
+}
+
+.st-number small {
+  color: var(--s-muted);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.st-sub {
+  color: var(--s-muted);
+  font-size: 14px;
+}
+
+.st-progress {
+  position: relative;
+  height: 8px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: var(--s-line);
+  overflow: hidden;
+}
+
+.st-progress i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--s-down), var(--s-up));
+  border-radius: 999px;
+  transition: width 0.45s linear;
+}
+
+.st-progress b {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--s-card);
+}
+
+.st-legend {
+  display: flex;
+  justify-content: space-between;
+  color: var(--s-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.st-legend .on {
+  color: var(--s-text);
+}
+
+/* The path. */
+.sf {
+  height: 150px;
+  min-width: 0;
+}
+
+.sf .react-flow {
+  background: transparent;
+}
+
+.sf .react-flow__pane {
+  cursor: default;
+}
+
+.sf-node {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: 112px;
+  padding: 10px 6px 8px;
+  background: var(--s-inset);
+  border: 1px solid var(--s-line);
+  border-radius: 14px;
+  color: var(--s-text);
+  text-align: center;
+}
+
+.sf-node b {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.sf-node small {
+  color: var(--s-muted);
+  font-size: 11px;
+}
+
+.sf-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(154, 166, 196, 0.1);
+  color: var(--s-soft);
+}
+
+.sf-node.is-active {
+  border-color: var(--tone);
+}
+
+.sf-node.is-active .sf-icon {
+  color: var(--tone);
+  animation: sf-pulse var(--pulse, 1s) ease-in-out infinite;
+}
+
+@keyframes sf-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--tone) 22%, transparent);
+    transform: scale(1.06);
+  }
+}
+
+.sf-handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Results and charts. */
+.st-results {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.st-card {
+  display: grid;
+  gap: 2px;
+  padding: 14px 16px;
+  background: var(--s-card);
+  border: 1px solid var(--s-line);
+  border-radius: 14px;
+}
+
+.st-card span {
+  color: var(--s-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.st-card b {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.st-card small {
+  color: var(--s-muted);
+  font-size: 12px;
+}
+
+.st-card.down b {
+  color: var(--s-down);
+}
+
+.st-card.up b {
+  color: var(--s-up);
+}
+
+.st-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.st-panel {
+  min-width: 0;
+  padding: 14px 16px 10px;
+  background: var(--s-card);
+  border: 1px solid var(--s-line);
+  border-radius: 16px;
+  transition: border-color 0.3s;
+}
+
+.st-panel.is-live {
+  border-color: var(--s-down);
+}
+
+.st-charts .st-panel:nth-child(2).is-live {
+  border-color: var(--s-up);
+}
+
+.st-panel header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 6px;
+}
+
+.app-shell .st .st-panel h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.st-panel header span {
+  color: var(--s-muted);
+  font-size: 12px;
+}
+
+.st-table-wrap {
+  overflow-x: auto;
+}
+
+.st-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.st-table th,
+.st-table td {
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--s-line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.st-table thead th {
+  color: var(--s-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.st-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.st-empty {
+  margin: 0;
+  color: var(--s-muted);
+  font-size: 14px;
+}
+
+@media (max-width: 900px) {
+  .st-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .st-charts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .st-results {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .st-number {
+    font-size: 64px;
+  }
+
+  .st-controls,
+  .st-seg {
+    width: 100%;
+  }
+
+  .st-seg button {
+    flex: 1;
+  }
+
+  .st-go,
+  .st-stop {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-node.is-active .sf-icon {
+    animation: none;
+  }
+}
+
+.st-demo {
+  height: 46px;
+  padding: 0 18px;
+  background: transparent;
+  border: 1px solid var(--s-line);
+  border-radius: 12px;
+  color: var(--s-soft);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.st-demo:hover {
+  border-color: var(--s-down);
+  color: var(--s-down);
+}
+
+.st-badge {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 194, 77, 0.55);
+  border-radius: 999px;
+  color: var(--s-warn);
+  font-size: 11px;
+  font-style: normal;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+@media (max-width: 560px) {
+  .st-demo {
+    width: 100%;
+  }
+}

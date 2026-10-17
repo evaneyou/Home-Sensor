@@ -29,7 +29,7 @@ import TestPage from "./pages/TestPage";
 import AppFooter from "./components/AppFooter";
 import KpiPage from "./pages/KpiPage";
 import NetworkTestPage from "./pages/NetworkTestPage";
-import UnderConstructionPage from "./pages/UnderConstructionPage";
+import SpeedTestPage from "./pages/SpeedTestPage";
 import type { User } from "./types";
 
 function useDarkTheme() {
@@ -346,7 +346,7 @@ function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void })
         <Routes>
           <Route path="/" element={<OverviewPage />} />
           <Route path="/path" element={<PathPage />} />
-          <Route path="/speed-test" element={<UnderConstructionPage title="Speed Test" />} />
+          <Route path="/speed-test" element={<SpeedTestPage />} />
           <Route path="/network-test" element={<NetworkTestPage />} />
           <Route path="/kpi" element={<KpiPage />} />
           <Route path="/airwaves" element={<AirwavesLayout />}>
