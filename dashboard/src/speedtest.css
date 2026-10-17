@@ -457,24 +457,6 @@
   }
 }
 
-.st-demo {
-  height: 46px;
-  padding: 0 18px;
-  background: transparent;
-  border: 1px solid var(--s-line);
-  border-radius: 12px;
-  color: var(--s-soft);
-  font: inherit;
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.st-demo:hover {
-  border-color: var(--s-down);
-  color: var(--s-down);
-}
-
 .st-badge {
   margin-left: 8px;
   padding: 2px 8px;
@@ -487,11 +469,6 @@
   text-transform: none;
 }
 
-@media (max-width: 560px) {
-  .st-demo {
-    width: 100%;
-  }
-}
 
 /* The finished test: both speeds side by side. */
 .st-pair {

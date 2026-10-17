@@ -238,6 +238,7 @@ export default function SpeedTestPage() {
   const downSteady = status === "finished" && live?.down_mbps != null ? live.down_mbps : steadySpeed(samples, "download");
   const upSteady = status === "finished" && live?.up_mbps != null ? live.up_mbps : steadySpeed(samples, "upload");
   const csrf = me.data?.csrf_token ?? "";
+  const isGuest = me.data?.role === "guest";
 
   const headline =
     phase === "idle"
@@ -258,6 +259,11 @@ export default function SpeedTestPage() {
 
   function start() {
     if (!agent) return;
+    // A guest cannot run a real test, so Start plays the simulated one, labelled as a demo.
+    if (isGuest) {
+      startDemo();
+      return;
+    }
     run(() => {
       setBusy(true);
       setError("");
@@ -329,14 +335,9 @@ export default function SpeedTestPage() {
             ))}
           </div>
           {idle ? (
-            <>
-              <button type="button" className="st-demo" onClick={startDemo}>
-                Watch demo
-              </button>
-              <button type="button" className="st-go" disabled={busy || agent.status !== "online"} onClick={start}>
-                {busy ? "Starting…" : finished ? "Run again" : "Start test"}
-              </button>
-            </>
+            <button type="button" className="st-go" disabled={busy || (!isGuest && agent.status !== "online")} onClick={start}>
+              {busy ? "Starting…" : finished ? "Run again" : "Start test"}
+            </button>
           ) : (
             <button type="button" className="st-stop" disabled={busy} onClick={stop}>
               Stop
@@ -355,7 +356,7 @@ export default function SpeedTestPage() {
           {live.error || "The test did not finish."}
         </div>
       ) : null}
-      {agent.status !== "online" && !running ? <div className="st-note">The Pi is offline, so it cannot run a test right now.</div> : null}
+      {agent.status !== "online" && !running && !isGuest ? <div className="st-note">The Pi is offline, so it cannot run a test right now.</div> : null}
 
       <section className={`st-hero tone-${tone}${running && phase !== "waiting" ? " is-running" : ""}`}>
         <div className="st-gauge">
