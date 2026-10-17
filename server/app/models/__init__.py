@@ -562,6 +562,44 @@ class KpiDaily(Base):
     __table_args__ = (Index("ix_kpi_daily_monitor_day", "monitor_id", "day"),)
 
 
+class SpeedTest(Base):
+    """A live speed test the Pi runs against the LibreSpeed server: ping, then download, then upload."""
+
+    __tablename__ = "speed_tests"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    monitor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"), nullable=False)
+    link: Mapped[str] = mapped_column(String(16), nullable=False)
+    # pending: waiting for the Pi. running: the Pi took it. finished, failed or cancelled: over.
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    requested_by: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    down_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=15)
+    up_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=15)
+    phase: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    down_mbps: Mapped[Optional[float]] = mapped_column(Float)
+    up_mbps: Mapped[Optional[float]] = mapped_column(Float)
+    ping_ms: Mapped[Optional[float]] = mapped_column(Float)
+    jitter_ms: Mapped[Optional[float]] = mapped_column(Float)
+    error: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+
+    __table_args__ = (Index("ix_speed_tests_monitor_requested", "monitor_id", "requested_at"),)
+
+
+class SpeedSample(Base):
+    """One reading during a speed test, about every half second."""
+
+    __tablename__ = "speed_samples"
+
+    test_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("speed_tests.id", ondelete="CASCADE"), primary_key=True)
+    seq: Mapped[int] = mapped_column(Integer, primary_key=True)
+    phase: Mapped[str] = mapped_column(String(16), nullable=False)
+    t_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    mbps: Mapped[float] = mapped_column(Float, nullable=False)
+
+
 class WebServiceSetting(Base):
     __tablename__ = "web_service_settings"
 

@@ -15,6 +15,7 @@ from app.api.rf_routes import router as rf_router
 from app.api.routes import router
 from app.api.settings_routes import router as settings_router
 from app.api.kpi_routes import router as kpi_router
+from app.api.speedtest_routes import router as speedtest_router
 from app.api.stress_routes import router as stress_router
 from app.api.telegram_routes import router as telegram_router
 from app.api.synthetic_routes import router as synthetic_router
@@ -121,6 +122,7 @@ def create_app() -> FastAPI:
     # The agent command path is /monitors/command. It has to be registered before
     # /monitors/{monitor_id}, or that parameter swallows the word "command".
     app.include_router(agent_router)
+    app.include_router(speedtest_router)
     app.include_router(router)
     app.include_router(auth_router)
     app.include_router(settings_router)
