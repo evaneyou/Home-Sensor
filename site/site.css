@@ -1846,3 +1846,29 @@ h3 {
   font-size: 18px;
   font-weight: 700;
 }
+
+/* Copyright notice, last thing on the page */
+.foot-legal {
+  display: grid;
+  gap: 4px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.foot-legal p {
+  margin: 0;
+}
+
+.foot-legal .copyright {
+  color: var(--soft);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.foot-legal a {
+  margin-left: 0;
+  text-decoration: underline;
+}
