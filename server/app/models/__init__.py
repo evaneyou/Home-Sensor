@@ -498,6 +498,38 @@ class AlertEvent(Base):
     )
 
 
+class KpiHourly(Base):
+    """Exact counts for one hour, so reports stay correct after raw measurements are averaged.
+
+    `kind` is internet (the ISP path ping), voice, video, apps (other application checks) or speed.
+    Sums and counts are kept, not averages, so any period can be added up without bias.
+    """
+
+    __tablename__ = "kpi_hourly"
+
+    bucket_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    monitor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"), primary_key=True)
+    link: Mapped[str] = mapped_column(String(16), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16), primary_key=True)
+    n: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    degraded: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    incidents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    loss_sum: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    loss_n: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    loss_max: Mapped[Optional[float]] = mapped_column(Float)
+    rtt_sum: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    rtt_n: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    jitter_sum: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    jitter_n: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    down_sum: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    down_n: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    up_sum: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    up_n: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    __table_args__ = (Index("ix_kpi_hourly_monitor_bucket", "monitor_id", "bucket_start"),)
+
+
 class WebServiceSetting(Base):
     __tablename__ = "web_service_settings"
 

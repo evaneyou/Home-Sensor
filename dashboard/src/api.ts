@@ -214,6 +214,7 @@ export const api = {
   telegramDetect: (token: string | undefined, csrf: string) =>
     request("/api/v1/settings/telegram/detect", { method: "POST", headers: csrfHeaders(csrf), body: JSON.stringify({ token }) }),
   telegramDisconnect: (csrf: string) => request("/api/v1/settings/telegram", { method: "DELETE", headers: csrfHeaders(csrf) }),
+  kpi: (period: string) => request(`/api/v1/kpi?period=${encodeURIComponent(period)}`),
   rfScanNow: (agentId: string, csrf: string) =>
     request(`/api/v1/rf/scan-now?agent_id=${agentId}`, { method: "POST", headers: csrfHeaders(csrf) }),
   rfTrust: (agentId: string, bssid: string, trusted: boolean, csrf: string) =>

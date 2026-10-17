@@ -14,6 +14,7 @@ from app.api.readings_routes import router as readings_router
 from app.api.rf_routes import router as rf_router
 from app.api.routes import router
 from app.api.settings_routes import router as settings_router
+from app.api.kpi_routes import router as kpi_router
 from app.api.stress_routes import router as stress_router
 from app.api.telegram_routes import router as telegram_router
 from app.api.synthetic_routes import router as synthetic_router
@@ -69,7 +70,15 @@ async def _lifespan(_app: FastAPI):
             await asyncio.to_thread(alerts.run_once)
             await asyncio.sleep(60)
 
-    tasks = [asyncio.create_task(_loop()), asyncio.create_task(_alert_loop())]
+    async def _kpi_loop() -> None:
+        from app import kpi
+
+        await asyncio.to_thread(kpi.run_backfill)
+        while True:
+            await asyncio.sleep(60)
+            await asyncio.to_thread(kpi.run_once)
+
+    tasks = [asyncio.create_task(_loop()), asyncio.create_task(_alert_loop()), asyncio.create_task(_kpi_loop())]
     try:
         yield
     finally:
@@ -121,6 +130,7 @@ def create_app() -> FastAPI:
     app.include_router(synthetic_router)
     app.include_router(stress_router)
     app.include_router(telegram_router)
+    app.include_router(kpi_router)
     return app
 
 
