@@ -26,6 +26,7 @@ import TelegramPage from "./pages/TelegramPage";
 import WebServicesPage from "./pages/WebServicesPage";
 import ConnectionDiagramPage from "./pages/ConnectionDiagramPage";
 import TestPage from "./pages/TestPage";
+import AppFooter from "./components/AppFooter";
 import KpiPage from "./pages/KpiPage";
 import NetworkTestPage from "./pages/NetworkTestPage";
 import UnderConstructionPage from "./pages/UnderConstructionPage";
@@ -86,6 +87,7 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
           {mutation.isPending ? "Signing in…" : "Sign in"}
         </button>
       </form>
+      <AppFooter />
     </div>
   );
 }
@@ -376,6 +378,7 @@ function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void })
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
+      <AppFooter />
       </div>
     </GuestGate>
   );
