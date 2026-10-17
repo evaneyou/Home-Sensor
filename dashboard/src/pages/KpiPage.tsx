@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Area,
@@ -63,8 +64,8 @@ const PERIODS: { key: Period; label: string; text: string }[] = [
 const C = { good: "#4fd1b5", warn: "#ffc24d", bad: "#ff8a7a", blue: "#6aa8ff", violet: "#a78bfa", grid: "#232d49", axis: "#9aa6c4" };
 const LINKS = { wired: "Wired", wireless: "Wi-Fi" } as const;
 
-/** Availability shown to three decimals and never rounded up to 100: 99.9996 reads 99.999%. */
-function pct(value: number | null | undefined, digits = 3): string {
+/** Availability shown to two decimals and never rounded up to 100: 99.996 reads 99.99%. */
+function pct(value: number | null | undefined, digits = 2): string {
   if (value == null || Number.isNaN(value)) return "—";
   const scale = 10 ** digits;
   return `${(Math.floor(value * scale + 1e-9) / scale).toFixed(digits)}%`;
@@ -106,11 +107,11 @@ function stamp(iso: string, bucket: Report["bucket"], full = false): string {
 function Delta({ now, before, better, unit = "pts" }: { now: number | null; before: number | null; better: "up" | "down"; unit?: string }) {
   if (now == null || before == null) return <span className="kpi-delta none">no earlier data</span>;
   const diff = now - before;
-  if (Math.abs(diff) < 0.0005) return <span className="kpi-delta none">unchanged vs previous</span>;
+  if (Math.abs(diff) < 0.005) return <span className="kpi-delta none">unchanged vs previous</span>;
   const good = better === "up" ? diff > 0 : diff < 0;
   return (
     <span className={good ? "kpi-delta good" : "kpi-delta bad"}>
-      {diff > 0 ? "▲" : "▼"} {Math.abs(diff).toFixed(3)} {unit} vs previous
+      {diff > 0 ? "▲" : "▼"} {Math.abs(diff).toFixed(2)} {unit} vs previous
     </span>
   );
 }
@@ -155,15 +156,156 @@ function Panel({ title, note, children }: { title: string; note?: string; childr
 
 const tooltipStyle = { background: "#10172a", border: "1px solid #232d49", borderRadius: 10, fontSize: 12 };
 
+type DailyRow = {
+  day: string;
+  internet: number | null;
+  internet_wired: number | null;
+  internet_wireless: number | null;
+  voice: number | null;
+  video: number | null;
+  loss: number | null;
+  offline_minutes: number;
+  outages: number;
+  rtt_ms: number | null;
+};
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+function isoToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function shiftDay(iso: string, days: number): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+function niceDay(iso: string): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+/** The stored daily KPIs, newest first. Pick a day to open its 24 hours. */
+function DailyHistory({ selected, onPick }: { selected: string | null; onPick: (day: string) => void }) {
+  const [last, setLast] = useState(isoToday());
+  const [first, setFirst] = useState(shiftDay(isoToday(), -29));
+  const valid = ISO_DAY.test(first) && ISO_DAY.test(last) && first <= last;
+  const rows = useQuery({
+    queryKey: ["kpi-daily", first, last],
+    queryFn: () => api.kpiDaily(first, last) as Promise<DailyRow[]>,
+    enabled: valid,
+    refetchInterval: 60000,
+    placeholderData: (previous) => previous,
+  });
+  const list = valid ? rows.data ?? [] : [];
+
+  function download() {
+    const head = ["Date", "Internet %", "Wired %", "Wi-Fi %", "Voice %", "Video %", "Packet drop %", "Offline min", "Outages"];
+    const cell = (value: number | null, digits = 2) => (value == null ? "" : value.toFixed(digits));
+    const lines = list.map((row) => [row.day, cell(row.internet), cell(row.internet_wired), cell(row.internet_wireless), cell(row.voice), cell(row.video), cell(row.loss), cell(row.offline_minutes, 1), String(row.outages)].join(","));
+    const blob = new Blob([[head.join(","), ...lines].join("\n")], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `network-kpi-${first}-to-${last}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  return (
+    <section className="kpi-panel kpi-history">
+      <header>
+        <h3>Daily KPI history</h3>
+        <span>One stored record per day. Pick a day to open its 24 hours.</span>
+      </header>
+      <div className="kpi-filter">
+        <label>
+          <span>From</span>
+          <input type="date" value={first} max={last} onChange={(event) => setFirst(event.target.value)} />
+        </label>
+        <label>
+          <span>To</span>
+          <input type="date" value={last} min={first} max={isoToday()} onChange={(event) => setLast(event.target.value)} />
+        </label>
+        <div className="kpi-quick" role="group" aria-label="Quick ranges">
+          {[
+            ["30 days", 29],
+            ["90 days", 89],
+            ["1 year", 364],
+          ].map(([label, days]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                setLast(isoToday());
+                setFirst(shiftDay(isoToday(), -Number(days)));
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <button type="button" className="kpi-print" disabled={list.length === 0} onClick={download}>
+          Download CSV
+        </button>
+      </div>
+      {!valid ? <p className="kpi-clear muted">Choose a start date that is on or before the end date.</p> : null}
+      <div className="kpi-scroll" role="region" aria-label="Daily KPI records" tabIndex={0}>
+        <table className="kpi-table kpi-daily">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Internet</th>
+              <th>Wired</th>
+              <th>Wi-Fi</th>
+              <th>Voice</th>
+              <th>Video</th>
+              <th>Packet drop</th>
+              <th>Offline</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((row) => (
+              <tr key={row.day} className={row.day === selected ? "is-selected" : ""}>
+                <th scope="row">
+                  <button type="button" onClick={() => onPick(row.day)}>
+                    {niceDay(row.day)}
+                  </button>
+                </th>
+                <td className={`tone-${availabilityTone(row.internet, 99.9)}`}>{pct(row.internet)}</td>
+                <td className={`tone-${availabilityTone(row.internet_wired, 99.9)}`}>{pct(row.internet_wired)}</td>
+                <td className={`tone-${availabilityTone(row.internet_wireless, 99.9)}`}>{pct(row.internet_wireless)}</td>
+                <td className={`tone-${availabilityTone(row.voice, 99.5)}`}>{pct(row.voice)}</td>
+                <td className={`tone-${availabilityTone(row.video, 99.5)}`}>{pct(row.video)}</td>
+                <td className={`tone-${lossTone(row.loss, 1)}`}>{pct(row.loss)}</td>
+                <td>{row.offline_minutes > 0 ? minutes(row.offline_minutes) : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {valid && list.length === 0 ? <p className="kpi-clear muted kpi-none">No stored days in this range.</p> : null}
+      </div>
+    </section>
+  );
+}
+
 export default function KpiPage() {
   const [params, setParams] = useSearchParams();
   const period = (PERIODS.find((item) => item.key === params.get("period"))?.key ?? "week") as Period;
+  const picked = params.get("date") ?? "";
+  const day = ISO_DAY.test(picked) && picked < isoToday() ? picked : null;
   const query = useQuery({
-    queryKey: ["kpi", period],
-    queryFn: () => api.kpi(period) as Promise<Report>,
-    refetchInterval: 30000,
+    queryKey: ["kpi", period, day],
+    queryFn: () => api.kpi(period, day ?? undefined) as Promise<Report>,
+    refetchInterval: day ? false : 30000,
     placeholderData: (previous) => previous,
   });
+
+  function go(next: { period?: Period; date?: string | null }) {
+    const chosen = next.date === undefined ? day : next.date;
+    const query: Record<string, string> = { period: next.period ?? period };
+    if (chosen && chosen < isoToday()) query.date = chosen;
+    setParams(query, { replace: true });
+  }
 
   if (query.isLoading) return <div className="state-box">Loading the KPI report…</div>;
   if (query.isError || !query.data) return <div className="state-box">Could not load the KPI report.</div>;
@@ -204,7 +346,12 @@ export default function KpiPage() {
   const appFloor = minFloor(data.flatMap((point) => [point.voice, point.video]), Math.min(targets.voice, targets.video));
   const axis = { stroke: C.axis, tick: { fontSize: 11 }, tickLine: false } as const;
   const range = `${stamp(report.from, "day", true)}${report.bucket === "month" ? "" : ` – ${stamp(report.to, "day", true)}`}`;
-  const periodText = PERIODS.find((item) => item.key === period)?.text ?? "";
+  const periodText = day
+    ? period === "day"
+      ? "24 hours, by hour"
+      : `${PERIODS.find((item) => item.key === period)?.text.replace("the last", "the")} ending ${stamp(day, "day", true)}`
+    : (PERIODS.find((item) => item.key === period)?.text ?? "");
+  const latest = isoToday();
 
   return (
     <div className="kpi">
@@ -219,15 +366,42 @@ export default function KpiPage() {
         <div className="kpi-tools">
           <div className="kpi-seg" role="group" aria-label="Reporting period">
             {PERIODS.map((item) => (
-              <button key={item.key} type="button" className={item.key === period ? "active" : ""} aria-pressed={item.key === period} onClick={() => setParams({ period: item.key }, { replace: true })}>
+              <button key={item.key} type="button" className={item.key === period ? "active" : ""} aria-pressed={item.key === period} onClick={() => go({ period: item.key })}>
                 {item.label}
               </button>
             ))}
           </div>
-          <span className="kpi-live" title="This page refreshes every 30 seconds">
-            <i aria-hidden="true" />
-            Live · updated {new Date(query.dataUpdatedAt || report.generated_at).toLocaleTimeString()}
-          </span>
+          <div className="kpi-date" role="group" aria-label="Go to a day">
+            <button type="button" aria-label="Previous day" onClick={() => go({ date: shiftDay(day ?? latest, -1) })}>
+              ‹
+            </button>
+            <input
+              type="date"
+              aria-label="Report day (UTC)"
+              value={day ?? latest}
+              max={latest}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (ISO_DAY.test(value)) go({ date: value >= latest ? null : value });
+              }}
+            />
+            <button type="button" aria-label="Next day" disabled={!day} onClick={() => go({ date: shiftDay(day ?? latest, 1) })}>
+              ›
+            </button>
+            {day ? (
+              <button type="button" className="kpi-latest" onClick={() => go({ date: null })}>
+                Latest
+              </button>
+            ) : null}
+          </div>
+          {day ? (
+            <span className="kpi-live history">Viewing history · {niceDay(day)}</span>
+          ) : (
+            <span className="kpi-live" title="This page refreshes every 30 seconds">
+              <i aria-hidden="true" />
+              Live · updated {new Date(query.dataUpdatedAt || report.generated_at).toLocaleTimeString()}
+            </span>
+          )}
           <button type="button" className="kpi-print" onClick={() => window.print()}>
             Print / Save PDF
           </button>
@@ -453,12 +627,20 @@ export default function KpiPage() {
         </Panel>
       </div>
 
+      <DailyHistory
+        selected={day}
+        onPick={(picked) => {
+          go({ period: "day", date: picked });
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+      />
+
       <footer className="kpi-foot">
         <p>
           <b>How these are measured.</b> Internet availability is the share of one-minute checks to the HomeNetWatch server, on each link, that
           succeeded. Voice and video availability is the share of their quality checks (every few seconds) that stayed within their limits. Packet
           drop is the average loss those checks reported. Time offline is counted from failed internet checks. A period with no measurements shows a
-          gap, never 100%. Figures are cut off, not rounded up, at three decimals.
+          gap, never 100%. Figures are cut off, not rounded up, at two decimals. Each day is stored as a daily record, and weeks, months and years are added up from those records.
         </p>
         <p>{report.data_since ? `Measurements since ${new Date(report.data_since).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}. ` : ""}Home network, report generated {new Date(report.generated_at).toLocaleString()}.</p>
       </footer>

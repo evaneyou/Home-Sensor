@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import enum
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Optional
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     Enum,
     Float,
@@ -526,8 +527,39 @@ class KpiHourly(Base):
     down_n: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     up_sum: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     up_n: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Minutes without internet: failed checks scaled to the hour. Kept so a day can be added up exactly.
+    outage_min: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, server_default="0")
 
     __table_args__ = (Index("ix_kpi_hourly_monitor_bucket", "monitor_id", "bucket_start"),)
+
+
+class KpiDaily(Base):
+    """One day (UTC) of KPI counts, kept for good. Weeks, months and years are added up from these."""
+
+    __tablename__ = "kpi_daily"
+
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    monitor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"), primary_key=True)
+    link: Mapped[str] = mapped_column(String(16), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16), primary_key=True)
+    n: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    degraded: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    incidents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    loss_sum: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    loss_n: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    loss_max: Mapped[Optional[float]] = mapped_column(Float)
+    rtt_sum: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    rtt_n: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    jitter_sum: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    jitter_n: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    down_sum: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    down_n: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    up_sum: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    up_n: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    outage_min: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, server_default="0")
+
+    __table_args__ = (Index("ix_kpi_daily_monitor_day", "monitor_id", "day"),)
 
 
 class WebServiceSetting(Base):
