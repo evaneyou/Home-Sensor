@@ -14,14 +14,14 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional
 from uuid import UUID
 
-from sqlalchemy import case, delete, func, select
+from sqlalchemy import Date, DateTime, case, cast, delete, func, select
 from sqlalchemy.orm import Session
 
-from app.models import KpiHourly, Network, ResultStatus, SyntheticRun, SyntheticSample, Test, TestKind, TestResult
+from app.models import KpiDaily, KpiHourly, Network, ResultStatus, SyntheticRun, SyntheticSample, Test, TestKind, TestResult
 
 log = logging.getLogger(__name__)
 
@@ -181,11 +181,49 @@ def compute_hours(db: Session, start: datetime, end: datetime) -> dict[Key, Acc]
     return out
 
 
+_SUM_FIELDS = (
+    "n",
+    "failed",
+    "degraded",
+    "incidents",
+    "loss_sum",
+    "loss_n",
+    "rtt_sum",
+    "rtt_n",
+    "jitter_sum",
+    "jitter_n",
+    "down_sum",
+    "down_n",
+    "up_sum",
+    "up_n",
+    "outage_min",
+)
+
+
 def _store(db: Session, start: datetime, end: datetime, counts: dict[Key, Acc]) -> None:
     db.execute(delete(KpiHourly).where(KpiHourly.bucket_start >= start, KpiHourly.bucket_start < end))
     for (bucket, monitor_id, link, kind), acc in counts.items():
-        db.add(KpiHourly(bucket_start=bucket, monitor_id=monitor_id, link=link, kind=kind, **acc.__dict__))
+        outage = acc.failed * 60.0 / acc.n if kind == "internet" and acc.n else 0.0
+        db.add(KpiHourly(bucket_start=bucket, monitor_id=monitor_id, link=link, kind=kind, outage_min=outage, **acc.__dict__))
     db.flush()
+
+
+def rebuild_days(db: Session, first: date, last: date) -> int:
+    """Write the daily record for each UTC day from `first` to `last`, added up from the hourly rows."""
+    start = datetime(first.year, first.month, first.day, tzinfo=timezone.utc)
+    end = datetime(last.year, last.month, last.day, tzinfo=timezone.utc) + timedelta(days=1)
+    db.execute(delete(KpiDaily).where(KpiDaily.day >= first, KpiDaily.day <= last))
+    day = cast(func.timezone("UTC", KpiHourly.bucket_start), Date)
+    sums = [func.sum(getattr(KpiHourly, name)).label(name) for name in _SUM_FIELDS]
+    rows = db.execute(
+        select(day.label("day"), KpiHourly.monitor_id, KpiHourly.link, KpiHourly.kind, *sums, func.max(KpiHourly.loss_max).label("loss_max"))
+        .where(KpiHourly.bucket_start >= start, KpiHourly.bucket_start < end)
+        .group_by(day, KpiHourly.monitor_id, KpiHourly.link, KpiHourly.kind)
+    ).mappings().all()
+    for row in rows:
+        db.add(KpiDaily(**{key: row[key] for key in row.keys()}))
+    db.flush()
+    return len(rows)
 
 
 def rebuild(db: Session, start: datetime, end: datetime) -> int:
@@ -197,14 +235,26 @@ def rebuild(db: Session, start: datetime, end: datetime) -> int:
 
 
 def refresh(db: Session, now: Optional[datetime] = None) -> int:
-    """The last few hours, so a late-arriving result is still counted."""
+    """The last few hours, so a late-arriving result is still counted, and the daily records they belong to."""
     now = now or datetime.now(timezone.utc)
-    return rebuild(db, hour_of(now) - timedelta(hours=3), hour_of(now) + timedelta(hours=1))
+    start = hour_of(now) - timedelta(hours=3)
+    rows = rebuild(db, start, hour_of(now) + timedelta(hours=1))
+    rebuild_days(db, start.date(), _utc(now).date())
+    return rows
 
 
 def backfill(db: Session, now: Optional[datetime] = None) -> int:
-    """Fill in every hour that has raw data but no KPI row yet, a day at a time."""
+    """Fill in every hour that has raw data but no KPI row yet, a day at a time, then every daily record."""
     now = now or datetime.now(timezone.utc)
+    total = _backfill_hours(db, now)
+    first_hour = db.scalar(select(func.min(KpiHourly.bucket_start)))
+    if first_hour is not None:
+        rebuild_days(db, _utc(first_hour).date(), _utc(now).date())
+        db.commit()
+    return total
+
+
+def _backfill_hours(db: Session, now: datetime) -> int:
     first_raw = [
         db.scalar(select(func.min(TestResult.started_at)).join(Test, TestResult.test_id == Test.id).where(Test.slug == "icmp-path")),
         db.scalar(select(func.min(SyntheticSample.recorded_at))),
@@ -230,7 +280,9 @@ def backfill(db: Session, now: Optional[datetime] = None) -> int:
 
 def prune(db: Session, now: datetime) -> int:
     cutoff = now - timedelta(days=365 * KEEP_YEARS)
-    return db.execute(delete(KpiHourly).where(KpiHourly.bucket_start < cutoff)).rowcount or 0
+    hours = db.execute(delete(KpiHourly).where(KpiHourly.bucket_start < cutoff)).rowcount or 0
+    days = db.execute(delete(KpiDaily).where(KpiDaily.day < cutoff.date())).rowcount or 0
+    return hours + days
 
 
 def run_once() -> None:
@@ -282,9 +334,16 @@ def _add(value: datetime, unit: str, count: int) -> datetime:
     return value.replace(year=value.year + month // 12, month=month % 12 + 1)
 
 
-def window(period: str, now: datetime) -> tuple[datetime, datetime, str]:
+def window(period: str, now: datetime, anchor: Optional[date] = None) -> tuple[datetime, datetime, str]:
+    """The buckets a report covers. Without a day it ends now. With a day it ends on that day (UTC)."""
     unit, count = PERIODS[period]
-    last = _floor(now, unit)
+    if anchor is None:
+        last = _floor(now, unit)
+        return _add(last, unit, -(count - 1)), _add(last, unit, 1), unit
+    midnight = datetime(anchor.year, anchor.month, anchor.day, tzinfo=timezone.utc)
+    if period == "day":
+        return midnight, midnight + timedelta(days=1), "hour"
+    last = _floor(midnight, unit)
     return _add(last, unit, -(count - 1)), _add(last, unit, 1), unit
 
 
@@ -314,21 +373,26 @@ _FIELDS = (
 )
 
 
-def _aggregate(db: Session, start: datetime, end: datetime, monitor_id: Optional[UUID], unit: Optional[str]) -> list[dict[str, Any]]:
-    """Add up the hourly rows, by bucket (or all together) and by link and kind."""
-    outage = func.sum(case((KpiHourly.n > 0, KpiHourly.failed * 60.0 / KpiHourly.n), else_=0.0)).label("outage_min")
-    columns = [func.sum(getattr(KpiHourly, name)).label(name) for name in _FIELDS]
-    group = [KpiHourly.link, KpiHourly.kind]
-    selected: list[Any] = [KpiHourly.link, KpiHourly.kind]
+def _aggregate(db: Session, start: datetime, end: datetime, monitor_id: Optional[UUID], unit: Optional[str], daily: bool) -> list[dict[str, Any]]:
+    """Add up the hourly rows (a day view) or the daily rows (week, month, year), by bucket or all together."""
+    table = KpiDaily if daily else KpiHourly
+    columns = [func.sum(getattr(table, name)).label(name) for name in _FIELDS]
+    group: list[Any] = [table.link, table.kind]
+    selected: list[Any] = [table.link, table.kind]
     if unit is not None:
-        bucket = func.date_trunc(unit, func.timezone("UTC", KpiHourly.bucket_start)).label("bucket")
+        if daily:
+            bucket = func.date_trunc(unit, cast(table.day, DateTime)).label("bucket")
+        else:
+            bucket = func.date_trunc(unit, func.timezone("UTC", table.bucket_start)).label("bucket")
         selected.insert(0, bucket)
         group.insert(0, bucket)
-    query = select(*selected, *columns, func.max(KpiHourly.loss_max).label("loss_max"), outage).where(
-        KpiHourly.bucket_start >= start, KpiHourly.bucket_start < end
-    )
+    query = select(*selected, *columns, func.max(table.loss_max).label("loss_max"), func.sum(table.outage_min).label("outage_min"))
+    if daily:
+        query = query.where(table.day >= start.date(), table.day < end.date())
+    else:
+        query = query.where(table.bucket_start >= start, table.bucket_start < end)
     if monitor_id is not None:
-        query = query.where(KpiHourly.monitor_id == monitor_id)
+        query = query.where(table.monitor_id == monitor_id)
     rows = []
     for row in db.execute(query.group_by(*group)).mappings().all():
         item = dict(row)
@@ -404,16 +468,20 @@ def incidents(db: Session, start: datetime, end: datetime, monitor_id: Optional[
     ]
 
 
-def report(db: Session, period: str, now: Optional[datetime] = None, monitor_id: Optional[UUID] = None) -> dict[str, Any]:
+def report(db: Session, period: str, now: Optional[datetime] = None, monitor_id: Optional[UUID] = None, day: Optional[date] = None) -> dict[str, Any]:
     if period not in PERIODS:
         raise ValueError("period must be day, week, month or year")
     now = now or datetime.now(timezone.utc)
-    start, end, unit = window(period, now)
+    today = _utc(now).date()
+    if day is not None and day > today:
+        day = today
+    start, end, unit = window(period, now, day)
     previous_start = start - (end - start)
+    daily = period != "day"
 
-    current = _aggregate(db, start, end, monitor_id, None)
-    previous = _aggregate(db, previous_start, start, monitor_id, None)
-    buckets = _aggregate(db, start, end, monitor_id, unit)
+    current = _aggregate(db, start, end, monitor_id, None, daily)
+    previous = _aggregate(db, previous_start, start, monitor_id, None, daily)
+    buckets = _aggregate(db, start, end, monitor_id, unit, daily)
 
     by_bucket: dict[datetime, list[dict[str, Any]]] = defaultdict(list)
     for row in buckets:
@@ -448,7 +516,8 @@ def report(db: Session, period: str, now: Optional[datetime] = None, monitor_id:
         )
         cursor = _add(cursor, unit, 1)
 
-    data_since = db.scalar(select(func.min(KpiHourly.bucket_start)).where(*([KpiHourly.monitor_id == monitor_id] if monitor_id else [])))
+    data_since = db.scalar(select(func.min(KpiDaily.day)).where(*([KpiDaily.monitor_id == monitor_id] if monitor_id else [])))
+    data_since = datetime(data_since.year, data_since.month, data_since.day, tzinfo=timezone.utc) if data_since else None
     summary = {kind: _summary(current, kind) for kind in ("internet", "voice", "video", "apps", "speed")}
     before = {kind: _summary(previous, kind) for kind in ("internet", "voice", "video", "apps", "speed")}
     internet = summary["internet"]
@@ -458,6 +527,7 @@ def report(db: Session, period: str, now: Optional[datetime] = None, monitor_id:
     app_loss = sum(value * count for value, count in loss_parts) / weight if weight else None
     return {
         "period": period,
+        "day": day,
         "bucket": unit,
         "from": start,
         "to": min(end, now),
@@ -471,3 +541,43 @@ def report(db: Session, period: str, now: Optional[datetime] = None, monitor_id:
         "series": series,
         "incidents": incidents(db, start, min(end, now), monitor_id),
     }
+
+
+def daily_history(db: Session, first: date, last: date, monitor_id: Optional[UUID] = None, limit: int = 400) -> list[dict[str, Any]]:
+    """One line per UTC day from the stored daily records, newest first."""
+    query = select(
+        KpiDaily.day,
+        KpiDaily.link,
+        KpiDaily.kind,
+        *[func.sum(getattr(KpiDaily, name)).label(name) for name in _FIELDS],
+        func.max(KpiDaily.loss_max).label("loss_max"),
+        func.sum(KpiDaily.outage_min).label("outage_min"),
+    ).where(KpiDaily.day >= first, KpiDaily.day <= last)
+    if monitor_id is not None:
+        query = query.where(KpiDaily.monitor_id == monitor_id)
+    by_day: dict[date, list[dict[str, Any]]] = defaultdict(list)
+    for row in db.execute(query.group_by(KpiDaily.day, KpiDaily.link, KpiDaily.kind)).mappings().all():
+        by_day[row["day"]].append(dict(row))
+    out = []
+    for day in sorted(by_day, reverse=True)[:limit]:
+        rows = by_day[day]
+        internet = _summary(rows, "internet")
+        voice = _summary(rows, "voice")
+        video = _summary(rows, "video")
+        parts = [(item["loss_avg"], item["samples"]) for item in (voice, video) if item["loss_avg"] is not None]
+        weight = sum(count for _value, count in parts)
+        out.append(
+            {
+                "day": day,
+                "internet": internet["availability"],
+                "internet_wired": _summary([r for r in rows if r["link"] == "wired"], "internet")["availability"],
+                "internet_wireless": _summary([r for r in rows if r["link"] == "wireless"], "internet")["availability"],
+                "voice": voice["availability"],
+                "video": video["availability"],
+                "loss": sum(value * count for value, count in parts) / weight if weight else None,
+                "offline_minutes": internet["outage_minutes"],
+                "outages": internet["incidents"],
+                "rtt_ms": internet["rtt_ms"],
+            }
+        )
+    return out

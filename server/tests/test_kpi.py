@@ -1,7 +1,7 @@
 """KPI reporting: exact availability and loss from known data, per period, and kept after raw rollups."""
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,6 +10,7 @@ from sqlalchemy import delete, select
 from app import kpi
 from app.main import app
 from app.models import (
+    KpiDaily,
     KpiHourly,
     Monitor,
     Network,
@@ -85,10 +86,12 @@ def _sample(db, run: SyntheticRun, minute: int, verdict: str, loss: float, link=
 @pytest.fixture(autouse=True)
 def _clean(db):
     db.execute(delete(KpiHourly))
+    db.execute(delete(KpiDaily))
     db.commit()
     yield
     db.rollback()
     db.execute(delete(KpiHourly))
+    db.execute(delete(KpiDaily))
     db.commit()
 
 
@@ -243,3 +246,107 @@ def test_the_report_endpoint_is_for_signed_in_users_and_validates_the_period(cli
     assert guest.get("/api/v1/kpi?period=century").status_code == 422
     admin = login(client)
     assert admin and client.get("/api/v1/kpi?period=year").status_code == 200
+
+
+def _days_of_pings(db, monitor, fails_by_days_ago):
+    wired = _link(db, monitor, NetworkKind.wired)
+    for days_ago, fails in fails_by_days_ago.items():
+        when = HOUR - timedelta(days=days_ago)
+        for minute in range(10):
+            _ping(db, wired, minute, ResultStatus.fail if minute < fails else ResultStatus.ok, when=when)
+    db.commit()
+
+
+def test_a_daily_record_is_stored_and_weeks_months_and_years_are_built_from_it(db):
+    monitor = _pi(db)
+    _days_of_pings(db, monitor, {0: 0, 1: 1, 2: 2})
+    kpi.backfill(db, now=NOW)
+    db.commit()
+
+    days = db.scalars(select(KpiDaily).where(KpiDaily.monitor_id == monitor.id, KpiDaily.kind == "internet").order_by(KpiDaily.day)).all()
+    assert [(row.day, row.n, row.failed) for row in days] == [
+        (date(2026, 10, 14), 10, 2),
+        (date(2026, 10, 15), 10, 1),
+        (date(2026, 10, 16), 10, 0),
+    ]
+    assert days[0].outage_min == pytest.approx(12.0)
+
+    before = {name: kpi.report(db, name, now=NOW, monitor_id=monitor.id) for name in ("week", "month", "year")}
+    # Remove the hourly rows: weeks, months and years must still come out the same, from the daily records.
+    db.execute(delete(KpiHourly).where(KpiHourly.monitor_id == monitor.id))
+    db.commit()
+    for name, report in before.items():
+        again = kpi.report(db, name, now=NOW, monitor_id=monitor.id)
+        assert again["summary"]["internet"]["availability"] == pytest.approx(report["summary"]["internet"]["availability"]) == pytest.approx(90.0)
+        assert again["summary"]["internet"]["outage_minutes"] == pytest.approx(18.0)
+    assert kpi.report(db, "day", now=NOW, monitor_id=monitor.id)["summary"]["internet"]["availability"] is None
+
+
+def test_refresh_keeps_today_up_to_date(db):
+    monitor = _pi(db)
+    _days_of_pings(db, monitor, {0: 1})
+    kpi.refresh(db, now=NOW)
+    db.commit()
+    today = db.scalar(select(KpiDaily).where(KpiDaily.monitor_id == monitor.id, KpiDaily.kind == "internet", KpiDaily.day == NOW.date()))
+    assert today is not None and (today.n, today.failed) == (10, 1)
+    wired = db.scalar(select(Test).where(Test.monitor_id == monitor.id))
+    _ping(db, wired, 20, ResultStatus.fail)
+    db.commit()
+    kpi.refresh(db, now=NOW)
+    db.commit()
+    db.expire_all()
+    today = db.scalar(select(KpiDaily).where(KpiDaily.monitor_id == monitor.id, KpiDaily.kind == "internet", KpiDaily.day == NOW.date()))
+    assert (today.n, today.failed) == (11, 2)
+
+
+def test_a_chosen_day_is_a_calendar_day_by_hour(db):
+    monitor = _pi(db)
+    _days_of_pings(db, monitor, {0: 0, 3: 4})
+    kpi.backfill(db, now=NOW)
+    db.commit()
+    chosen = date(2026, 10, 13)
+    report = kpi.report(db, "day", now=NOW, monitor_id=monitor.id, day=chosen)
+    assert report["day"] == chosen and report["bucket"] == "hour" and len(report["series"]) == 24
+    assert report["series"][0]["t"] == datetime(2026, 10, 13, tzinfo=timezone.utc)
+    assert report["summary"]["internet"]["availability"] == pytest.approx(60.0)
+    assert report["summary"]["internet"]["incidents"] == 1
+    assert report["series"][12]["internet"] == pytest.approx(60.0), "the hour with the checks"
+    assert report["series"][11]["internet"] is None
+
+    week = kpi.report(db, "week", now=NOW, monitor_id=monitor.id, day=chosen)
+    assert week["series"][-1]["t"] == datetime(2026, 10, 13, tzinfo=timezone.utc) and len(week["series"]) == 7
+    assert week["summary"]["internet"]["availability"] == pytest.approx(60.0)
+
+    future = kpi.report(db, "day", now=NOW, monitor_id=monitor.id, day=date(2030, 1, 1))
+    assert future["day"] == NOW.date(), "a day in the future is the latest day"
+
+
+def test_the_daily_history_lists_days_newest_first_and_can_be_filtered(db):
+    monitor = _pi(db)
+    _days_of_pings(db, monitor, {0: 0, 1: 1, 2: 2, 5: 0})
+    voice = _run(db, monitor, "voip-g711a")
+    for minute in range(4):
+        _sample(db, voice, minute, "fail" if minute == 0 else "pass", loss=2.0 if minute == 0 else 0.0, when=HOUR - timedelta(days=1))
+    db.commit()
+    kpi.backfill(db, now=NOW)
+    db.commit()
+    rows = kpi.daily_history(db, date(2026, 10, 1), date(2026, 10, 16), monitor.id)
+    assert [row["day"] for row in rows] == [date(2026, 10, 16), date(2026, 10, 15), date(2026, 10, 14), date(2026, 10, 11)]
+    yesterday = rows[1]
+    assert yesterday["internet"] == pytest.approx(90.0) and yesterday["offline_minutes"] == pytest.approx(6.0)
+    assert yesterday["voice"] == pytest.approx(75.0) and yesterday["loss"] == pytest.approx(0.5)
+    assert rows[0]["voice"] is None, "a day with no voice checks has no voice figure"
+    assert [row["day"] for row in kpi.daily_history(db, date(2026, 10, 14), date(2026, 10, 15), monitor.id)] == [date(2026, 10, 15), date(2026, 10, 14)]
+    assert len(kpi.daily_history(db, date(2026, 10, 1), date(2026, 10, 16), monitor.id, limit=2)) == 2
+
+
+def test_the_new_endpoints(client: TestClient, db):
+    _ensure_guest(db)
+    assert client.get("/api/v1/kpi/daily").status_code in (401, 403)
+    guest = TestClient(app, base_url="https://testserver")
+    login(guest, "guest", "guest")
+    assert guest.get("/api/v1/kpi/daily").status_code == 200
+    assert guest.get("/api/v1/kpi/daily?from=2026-01-01&to=2026-01-31&limit=5").status_code == 200
+    assert guest.get("/api/v1/kpi?period=day&day=2026-10-13").json()["day"] == "2026-10-13"
+    assert guest.get("/api/v1/kpi?period=day&day=not-a-date").status_code == 422
+    assert guest.get("/api/v1/kpi/daily?limit=5000").status_code == 422
