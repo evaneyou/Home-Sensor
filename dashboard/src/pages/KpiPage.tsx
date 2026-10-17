@@ -321,7 +321,7 @@ export default function KpiPage() {
             <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid stroke={C.grid} vertical={false} />
               <XAxis dataKey="label" {...axis} minTickGap={20} />
-              <YAxis {...axis} domain={[availFloor, 100]} width={44} tickFormatter={(value: number) => `${value}%`} axisLine={false} />
+              <YAxis {...axis} domain={[availFloor, 100]} width={58} tickFormatter={(value: number) => `${value}%`} axisLine={false} />
               <Tooltip contentStyle={tooltipStyle} labelFormatter={(_label, rows) => String(rows?.[0]?.payload?.full ?? "")} formatter={(value) => [pct(typeof value === "number" ? value : null), ""]} />
               <Legend iconType="plainline" wrapperStyle={{ fontSize: 12 }} />
               <ReferenceLine y={targets.internet} stroke={C.warn} strokeDasharray="5 4" />
@@ -336,7 +336,7 @@ export default function KpiPage() {
             <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid stroke={C.grid} vertical={false} />
               <XAxis dataKey="label" {...axis} minTickGap={20} />
-              <YAxis {...axis} domain={[appFloor, 100]} width={44} tickFormatter={(value: number) => `${value}%`} axisLine={false} />
+              <YAxis {...axis} domain={[appFloor, 100]} width={58} tickFormatter={(value: number) => `${value}%`} axisLine={false} />
               <Tooltip contentStyle={tooltipStyle} labelFormatter={(_label, rows) => String(rows?.[0]?.payload?.full ?? "")} formatter={(value) => [pct(typeof value === "number" ? value : null), ""]} />
               <Legend iconType="plainline" wrapperStyle={{ fontSize: 12 }} />
               <ReferenceLine y={targets.voice} stroke={C.warn} strokeDasharray="5 4" />
@@ -351,7 +351,7 @@ export default function KpiPage() {
             <AreaChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid stroke={C.grid} vertical={false} />
               <XAxis dataKey="label" {...axis} minTickGap={20} />
-              <YAxis {...axis} domain={[0, "auto"]} width={44} tickFormatter={(value: number) => `${value}%`} axisLine={false} />
+              <YAxis {...axis} domain={[0, "auto"]} width={58} tickFormatter={(value: number) => `${value}%`} axisLine={false} />
               <Tooltip contentStyle={tooltipStyle} labelFormatter={(_label, rows) => String(rows?.[0]?.payload?.full ?? "")} formatter={(value) => [pct(typeof value === "number" ? value : null), ""]} />
               <Legend iconType="plainline" wrapperStyle={{ fontSize: 12 }} />
               <ReferenceLine y={targets.loss_pct} stroke={C.warn} strokeDasharray="5 4" />
