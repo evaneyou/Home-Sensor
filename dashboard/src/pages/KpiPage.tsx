@@ -345,7 +345,11 @@ export default function KpiPage() {
   const availFloor = minFloor(data.flatMap((point) => [point.internet_wired, point.internet_wireless]), targets.internet);
   const appFloor = minFloor(data.flatMap((point) => [point.voice, point.video]), Math.min(targets.voice, targets.video));
   const axis = { stroke: C.axis, tick: { fontSize: 11 }, tickLine: false } as const;
-  const range = `${stamp(report.from, "day", true)}${report.bucket === "month" ? "" : ` – ${stamp(report.to, "day", true)}`}`;
+  // `to` is the end of the last day, so step back a moment to name the last day itself.
+  const lastMoment = new Date(new Date(report.to).getTime() - 1).toISOString();
+  const first = stamp(report.from, "day", true);
+  const last = stamp(lastMoment, "day", true);
+  const range = report.bucket === "month" || first === last ? first : `${first} – ${last}`;
   const periodText = day
     ? period === "day"
       ? "24 hours, by hour"
@@ -360,7 +364,7 @@ export default function KpiPage() {
           <p className="kpi-eyebrow">Home network · Service report</p>
           <h1>Network health report</h1>
           <p className="kpi-range">
-            {range}, {new Date(report.to).getUTCFullYear()} · {periodText} · times in UTC
+            {range}, {new Date(lastMoment).getUTCFullYear()} · {periodText} · times in UTC
           </p>
         </div>
         <div className="kpi-tools">
