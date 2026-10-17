@@ -8,7 +8,7 @@ import { isAnonymized, stableId } from "../../anonymized";
 import { useGuestGate } from "../../guestGate";
 import SelectMenu from "../../components/SelectMenu";
 import type { RfAp, User } from "../../types";
-import { AIR_TREND_RANGE, type AirContext } from "./shared";
+import { AIR_TREND_RANGE, SignalBars, type AirContext } from "./shared";
 
 const PAGE = 25;
 
@@ -59,10 +59,10 @@ export default function AirwavesNetworks() {
   const allOpen = filtered.length > 0 && filtered.every((ap) => open.has(stableId(ap, ap.bssid)));
 
   if (!ctx.overviewLoading && !ctx.overview?.last_scan_at) {
-    return <p className="npv-card air-empty-note">No data yet. {ctx.agent.name} has not uploaded a scan.</p>;
+    return <p className="aw-card air-empty-note">No data yet. {ctx.agent.name} has not uploaded a scan.</p>;
   }
-  if (apsQ.isLoading) return <p className="npv-card air-empty-note">Loading nearby networks…</p>;
-  if (apsQ.isError) return <p className="npv-card air-empty-note">Could not load nearby networks.</p>;
+  if (apsQ.isLoading) return <p className="aw-card air-empty-note">Loading nearby networks…</p>;
+  if (apsQ.isError) return <p className="aw-card air-empty-note">Could not load nearby networks.</p>;
 
   function toggle(bssid: string) {
     setOpenIds((current) => {
@@ -75,42 +75,63 @@ export default function AirwavesNetworks() {
 
   let previousBand = "";
   return (
-    <section className="npv-card air-list-card">
-      <div className="air-list-tools">
+    <section className="aw-card air-list-card">
+      <div className="aw-list-tools">
+        <div className="aw-pills" role="group" aria-label="Band">
+          {[
+            { value: "all", label: "All", count: all.length },
+            { value: "2.4", label: "2.4 GHz", count: all.filter((ap) => ap.band === "2.4").length },
+            { value: "5", label: "5 GHz", count: all.filter((ap) => ap.band === "5").length },
+          ].map((item) => (
+            <button
+              key={item.value}
+              className={band === item.value ? "aw-pill active" : "aw-pill"}
+              type="button"
+              aria-pressed={band === item.value}
+              onClick={() => {
+                setBand(item.value);
+                setLimit(PAGE);
+              }}
+            >
+              {item.label} {item.count}
+            </button>
+          ))}
+        </div>
         <input
-          className="air-filter"
+          className="aw-search"
+          type="search"
           value={q}
           onChange={(event) => {
             setQ(event.target.value);
             setLimit(PAGE);
           }}
-          placeholder="Filter networks"
-          aria-label="Filter networks"
+          placeholder="Search by name or address"
+          aria-label="Search networks"
         />
-        <Filter label="Band" value={band} onChange={(value) => { setBand(value); setLimit(PAGE); }}>
-          <option value="all">All bands</option>
-          <option value="2.4">2.4 GHz</option>
-          <option value="5">5 GHz</option>
-        </Filter>
-        <Filter label="Security" value={security} onChange={(value) => { setSecurity(value); setLimit(PAGE); }}>
-          <option value="all">All</option>
-          <option value="secured">Secured</option>
-          <option value="open">Open</option>
-        </Filter>
-        <Filter label="Hidden" value={hidden} onChange={(value) => { setHidden(value); setLimit(PAGE); }}>
-          <option value="all">All</option>
-          <option value="hidden">Hidden only</option>
-          <option value="visible">Visible only</option>
-        </Filter>
-        <button
-          className="air-text-btn"
-          type="button"
-          onClick={() => setOpenIds(allOpen ? [] : filtered.map((ap) => stableId(ap, ap.bssid)))}
-        >
-          {allOpen ? "Collapse all" : "Expand all"}
-        </button>
-        <p className="air-caption">Showing {shown.length} of {filtered.length}</p>
       </div>
+      <details className="aw-more">
+        <summary>More filters</summary>
+        <div className="aw-more-body">
+          <Filter label="Security" value={security} onChange={(value) => { setSecurity(value); setLimit(PAGE); }}>
+            <option value="all">All</option>
+            <option value="secured">Secured</option>
+            <option value="open">Open</option>
+          </Filter>
+          <Filter label="Hidden" value={hidden} onChange={(value) => { setHidden(value); setLimit(PAGE); }}>
+            <option value="all">All</option>
+            <option value="hidden">Hidden only</option>
+            <option value="visible">Visible only</option>
+          </Filter>
+          <button
+            className="air-text-btn"
+            type="button"
+            onClick={() => setOpenIds(allOpen ? [] : filtered.map((ap) => stableId(ap, ap.bssid)))}
+          >
+            {allOpen ? "Collapse all" : "Expand all"}
+          </button>
+        </div>
+      </details>
+      <p className="air-caption aw-count">Showing {shown.length} of {filtered.length}</p>
       {shown.length === 0 ? <p className="air-caption">No networks match these filters.</p> : null}
       {shown.map((ap) => {
         const header = ap.band !== previousBand;
@@ -198,7 +219,10 @@ function NetworkRow({
         <span className="air-row-device">
           <strong className={isAnonymized(name) ? "anon-mark" : undefined}>{name}</strong>
         </span>
-        <span className="air-row-signal">{`−${Math.abs(Math.round(ap.rssi_dbm))} dBm`}</span>
+        <span className="air-row-signal">
+          <SignalBars dbm={ap.rssi_dbm} />
+          {`−${Math.abs(Math.round(ap.rssi_dbm))} dBm`}
+        </span>
         <span className="air-chevron" aria-hidden="true">{expanded ? "▾" : "▸"}</span>
         <span className="air-row-sub">
           Ch {ap.channel} · {ap.band} GHz · {open ? `${ap.security} · Risky` : ap.security}

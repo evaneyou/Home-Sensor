@@ -1,0 +1,653 @@
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { api } from "../api";
+import "../kpi.css";
+
+type Period = "day" | "week" | "month" | "year";
+type Kind = { samples: number; failed: number; availability: number | null; loss_avg: number | null; loss_max: number | null; rtt_ms: number | null; jitter_ms: number | null; down_mbps: number | null; up_mbps: number | null; incidents: number; outage_minutes: number; mttr_minutes?: number | null };
+type Point = {
+  t: string;
+  internet: number | null;
+  internet_wired: number | null;
+  internet_wireless: number | null;
+  voice: number | null;
+  video: number | null;
+  loss_internet: number | null;
+  loss_voice: number | null;
+  loss_video: number | null;
+  rtt_ms: number | null;
+  jitter_ms: number | null;
+  down_mbps: number | null;
+  up_mbps: number | null;
+  outage_minutes: number;
+};
+type Report = {
+  period: Period;
+  bucket: "hour" | "day" | "month";
+  from: string;
+  to: string;
+  generated_at: string;
+  data_since: string | null;
+  targets: { internet: number; voice: number; video: number; loss_pct: number };
+  summary: Record<"internet" | "voice" | "video" | "apps" | "speed", Kind>;
+  previous: Record<"internet" | "voice" | "video" | "apps" | "speed", Kind>;
+  app_loss_avg: number | null;
+  links: Record<"internet" | "voice" | "video", Record<string, Kind>>;
+  series: Point[];
+  incidents: { start: string; link: string; minutes: number; checks: number }[];
+};
+
+const PERIODS: { key: Period; label: string; text: string }[] = [
+  { key: "day", label: "Day", text: "the last 24 hours, by hour" },
+  { key: "week", label: "Week", text: "the last 7 days, by day" },
+  { key: "month", label: "Month", text: "the last 30 days, by day" },
+  { key: "year", label: "Year", text: "the last 12 months, by month" },
+];
+
+const C = { good: "#4fd1b5", warn: "#ffc24d", bad: "#ff8a7a", blue: "#6aa8ff", violet: "#a78bfa", grid: "#232d49", axis: "#9aa6c4" };
+const LINKS = { wired: "Wired", wireless: "Wi-Fi" } as const;
+
+/** Availability shown to two decimals and never rounded up to 100: 99.996 reads 99.99%. */
+function pct(value: number | null | undefined, digits = 2): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  const scale = 10 ** digits;
+  return `${(Math.floor(value * scale + 1e-9) / scale).toFixed(digits)}%`;
+}
+
+function num(value: number | null | undefined, digits = 1): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  return value >= 100 ? value.toFixed(0) : value.toFixed(digits);
+}
+
+function minutes(value: number): string {
+  if (value < 1) return "0 min";
+  if (value < 90) return `${Math.round(value)} min`;
+  const hours = value / 60;
+  return hours < 48 ? `${hours.toFixed(1)} h` : `${(hours / 24).toFixed(1)} days`;
+}
+
+type Tone = "good" | "warn" | "bad" | "none";
+
+function availabilityTone(value: number | null, target: number): Tone {
+  if (value == null) return "none";
+  if (value >= target) return "good";
+  return value >= target - 1 ? "warn" : "bad";
+}
+
+function lossTone(value: number | null, target: number): Tone {
+  if (value == null) return "none";
+  if (value <= target) return "good";
+  return value <= target * 3 ? "warn" : "bad";
+}
+
+function stamp(iso: string, bucket: Report["bucket"], full = false): string {
+  const date = new Date(iso);
+  if (bucket === "hour") return full ? `${date.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" })} ${String(date.getUTCHours()).padStart(2, "0")}:00` : `${String(date.getUTCHours()).padStart(2, "0")}:00`;
+  if (bucket === "month") return date.toLocaleDateString(undefined, { month: "short", year: full ? "numeric" : undefined, timeZone: "UTC" });
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+function Delta({ now, before, better, unit = "pts" }: { now: number | null; before: number | null; better: "up" | "down"; unit?: string }) {
+  if (now == null || before == null) return <span className="kpi-delta none">no earlier data</span>;
+  const diff = now - before;
+  if (Math.abs(diff) < 0.005) return <span className="kpi-delta none">unchanged vs previous</span>;
+  const good = better === "up" ? diff > 0 : diff < 0;
+  return (
+    <span className={good ? "kpi-delta good" : "kpi-delta bad"}>
+      {diff > 0 ? "▲" : "▼"} {Math.abs(diff).toFixed(2)} {unit} vs previous
+    </span>
+  );
+}
+
+function Spark({ data, field, color }: { data: Point[]; field: keyof Point; color: string }) {
+  return (
+    <div className="kpi-spark" aria-hidden="true">
+      <ResponsiveContainer width="100%" height={40}>
+        <LineChart data={data} margin={{ top: 4, right: 2, bottom: 2, left: 2 }}>
+          <Line type="monotone" dataKey={field} stroke={color} strokeWidth={1.8} dot={false} isAnimationActive={false} connectNulls />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function Card({ label, value, tone, target, children, spark }: { label: string; value: string; tone: Tone; target?: string; children?: React.ReactNode; spark?: React.ReactNode }) {
+  return (
+    <article className={`kpi-card tone-${tone}`}>
+      <div className="kpi-card-top">
+        <span className="kpi-label">{label}</span>
+        {target ? <span className="kpi-target">{target}</span> : null}
+      </div>
+      <div className="kpi-value">{value}</div>
+      <div className="kpi-card-sub">{children}</div>
+      {spark}
+    </article>
+  );
+}
+
+function Panel({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+  return (
+    <section className="kpi-panel">
+      <header>
+        <h3>{title}</h3>
+        {note ? <span>{note}</span> : null}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+const tooltipStyle = { background: "#10172a", border: "1px solid #232d49", borderRadius: 10, fontSize: 12 };
+
+type DailyRow = {
+  day: string;
+  internet: number | null;
+  internet_wired: number | null;
+  internet_wireless: number | null;
+  voice: number | null;
+  video: number | null;
+  loss: number | null;
+  offline_minutes: number;
+  outages: number;
+  rtt_ms: number | null;
+};
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+function isoToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function shiftDay(iso: string, days: number): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+function niceDay(iso: string): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+/** The stored daily KPIs, newest first. Pick a day to open its 24 hours. */
+function DailyHistory({ selected, onPick }: { selected: string | null; onPick: (day: string) => void }) {
+  const [last, setLast] = useState(isoToday());
+  const [first, setFirst] = useState(shiftDay(isoToday(), -29));
+  const valid = ISO_DAY.test(first) && ISO_DAY.test(last) && first <= last;
+  const rows = useQuery({
+    queryKey: ["kpi-daily", first, last],
+    queryFn: () => api.kpiDaily(first, last) as Promise<DailyRow[]>,
+    enabled: valid,
+    refetchInterval: 60000,
+    placeholderData: (previous) => previous,
+  });
+  const list = valid ? rows.data ?? [] : [];
+
+  function download() {
+    const head = ["Date", "Internet %", "Wired %", "Wi-Fi %", "Voice %", "Video %", "Packet drop %", "Offline min", "Outages"];
+    const cell = (value: number | null, digits = 2) => (value == null ? "" : value.toFixed(digits));
+    const lines = list.map((row) => [row.day, cell(row.internet), cell(row.internet_wired), cell(row.internet_wireless), cell(row.voice), cell(row.video), cell(row.loss), cell(row.offline_minutes, 1), String(row.outages)].join(","));
+    const blob = new Blob([[head.join(","), ...lines].join("\n")], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `network-kpi-${first}-to-${last}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  return (
+    <section className="kpi-panel kpi-history">
+      <header>
+        <h3>Daily KPI history</h3>
+        <span>One stored record per day. Pick a day to open its 24 hours.</span>
+      </header>
+      <div className="kpi-filter">
+        <label>
+          <span>From</span>
+          <input type="date" value={first} max={last} onChange={(event) => setFirst(event.target.value)} />
+        </label>
+        <label>
+          <span>To</span>
+          <input type="date" value={last} min={first} max={isoToday()} onChange={(event) => setLast(event.target.value)} />
+        </label>
+        <div className="kpi-quick" role="group" aria-label="Quick ranges">
+          {[
+            ["30 days", 29],
+            ["90 days", 89],
+            ["1 year", 364],
+          ].map(([label, days]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                setLast(isoToday());
+                setFirst(shiftDay(isoToday(), -Number(days)));
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <button type="button" className="kpi-print" disabled={list.length === 0} onClick={download}>
+          Download CSV
+        </button>
+      </div>
+      {!valid ? <p className="kpi-clear muted">Choose a start date that is on or before the end date.</p> : null}
+      <div className="kpi-scroll" role="region" aria-label="Daily KPI records" tabIndex={0}>
+        <table className="kpi-table kpi-daily">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Internet</th>
+              <th>Wired</th>
+              <th>Wi-Fi</th>
+              <th>Voice</th>
+              <th>Video</th>
+              <th>Packet drop</th>
+              <th>Offline</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((row) => (
+              <tr key={row.day} className={row.day === selected ? "is-selected" : ""}>
+                <th scope="row">
+                  <button type="button" onClick={() => onPick(row.day)}>
+                    {niceDay(row.day)}
+                  </button>
+                </th>
+                <td className={`tone-${availabilityTone(row.internet, 99.9)}`}>{pct(row.internet)}</td>
+                <td className={`tone-${availabilityTone(row.internet_wired, 99.9)}`}>{pct(row.internet_wired)}</td>
+                <td className={`tone-${availabilityTone(row.internet_wireless, 99.9)}`}>{pct(row.internet_wireless)}</td>
+                <td className={`tone-${availabilityTone(row.voice, 99.5)}`}>{pct(row.voice)}</td>
+                <td className={`tone-${availabilityTone(row.video, 99.5)}`}>{pct(row.video)}</td>
+                <td className={`tone-${lossTone(row.loss, 1)}`}>{pct(row.loss)}</td>
+                <td>{row.offline_minutes > 0 ? minutes(row.offline_minutes) : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {valid && list.length === 0 ? <p className="kpi-clear muted kpi-none">No stored days in this range.</p> : null}
+      </div>
+    </section>
+  );
+}
+
+export default function KpiPage() {
+  const [params, setParams] = useSearchParams();
+  const period = (PERIODS.find((item) => item.key === params.get("period"))?.key ?? "week") as Period;
+  const picked = params.get("date") ?? "";
+  const day = ISO_DAY.test(picked) && picked < isoToday() ? picked : null;
+  const query = useQuery({
+    queryKey: ["kpi", period, day],
+    queryFn: () => api.kpi(period, day ?? undefined) as Promise<Report>,
+    refetchInterval: day ? false : 30000,
+    placeholderData: (previous) => previous,
+  });
+
+  function go(next: { period?: Period; date?: string | null }) {
+    const chosen = next.date === undefined ? day : next.date;
+    const query: Record<string, string> = { period: next.period ?? period };
+    if (chosen && chosen < isoToday()) query.date = chosen;
+    setParams(query, { replace: true });
+  }
+
+  if (query.isLoading) return <div className="state-box">Loading the KPI report…</div>;
+  if (query.isError || !query.data) return <div className="state-box">Could not load the KPI report.</div>;
+
+  const report = query.data;
+  const { summary, previous, targets, series, bucket } = report;
+  const data = series.map((point) => ({ ...point, label: stamp(point.t, bucket), full: stamp(point.t, bucket, true) }));
+  const internet = summary.internet;
+  const voice = summary.voice;
+  const video = summary.video;
+  const wired = report.links.internet.wired;
+  const wifi = report.links.internet.wireless;
+  const appLossPeak = Math.max(voice.loss_max ?? 0, video.loss_max ?? 0);
+  const speed = summary.speed;
+
+  const checks: { name: string; tone: Tone }[] = [
+    { name: "Internet availability", tone: availabilityTone(internet.availability, targets.internet) },
+    { name: "Voice availability", tone: availabilityTone(voice.availability, targets.voice) },
+    { name: "Video availability", tone: availabilityTone(video.availability, targets.video) },
+    { name: "Packet drop", tone: lossTone(report.app_loss_avg, targets.loss_pct) },
+  ];
+  const measured = checks.filter((item) => item.tone !== "none");
+  const missed = measured.filter((item) => item.tone !== "good");
+  const verdict: Tone = measured.length === 0 ? "none" : missed.some((item) => item.tone === "bad") ? "bad" : missed.length > 0 ? "warn" : "good";
+  const headline =
+    verdict === "none"
+      ? "Gathering the first measurements"
+      : verdict === "good"
+        ? "All service levels are being met"
+        : `${missed.length} of ${measured.length} service levels below target`;
+
+  const minFloor = (values: (number | null)[], target: number) => {
+    const real = values.filter((value): value is number => value != null);
+    const low = real.length ? Math.min(...real, target) : target;
+    return Math.max(0, Math.floor(low - 0.3));
+  };
+  const availFloor = minFloor(data.flatMap((point) => [point.internet_wired, point.internet_wireless]), targets.internet);
+  const appFloor = minFloor(data.flatMap((point) => [point.voice, point.video]), Math.min(targets.voice, targets.video));
+  const axis = { stroke: C.axis, tick: { fontSize: 11 }, tickLine: false } as const;
+  // `to` is the end of the last day, so step back a moment to name the last day itself.
+  const lastMoment = new Date(new Date(report.to).getTime() - 1).toISOString();
+  const first = stamp(report.from, "day", true);
+  const last = stamp(lastMoment, "day", true);
+  const range = report.bucket === "month" || first === last ? first : `${first} – ${last}`;
+  const periodText = day
+    ? period === "day"
+      ? "24 hours, by hour"
+      : `${PERIODS.find((item) => item.key === period)?.text.replace("the last", "the")} ending ${stamp(day, "day", true)}`
+    : (PERIODS.find((item) => item.key === period)?.text ?? "");
+  const latest = isoToday();
+
+  return (
+    <div className="kpi">
+      <header className="kpi-head">
+        <div>
+          <p className="kpi-eyebrow">Home network · Service report</p>
+          <h1>Network health report</h1>
+          <p className="kpi-range">
+            {range}, {new Date(lastMoment).getUTCFullYear()} · {periodText} · times in UTC
+          </p>
+        </div>
+        <div className="kpi-tools">
+          <div className="kpi-seg" role="group" aria-label="Reporting period">
+            {PERIODS.map((item) => (
+              <button key={item.key} type="button" className={item.key === period ? "active" : ""} aria-pressed={item.key === period} onClick={() => go({ period: item.key })}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <div className="kpi-date" role="group" aria-label="Go to a day">
+            <button type="button" aria-label="Previous day" onClick={() => go({ date: shiftDay(day ?? latest, -1) })}>
+              ‹
+            </button>
+            <input
+              type="date"
+              aria-label="Report day (UTC)"
+              value={day ?? latest}
+              max={latest}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (ISO_DAY.test(value)) go({ date: value >= latest ? null : value });
+              }}
+            />
+            <button type="button" aria-label="Next day" disabled={!day} onClick={() => go({ date: shiftDay(day ?? latest, 1) })}>
+              ›
+            </button>
+            {day ? (
+              <button type="button" className="kpi-latest" onClick={() => go({ date: null })}>
+                Latest
+              </button>
+            ) : null}
+          </div>
+          {day ? (
+            <span className="kpi-live history">Viewing history · {niceDay(day)}</span>
+          ) : (
+            <span className="kpi-live" title="This page refreshes every 30 seconds">
+              <i aria-hidden="true" />
+              Live · updated {new Date(query.dataUpdatedAt || report.generated_at).toLocaleTimeString()}
+            </span>
+          )}
+          <button type="button" className="kpi-print" onClick={() => window.print()}>
+            Print / Save PDF
+          </button>
+        </div>
+      </header>
+
+      <section className={`kpi-verdict tone-${verdict}`} role="status">
+        <span className="kpi-verdict-mark" aria-hidden="true">
+          {verdict === "good" ? "✓" : verdict === "none" ? "…" : "!"}
+        </span>
+        <div>
+          <b>{headline}</b>
+          <span>
+            {measured.length === 0
+              ? "The report fills in as measurements arrive."
+              : `Targets: internet ${targets.internet}%, voice and video ${targets.voice}%, packet drop at or under ${targets.loss_pct}%.`}
+          </span>
+        </div>
+        <ul>
+          {checks.map((item) => (
+            <li key={item.name} className={`tone-${item.tone}`}>
+              {item.name}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="kpi-cards" aria-label="Key indicators">
+        <Card
+          label="Internet availability"
+          value={pct(internet.availability)}
+          tone={availabilityTone(internet.availability, targets.internet)}
+          target={`Target ${targets.internet}%`}
+          spark={<Spark data={series} field="internet" color={C.good} />}
+        >
+          <Delta now={internet.availability} before={previous.internet.availability} better="up" />
+          <span className="kpi-split">
+            Wired {pct(wired?.availability)} · Wi-Fi {pct(wifi?.availability)}
+          </span>
+        </Card>
+        <Card
+          label="Voice availability"
+          value={pct(voice.availability)}
+          tone={availabilityTone(voice.availability, targets.voice)}
+          target={`Target ${targets.voice}%`}
+          spark={<Spark data={series} field="voice" color={C.blue} />}
+        >
+          <Delta now={voice.availability} before={previous.voice.availability} better="up" />
+          <span className="kpi-split">{voice.samples.toLocaleString()} quality checks</span>
+        </Card>
+        <Card
+          label="Video availability"
+          value={pct(video.availability)}
+          tone={availabilityTone(video.availability, targets.video)}
+          target={`Target ${targets.video}%`}
+          spark={<Spark data={series} field="video" color={C.violet} />}
+        >
+          <Delta now={video.availability} before={previous.video.availability} better="up" />
+          <span className="kpi-split">{video.samples.toLocaleString()} quality checks</span>
+        </Card>
+        <Card
+          label="Packet drop (voice and video)"
+          value={pct(report.app_loss_avg)}
+          tone={lossTone(report.app_loss_avg, targets.loss_pct)}
+          target={`Target ≤ ${targets.loss_pct}%`}
+          spark={<Spark data={series} field="loss_voice" color={C.warn} />}
+        >
+          <span className="kpi-split">
+            Voice {pct(voice.loss_avg)} · Video {pct(video.loss_avg)}
+          </span>
+          <span className="kpi-split">Worst interval {appLossPeak ? `${appLossPeak.toFixed(1)}%` : "—"}</span>
+        </Card>
+        <Card label="Time offline" value={internet.samples ? minutes(internet.outage_minutes) : "—"} tone={internet.samples === 0 ? "none" : internet.incidents === 0 ? "good" : "warn"}>
+          <span className="kpi-split">
+            {internet.samples ? `${internet.incidents} outage${internet.incidents === 1 ? "" : "s"}` : "No data yet"}
+            {internet.mttr_minutes ? ` · about ${minutes(internet.mttr_minutes)} each` : ""}
+          </span>
+          <span className="kpi-split">Counted from failed internet checks</span>
+        </Card>
+        <Card label="Latency to the server" value={internet.rtt_ms == null ? "—" : `${num(internet.rtt_ms)} ms`} tone="none" spark={<Spark data={series} field="rtt_ms" color={C.good} />}>
+          <span className="kpi-split">Jitter {internet.jitter_ms == null ? "—" : `${num(internet.jitter_ms)} ms`}</span>
+          <span className="kpi-split">
+            Speed ↓ {speed.down_mbps == null ? "—" : num(speed.down_mbps, 0)} / ↑ {speed.up_mbps == null ? "—" : num(speed.up_mbps, 0)} Mbit/s
+          </span>
+        </Card>
+      </section>
+
+      <div className="kpi-grid">
+        <Panel title="Internet availability" note={`Dashed line is the ${targets.internet}% target`}>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke={C.grid} vertical={false} />
+              <XAxis dataKey="label" {...axis} minTickGap={20} />
+              <YAxis {...axis} domain={[availFloor, 100]} width={58} tickFormatter={(value: number) => `${value}%`} axisLine={false} />
+              <Tooltip contentStyle={tooltipStyle} labelFormatter={(_label, rows) => String(rows?.[0]?.payload?.full ?? "")} formatter={(value) => [pct(typeof value === "number" ? value : null), ""]} />
+              <Legend iconType="plainline" wrapperStyle={{ fontSize: 12 }} />
+              <ReferenceLine y={targets.internet} stroke={C.warn} strokeDasharray="5 4" />
+              <Line name="Wired" type="monotone" dataKey="internet_wired" stroke={C.good} strokeWidth={2.2} dot={false} isAnimationActive={false} />
+              <Line name="Wi-Fi" type="monotone" dataKey="internet_wireless" stroke={C.blue} strokeWidth={2.2} dot={false} isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </Panel>
+
+        <Panel title="Voice and video availability" note={`Dashed line is the ${targets.voice}% target`}>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke={C.grid} vertical={false} />
+              <XAxis dataKey="label" {...axis} minTickGap={20} />
+              <YAxis {...axis} domain={[appFloor, 100]} width={58} tickFormatter={(value: number) => `${value}%`} axisLine={false} />
+              <Tooltip contentStyle={tooltipStyle} labelFormatter={(_label, rows) => String(rows?.[0]?.payload?.full ?? "")} formatter={(value) => [pct(typeof value === "number" ? value : null), ""]} />
+              <Legend iconType="plainline" wrapperStyle={{ fontSize: 12 }} />
+              <ReferenceLine y={targets.voice} stroke={C.warn} strokeDasharray="5 4" />
+              <Line name="Voice" type="monotone" dataKey="voice" stroke={C.blue} strokeWidth={2.2} dot={false} isAnimationActive={false} />
+              <Line name="Video" type="monotone" dataKey="video" stroke={C.violet} strokeWidth={2.2} dot={false} isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </Panel>
+
+        <Panel title="Packet drop" note={`Average loss; ${targets.loss_pct}% is the limit`}>
+          <ResponsiveContainer width="100%" height={240}>
+            <AreaChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke={C.grid} vertical={false} />
+              <XAxis dataKey="label" {...axis} minTickGap={20} />
+              <YAxis {...axis} domain={[0, "auto"]} width={58} tickFormatter={(value: number) => `${value}%`} axisLine={false} />
+              <Tooltip contentStyle={tooltipStyle} labelFormatter={(_label, rows) => String(rows?.[0]?.payload?.full ?? "")} formatter={(value) => [pct(typeof value === "number" ? value : null), ""]} />
+              <Legend iconType="plainline" wrapperStyle={{ fontSize: 12 }} />
+              <ReferenceLine y={targets.loss_pct} stroke={C.warn} strokeDasharray="5 4" />
+              <Area name="Voice" type="monotone" dataKey="loss_voice" stroke={C.blue} fill={C.blue} fillOpacity={0.15} strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Area name="Video" type="monotone" dataKey="loss_video" stroke={C.violet} fill={C.violet} fillOpacity={0.15} strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Area name="Internet path" type="monotone" dataKey="loss_internet" stroke={C.good} fill={C.good} fillOpacity={0.1} strokeWidth={2} dot={false} isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </Panel>
+
+        <Panel title="Time offline" note="Minutes without internet">
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke={C.grid} vertical={false} />
+              <XAxis dataKey="label" {...axis} minTickGap={20} />
+              <YAxis {...axis} allowDecimals={false} width={44} axisLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,138,122,0.1)" }} labelFormatter={(_label, rows) => String(rows?.[0]?.payload?.full ?? "")} formatter={(value) => [`${num(typeof value === "number" ? value : null)} min`, "Offline"]} />
+              <Bar dataKey="outage_minutes" fill={C.bad} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Panel>
+
+        <Panel title="Latency and jitter" note="Round trip to the server, in milliseconds">
+          <ResponsiveContainer width="100%" height={240}>
+            <ComposedChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke={C.grid} vertical={false} />
+              <XAxis dataKey="label" {...axis} minTickGap={20} />
+              <YAxis yAxisId="rtt" {...axis} width={44} axisLine={false} />
+              <YAxis yAxisId="jit" orientation="right" {...axis} width={36} axisLine={false} />
+              <Tooltip contentStyle={tooltipStyle} labelFormatter={(_label, rows) => String(rows?.[0]?.payload?.full ?? "")} formatter={(value) => [`${num(typeof value === "number" ? value : null)} ms`, ""]} />
+              <Legend iconType="plainline" wrapperStyle={{ fontSize: 12 }} />
+              <Line yAxisId="rtt" name="Latency" type="monotone" dataKey="rtt_ms" stroke={C.good} strokeWidth={2.2} dot={false} isAnimationActive={false} />
+              <Line yAxisId="jit" name="Jitter" type="monotone" dataKey="jitter_ms" stroke={C.warn} strokeWidth={2} dot={false} isAnimationActive={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </Panel>
+
+        <Panel title="Internet speed" note="Average from the bandwidth test, Mbit/s">
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke={C.grid} vertical={false} />
+              <XAxis dataKey="label" {...axis} minTickGap={20} />
+              <YAxis {...axis} width={44} axisLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(79,209,181,0.08)" }} labelFormatter={(_label, rows) => String(rows?.[0]?.payload?.full ?? "")} formatter={(value) => [`${num(typeof value === "number" ? value : null, 0)} Mbit/s`, ""]} />
+              <Legend iconType="square" wrapperStyle={{ fontSize: 12 }} />
+              <Bar name="Download" dataKey="down_mbps" fill={C.good} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+              <Bar name="Upload" dataKey="up_mbps" fill={C.blue} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Panel>
+      </div>
+
+      <div className="kpi-lower">
+        <Panel title="Wired and Wi-Fi compared">
+          <div className="kpi-table-wrap">
+            <table className="kpi-table">
+              <thead>
+                <tr>
+                  <th>Link</th>
+                  <th>Internet</th>
+                  <th>Voice</th>
+                  <th>Voice drop</th>
+                  <th>Video</th>
+                  <th>Video drop</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(["wired", "wireless"] as const).map((link) => (
+                  <tr key={link}>
+                    <th scope="row">{LINKS[link]}</th>
+                    <td className={`tone-${availabilityTone(report.links.internet[link]?.availability ?? null, targets.internet)}`}>{pct(report.links.internet[link]?.availability)}</td>
+                    <td className={`tone-${availabilityTone(report.links.voice[link]?.availability ?? null, targets.voice)}`}>{pct(report.links.voice[link]?.availability)}</td>
+                    <td className={`tone-${lossTone(report.links.voice[link]?.loss_avg ?? null, targets.loss_pct)}`}>{pct(report.links.voice[link]?.loss_avg)}</td>
+                    <td className={`tone-${availabilityTone(report.links.video[link]?.availability ?? null, targets.video)}`}>{pct(report.links.video[link]?.availability)}</td>
+                    <td className={`tone-${lossTone(report.links.video[link]?.loss_avg ?? null, targets.loss_pct)}`}>{pct(report.links.video[link]?.loss_avg)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+
+        <Panel title="Outage log" note={report.period === "year" ? "Most recent, from detailed records" : "Most recent first"}>
+          {report.incidents.length === 0 ? (
+            <p className="kpi-clear">No internet outages in this period.</p>
+          ) : (
+            <ul className="kpi-incidents">
+              {report.incidents.map((item) => (
+                <li key={`${item.start}-${item.link}`}>
+                  <i aria-hidden="true" />
+                  <span>
+                    <b>{LINKS[item.link as keyof typeof LINKS] ?? item.link}</b> offline for {minutes(item.minutes)}
+                  </span>
+                  <time>{new Date(item.start).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</time>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      </div>
+
+      <DailyHistory
+        selected={day}
+        onPick={(picked) => {
+          go({ period: "day", date: picked });
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+      />
+
+      <footer className="kpi-foot">
+        <p>
+          <b>How these are measured.</b> Internet availability is the share of one-minute checks to the HomeNetWatch server, on each link, that
+          succeeded. Voice and video availability is the share of their quality checks (every few seconds) that stayed within their limits. Packet
+          drop is the average loss those checks reported. Time offline is counted from failed internet checks. A period with no measurements shows a
+          gap, never 100%. Figures are cut off, not rounded up, at two decimals. Each day is stored as a daily record, and weeks, months and years are added up from those records.
+        </p>
+        <p>{report.data_since ? `Measurements since ${new Date(report.data_since).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}. ` : ""}Home network, report generated {new Date(report.generated_at).toLocaleString()}.</p>
+      </footer>
+    </div>
+  );
+}

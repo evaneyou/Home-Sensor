@@ -10,7 +10,7 @@ fi
 
 cd "$(dirname "$0")"
 
-files="agent.py agent_state.py enrollment.py health.py radio.py scheduler.py checks.py kismet_view.py rf_spool.py synthetic.py"
+files="agent.py agent_state.py enrollment.py health.py radio.py scheduler.py checks.py kismet_view.py rf_spool.py synthetic.py speedtest.py"
 for file in $files; do
   if [ ! -f "$file" ]; then
     echo "Missing $file. Unpack monitor.tar.gz and run this script from that directory." >&2

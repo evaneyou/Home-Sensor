@@ -324,6 +324,7 @@ def _sample_rows(monitor_id: UUID, slug: str):
         .join(SyntheticRun, SyntheticSample.run_id == SyntheticRun.id)
         .where(
             SyntheticRun.monitor_id == monitor_id,
+            SyntheticRun.mode != "stress",
             ~SyntheticSample.sample_key.startswith("hour:"),
             ~SyntheticSample.sample_key.startswith("day:"),
         )
@@ -383,6 +384,7 @@ def _synthetic_out(sample: SyntheticSample, monitor: Monitor, names: dict[str, s
 def _synthetic_page(db: Session, monitor: Monitor, slug: str, offset: int, limit: int) -> ResultPage:
     filters = [
         SyntheticRun.monitor_id == monitor.id,
+        SyntheticRun.mode != "stress",
         ~SyntheticSample.sample_key.startswith("hour:"),
         ~SyntheticSample.sample_key.startswith("day:"),
     ]
@@ -427,6 +429,7 @@ def _merged_page(db: Session, monitor: Monitor, offset: int, limit: int) -> Resu
         .join(SyntheticRun, SyntheticSample.run_id == SyntheticRun.id)
         .where(
             SyntheticRun.monitor_id == monitor.id,
+            SyntheticRun.mode != "stress",
             ~SyntheticSample.sample_key.startswith("hour:"),
             ~SyntheticSample.sample_key.startswith("day:"),
         )

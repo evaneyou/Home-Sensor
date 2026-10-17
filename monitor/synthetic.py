@@ -151,6 +151,95 @@ def send_args(
     return args
 
 
+STRESS_PRESETS = {
+    "voip-g711",
+    "voip-g711a",
+    "voip-g729",
+    "voip-g723",
+    "video-conference",
+    "remote-desktop",
+    "market-data",
+}
+STRESS_MAX_PPS = 200_000
+
+
+def _int_in(value: Any, low: int, high: int, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= value <= high:
+        raise ValueError(f"{name} is out of range")
+    return int(value)
+
+
+def _dist(value: Any, name: str) -> str:
+    text = str(value)
+    if not text.startswith("normal:") or not all(part.replace(".", "", 1).isdigit() for part in text[7:].split(",")):
+        raise ValueError(f"{name} is not valid")
+    return text
+
+
+def stress_args(
+    binary: str,
+    options: dict[str, Any],
+    data_host: str,
+    *,
+    control_host: str,
+    key_file: str,
+    srtp_key_file: str,
+) -> list[str]:
+    """A stress session. It runs until the agent stops it; the server sets the five-minute end."""
+    if is_tunnel_target(data_host) or ":" in str(data_host):
+        raise ValueError("Synthetic traffic must use the public IPv4 address")
+    if control_host not in CONTROL_HOST.values():
+        raise ValueError("The control channel must use the tunnel")
+    if options.get("agent") or options.get("sip") or str(options.get("payload") or ""):
+        raise ValueError("That option is not allowed")
+    proto = str(options.get("proto") or "udp")
+    if proto not in {"udp", "icmp"}:
+        raise ValueError("Only UDP and ICMP are available")
+    kind = str(options.get("kind") or "")
+    if not kind.isalnum():
+        raise ValueError("Unknown test")
+    args = [binary, "flow"]
+    if proto == "icmp":
+        args += ["-t", data_host, "-p", "icmp"]
+    else:
+        args += ["-t", f"{data_host}:{UDP_PORT}", "-c", f"{control_host}:{CONTROL_PORT}", "--srtp-key-file", srtp_key_file]
+    preset = options.get("preset")
+    if preset:
+        if preset not in STRESS_PRESETS:
+            raise ValueError("Unknown traffic preset")
+        args += ["--preset", str(preset)]
+    args += ["--name", f"stress-{kind}", "--json", "-i", "1s", "--key-file", key_file, "--forever"]
+    if options.get("wire") == "rtp":
+        args += ["--wire", "rtp"]
+    if options.get("rtp"):
+        if options["rtp"] not in {"g711", "g711a", "g729", "g723"}:
+            raise ValueError("Unknown codec")
+        args += ["--rtp", str(options["rtp"])]
+    if options.get("ptime_ms"):
+        args += ["--ptime", str(_int_in(options["ptime_ms"], 10, 200, "Packet time"))]
+    if options.get("bidir"):
+        args.append("--bidir")
+    if options.get("vad"):
+        args.append("--vad")
+    if options.get("video"):
+        args.append("--video")
+        args += ["--video-fps", str(_int_in(options.get("video_fps"), 1, 120, "Frame rate"))]
+        args += ["--video-gop", str(_int_in(options.get("video_gop"), 1, 600, "Keyframe interval"))]
+        args += ["--video-i-size", _dist(options.get("video_i_size"), "Keyframe size")]
+        args += ["--video-p-size", _dist(options.get("video_p_size"), "Frame size")]
+    if options.get("meter"):
+        if options["meter"] != "rtt":
+            raise ValueError("Unknown meter")
+        args += ["--meter", "rtt"]
+    if options.get("rate_pps") is not None:
+        args += ["--rate-pps", str(_int_in(options["rate_pps"], 1, STRESS_MAX_PPS, "Packet rate"))]
+    if options.get("size") is not None:
+        args += ["--size", str(_int_in(options["size"], 32, 1472, "Packet size"))]
+    if options.get("tos"):
+        args += ["--tos", str(_int_in(options["tos"], 0, 252, "Marking"))]
+    return args
+
+
 def endpoint_host(text: str) -> str:
     """Public IPv4 address from a WireGuard endpoint."""
     for line in text.splitlines():
@@ -385,13 +474,13 @@ def _reap_strays() -> None:
             pass
 
 
-def sync(config: dict, get_json: Callable, post_json: Callable) -> None:
+def sync(config: dict, get_json: Callable, post_json: Callable) -> bool:
     """Start one rtnp-send per link. The data target is the enrolled public address."""
     base = str(config.get("server_url") or "").rstrip("/")
     token = config.get("token")
     name = config.get("name")
     if not base or not token or not name:
-        return
+        return False
     config = dict(config)
     config["post_json"] = post_json
     _reap_strays()
@@ -401,18 +490,18 @@ def sync(config: dict, get_json: Callable, post_json: Callable) -> None:
     if key:
         _write_key(key)
     _write_srtp(str(body.get("srtp_key") or ""))
+    fast = bool(body.get("fast"))
     wanted = jobs_for_links(list(body.get("jobs") or []))
     if problem:
         for run_id, link in wanted:
             _finish(config, run_id, link, "failed", problem)
-        return
+        return False
     with _lock:
         running = [item for item in _running if item in wanted]
         stale = [item for item in _running if item not in wanted]
     for item in stale:
         _stop(item)
-    if _over_budget():
-        return
+    over_budget = _over_budget()
     data_host = (
         str(body.get("target_host") or "")
         or str(config.get("measurement_host") or "")
@@ -421,7 +510,10 @@ def sync(config: dict, get_json: Callable, post_json: Callable) -> None:
     for item, job in wanted.items():
         if item in running:
             continue
+        if over_budget and job.get("mode") != "stress":
+            continue
         _ensure(config, item, job, data_host)
+    return fast
 
 
 def _ensure(config: dict, item: tuple[str, str], job: dict[str, Any], target: str) -> None:
@@ -442,16 +534,26 @@ def _ensure(config: dict, item: tuple[str, str], job: dict[str, Any], target: st
             raise ValueError("Synthetic traffic would leave through the wrong interface")
         control = CONTROL_HOST[link]
         forever = job.get("mode") == "continuous"
-        args = send_args(
-            BINARY,
-            job["options"],
-            target,
-            control_host=control,
-            key_file=str(KEY_PATH),
-            srtp_key_file=str(SRTP_PATH),
-            forever=forever,
-            duration_seconds=job.get("duration_seconds"),
-        )
+        if job.get("mode") == "stress":
+            args = stress_args(
+                BINARY,
+                job["options"],
+                target,
+                control_host=control,
+                key_file=str(KEY_PATH),
+                srtp_key_file=str(SRTP_PATH),
+            )
+        else:
+            args = send_args(
+                BINARY,
+                job["options"],
+                target,
+                control_host=control,
+                key_file=str(KEY_PATH),
+                srtp_key_file=str(SRTP_PATH),
+                forever=forever,
+                duration_seconds=job.get("duration_seconds"),
+            )
     except (ValueError, KeyError) as exc:
         _finish(config, run_id, link, "failed", str(exc))
         return
@@ -464,9 +566,10 @@ def _ensure(config: dict, item: tuple[str, str], job: dict[str, Any], target: st
     if not Path(BINARY).is_file():
         _finish(config, run_id, link, "failed", "rtnp-send is not installed")
         return
-    state = _budget()
-    state["run"] = 0
-    _save_budget(state)
+    if job.get("mode") != "stress":
+        state = _budget()
+        state["run"] = 0
+        _save_budget(state)
     proc = subprocess.Popen(
         args,
         stdout=subprocess.PIPE,
@@ -476,6 +579,13 @@ def _ensure(config: dict, item: tuple[str, str], job: dict[str, Any], target: st
     )
     with _lock:
         _running[item] = {"args": args, "proc": proc, "mode": job.get("mode")}
+    if job.get("mode") == "stress":
+        # The server ends a stress test after five minutes at most. If it cannot be
+        # reached, this timer still stops the flow.
+        seconds = max(1, min(int(job.get("ends_in_s") or 1), 300))
+        timer = threading.Timer(seconds, _stop_if_running, args=(item, proc))
+        timer.daemon = True
+        timer.start()
     threading.Thread(
         target=_read_output,
         args=(config, item, proc),
@@ -499,7 +609,7 @@ def _read_output(config: dict, item: tuple[str, str], proc: subprocess.Popen) ->
             continue
         if "flows" not in payload:
             continue
-        if _charge(payload):
+        if mode_of(item) != "stress" and _charge(payload):
             proc.terminate()
             _finish(config, run_id, link, "failed", "Traffic cap reached")
             break
@@ -539,6 +649,9 @@ def _read_output(config: dict, item: tuple[str, str], proc: subprocess.Popen) ->
             _running.pop(item, None)
     if mode == "manual":
         _finish(config, run_id, link, "finished" if code == 0 else "failed", None)
+    elif mode == "stress":
+        if state is not None and state["proc"] is proc and code != 0:
+            _finish(config, run_id, link, "failed", note or f"rtnp-send exited with code {code}")
     elif state is not None and code != 0:
         # A continuous flow that stops by itself is relaunched on the next sync.
         # Without this it fails in silence: nothing finishes the run, and the
@@ -548,6 +661,22 @@ def _read_output(config: dict, item: tuple[str, str], proc: subprocess.Popen) ->
         with _lock:
             _last_failure = f"{link}: {trouble}"
         print(f"synthetic: {link} flow stopped: {trouble}", file=sys.stderr, flush=True)
+
+
+def mode_of(item: tuple[str, str]) -> Optional[str]:
+    with _lock:
+        state = _running.get(item)
+    return state["mode"] if state else None
+
+
+def _stop_if_running(item: tuple[str, str], proc: subprocess.Popen) -> None:
+    with _lock:
+        state = _running.get(item)
+        same = state is not None and state["proc"] is proc
+    if same:
+        _stop(item)
+    elif proc.poll() is None:
+        proc.terminate()
 
 
 def _json_line(line: str) -> Optional[dict]:

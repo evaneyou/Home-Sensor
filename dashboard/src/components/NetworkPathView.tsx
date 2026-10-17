@@ -8,6 +8,7 @@ import BgpFlow from "./BgpFlow";
 import PathFlow from "./PathFlow";
 import SelectMenu from "./SelectMenu";
 import WaitButton from "./WaitButton";
+import "../pathview.css";
 
 export type PathHop = {
   ttl: number;
@@ -109,15 +110,11 @@ function tracedWhen(iso: string): string {
   return when.toLocaleString();
 }
 
-function PlayIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z" />
-    </svg>
-  );
-}
 
 export type PathChoice = { id: string; label: string };
+
+/** The destination dropdown value that means "a host I will type in". */
+const HOST_CHOICE = "__host";
 
 export default function NetworkPathView({
   monitorId,
@@ -141,8 +138,9 @@ export default function NetworkPathView({
   const [running, setRunning] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
   const [group, setGroup] = useState<number | null>(null);
-  const [bgpOpen, setBgpOpen] = useState(false);
+  const [bgpOpen, setBgpOpen] = useState(true);
   // A host someone typed in, traced on demand, instead of one of the usual destinations.
+  const [hostMode, setHostMode] = useState(false);
   const [hostText, setHostText] = useState("");
   const [custom, setCustom] = useState<{ id: string; target: string } | null>(null);
   const [traceError, setTraceError] = useState("");
@@ -197,7 +195,11 @@ export default function NetworkPathView({
   async function runTrace() {
     if (running || waiting) return;
     setTraceError("");
-    const typed = hostText.trim();
+    const typed = hostMode ? hostText.trim() : "";
+    if (hostMode && !typed) {
+      setTraceError("Type a host name or a public IP address to trace.");
+      return;
+    }
     // A guest can look but not start work on the Pi; the gate explains that instead of failing.
     if (typed && me.data?.role === "guest") {
       run(() => undefined);
@@ -228,92 +230,116 @@ export default function NetworkPathView({
     }
   }
 
-  const agentName = agents.find((agent) => agent.id === monitorId)?.name ?? trace?.agent.name ?? "the remote agent";
   const destinationName = custom ? custom.target : (destinations.find((item) => item.id === destination)?.label ?? trace?.target.name ?? "HomeNetWatch server");
   const hop = trace?.hops.find((item) => item.ttl === selected) ?? trace?.hops[trace.hops.length - 1];
   const linkName = link === "wired" ? "Wired" : "Wi-Fi";
   const networks = trace?.stats.asn_count || trace?.stats.network_count || 0;
   const ixp = trace?.stats.ixp_count ?? 0;
-  const subtitle = running || waiting || (!custom && pathQ.isLoading)
-    ? `Tracing from ${agentName} to ${destinationName}.`
+  const status = running || waiting || (!custom && pathQ.isLoading)
+    ? "Tracing…"
     : custom && customQ.data?.state === "failed"
       ? `The trace to ${destinationName} did not finish.`
-    : (custom ? customQ.isError : pathQ.isError) || !trace
-      ? "Could not load this path."
-      : trace.hops.length === 0 || !trace.traced_at
-        ? `No traceroute yet from ${agentName} to ${destinationName} on the ${linkName} link.`
-        : `Last traced ${tracedWhen(trace.traced_at)} to ${destinationName}. ${trace.stats.hop_count} hop${trace.stats.hop_count === 1 ? "" : "s"}${
-            networks === 0
-              ? ""
-              : ` across ${networks} network${networks === 1 ? "" : "s"}${ixp ? ` and ${ixp} exchange point${ixp === 1 ? "" : "s"}` : ""}`
-          }.`;
+      : (custom ? customQ.isError : pathQ.isError) || !trace
+        ? "Could not load this path."
+        : trace.hops.length === 0 || !trace.traced_at
+          ? `No traceroute yet on the ${linkName} link.`
+          : `Traced ${tracedWhen(trace.traced_at)}${custom ? ` to ${destinationName}` : ""} · ${trace.stats.hop_count} hop${trace.stats.hop_count === 1 ? "" : "s"}${
+              networks === 0 ? "" : ` · ${networks} network${networks === 1 ? "" : "s"}${ixp ? ` + ${ixp} IXP` : ""}`
+            }`;
+
+  function chooseDestination(value: string) {
+    if (value === HOST_CHOICE) {
+      setHostMode(true);
+      return;
+    }
+    setHostMode(false);
+    setHostText("");
+    setCustom(null);
+    setTraceError("");
+    onDestination(value);
+  }
 
   return (
-    <div className="npv">
-      <div className="npv-titlebar">
-        <div>
+    <div className="npv airwaves aw pv">
+      <div className="aw-top">
+        <header className="aw-head">
           <h1>Path View</h1>
-          <p className="npv-sub">{subtitle}</p>
+          <p className="aw-scanned" role="status">
+            <i aria-hidden="true" />
+            {status}
+          </p>
+        </header>
+
+        <div className="aw-bar">
+          <div className="aw-agent">
+            <SelectMenu className="aw-select" value={monitorId} onChange={(event) => onAgent(event.target.value)} aria-label="Remote agent">
+              {agents.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name}
+                </option>
+              ))}
+            </SelectMenu>
+          </div>
+          <div className="aw-agent">
+            <SelectMenu
+              className="aw-select"
+              value={hostMode ? HOST_CHOICE : destinations.some((item) => item.id === destination) ? destination : "server"}
+              onChange={(event) => chooseDestination(event.target.value)}
+              aria-label="Destination"
+            >
+              {destinations.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+              <option value={HOST_CHOICE}>Type host or IP</option>
+            </SelectMenu>
+          </div>
+          {!hostMode ? (
+            <WaitButton
+              className="aw-scan"
+              busy={running || waiting}
+              disabled={!agentOnline || !monitorId}
+              label="Trace"
+              busyLabel="Tracing"
+              onClick={() => void runTrace()}
+            />
+          ) : null}
         </div>
+
+        {hostMode ? (
+          <div className="aw-bar">
+            <div className="aw-agent">
+              <input
+                className="pv-host"
+                type="text"
+                value={hostText}
+                placeholder="Host name or IP, e.g. cloudflare.com"
+                aria-label="Host name or IP address to trace"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                maxLength={300}
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus
+                onChange={(event) => setHostText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void runTrace();
+                }}
+              />
+            </div>
+            <WaitButton
+              className="aw-scan"
+              busy={running || waiting}
+              disabled={!agentOnline || !monitorId}
+              label="Trace"
+              busyLabel="Tracing"
+              onClick={() => void runTrace()}
+            />
+          </div>
+        ) : null}
       </div>
-      <div className="npv-toolbar">
-        {trace && trace.hops.length > 0 ? <StatCards trace={trace} /> : <span />}
-        <div className="npv-actions">
-          <label className={agentOnline ? "npv-agent" : "npv-agent offline"}>
-            <span className="npv-dot" />
-            <span>
-              <span className="npv-agent-label">Remote agent</span>
-              <SelectMenu className="npv-select" value={monitorId} onChange={(event) => onAgent(event.target.value)} aria-label="Remote agent">
-                {agents.map((agent) => (
-                  <option key={agent.id} value={agent.id}>
-                    {agent.name}
-                  </option>
-                ))}
-              </SelectMenu>
-            </span>
-          </label>
-          <label className="npv-agent">
-            <span>
-              <span className="npv-agent-label">Destination</span>
-              <SelectMenu
-                className="npv-select"
-                value={destinations.some((item) => item.id === destination) ? destination : "server"}
-                onChange={(event) => onDestination(event.target.value)}
-                aria-label="Destination"
-              >
-                {destinations.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </SelectMenu>
-            </span>
-          </label>
-          <input
-            className="npv-host"
-            type="text"
-            value={hostText}
-            placeholder="Trace any host or IP"
-            aria-label="Host name or IP address to trace"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            maxLength={300}
-            onChange={(event) => setHostText(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") void runTrace();
-            }}
-          />
-          <WaitButton
-            busy={running || waiting}
-            disabled={!agentOnline || !monitorId}
-            label="Run trace"
-            busyLabel="Tracing…"
-            icon={<PlayIcon />}
-            onClick={() => void runTrace()}
-          />
-        </div>
-      </div>
+
       {traceError ? (
         <div className="npv-notice silent" role="alert">
           {traceError}
@@ -333,18 +359,14 @@ export default function NetworkPathView({
         </section>
       ) : (
         <>
-          <div className="npv-row npv-pathrow">
-            <PathStrip trace={trace} selected={hop?.ttl ?? null} onSelect={pickHop} group={group} onGroup={pickGroup} />
-            <NetworkDetail trace={trace} group={group == null ? undefined : trace.groups[group]} hop={hop} />
+          <StatCards trace={trace} />
+          <PathStrip trace={trace} selected={hop?.ttl ?? null} onSelect={pickHop} group={group} onGroup={pickGroup} />
+          <div className="pv-lower">
+            <NetworkDetail trace={trace} group={group == null ? undefined : trace.groups[group]} hop={hop} onSelect={pickHop} />
+            <FoldCard title="BGP view" hint="Announced path and RPKI" open={bgpOpen} onToggle={() => setBgpOpen((open) => !open)}>
+              <BgpView trace={trace} headless />
+            </FoldCard>
           </div>
-          <FoldCard
-            title="BGP view"
-            hint="Announced path and RPKI"
-            open={bgpOpen}
-            onToggle={() => setBgpOpen((open) => !open)}
-          >
-            <BgpView trace={trace} headless />
-          </FoldCard>
         </>
       )}
     </div>
@@ -399,16 +421,16 @@ function StatCards({ trace }: { trace: PathTrace }) {
       cls: stats.loss_pct === 0 ? "ok" : "warn",
     },
     {
-      k: "Biggest step",
+      k: "Big step",
       v: stats.biggest_step_ms == null ? "—" : `+${fmt(stats.biggest_step_ms)} ms`,
       title: stats.biggest_step_name ? `entering ${stats.biggest_step_name}` : undefined,
       cls: "warn",
     },
   ];
   return (
-    <div className="npv-stats">
+    <div className="pv-stats">
       {cards.map((card) => (
-        <div key={card.k} className={`npv-stat ${card.cls ?? ""}`} title={card.title}>
+        <div key={card.k} className={`pv-stat ${card.cls ?? ""}${card.k === "Networks" ? " optional" : ""}`} title={card.title}>
           <span className="k">{card.k}</span>
           <span className="v">{card.v}</span>
         </div>
@@ -431,14 +453,10 @@ function PathStrip({
   onGroup: (index: number) => void;
 }) {
   return (
-    <section className="npv-card npv-chartcard">
-      <div className="npv-card-head">
-        <div>
-          <h2>Network path</h2>
-          <p className="npv-hint">
-            Hops grouped by the network that owns them, each bar the latency to that hop. Pick a network or a hop for details. Pills show the latency added at each handoff, in ms.
-          </p>
-        </div>
+    <section className="npv-card pv-path" aria-label="Network path">
+      <div className="pv-path-head">
+        <h2>Network path</h2>
+        <p>Pick a network or a hop for details. Pills show the latency added at each handoff.</p>
         <div className="npv-legend">
           <span>
             <i className="npv-swatch" />
@@ -451,40 +469,39 @@ function PathStrip({
         </div>
       </div>
       <PathFlow trace={trace} selected={selected} onSelect={onSelect} group={group} onGroup={onGroup} />
-      {trace.insight ? (
-        <div className="npv-insight">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--degraded)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="9.5" />
-            <path d="M12 11v5.5" />
-            <circle cx="12" cy="7.6" r="0.6" fill="var(--degraded)" />
-          </svg>
-          <div>{trace.insight}</div>
-        </div>
-      ) : null}
     </section>
   );
 }
 
-/** The chosen network and, under it, the chosen hop. */
-function NetworkDetail({ trace, group, hop }: { trace: PathTrace; group: PathGroup | undefined; hop: PathHop | undefined }) {
-  if (!group) return <aside className="npv-card npv-detail" />;
+/** The chosen network and, under it, the chosen hop, with buttons to step through the hops. */
+function NetworkDetail({
+  trace,
+  group,
+  hop,
+  onSelect,
+}: {
+  trace: PathTrace;
+  group: PathGroup | undefined;
+  hop: PathHop | undefined;
+  onSelect: (ttl: number) => void;
+}) {
+  if (!group) return <aside className="npv-card pv-detail" />;
   const members = group.hop_ttls.map((ttl) => trace.hops.find((item) => item.ttl === ttl)).filter((item): item is PathHop => Boolean(item));
   const times = members.filter((item) => !item.silent && item.avg_ms != null).map((item) => item.avg_ms as number);
   const lo = Math.min(...times);
   const hi = Math.max(...times);
   const range = times.length ? (lo === hi ? `${fmt(lo)} ms` : `${fmt(lo)} to ${fmt(hi)} ms`) : "—";
   const inGroup = hop && group.hop_ttls.includes(hop.ttl) ? hop : undefined;
+  const position = inGroup ? group.hop_ttls.indexOf(inGroup.ttl) : -1;
+  const added = group.delta_in_ms == null ? "—" : `${group.delta_in_ms >= 0 ? "+" : ""}${fmt(group.delta_in_ms)} ms`;
   return (
-    <aside className="npv-card npv-detail" style={{ ["--c" as string]: `var(--role-${group.role})` }}>
-      <div className="npv-sum">
-      <div className="npv-detail-head">
-        <div>
-          <div className="cap">{group.role_label}</div>
-          <div className="ttl">{group.name}</div>
-        </div>
+    <aside className="npv-card pv-detail" style={{ ["--c" as string]: `var(--role-${group.role})` }} aria-label="Selected network">
+      <div className="pv-dhead">
         <span className="npv-asn">{networkLabel(group.asn_label)}</span>
+        <b>{group.name}</b>
+        <span className="pv-role">{group.role_label}</span>
       </div>
-      <div className="npv-tiles">
+      <div className="pv-tiles">
         <div className="npv-tile">
           <span className="k">Hops</span>
           <span className="v">{members.length}</span>
@@ -495,14 +512,37 @@ function NetworkDetail({ trace, group, hop }: { trace: PathTrace; group: PathGro
         </div>
         <div className="npv-tile">
           <span className="k">Added</span>
-          <span className="v">{group.delta_in_ms == null ? "—" : `${group.delta_in_ms >= 0 ? "+" : ""}${fmt(group.delta_in_ms)} ms`}</span>
+          <span className="v">{added}</span>
         </div>
       </div>
-      </div>
       {inGroup ? (
-        <div className="npv-hopcol">
-          <div className="npv-spark-title">Hop {inGroup.ttl}</div>
+        <div className="pv-hop">
+          <div className="pv-hopnav">
+            <button type="button" aria-label="Previous hop" disabled={position <= 0} onClick={() => onSelect(group.hop_ttls[position - 1])}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M15 6l-6 6 6 6" />
+              </svg>
+            </button>
+            <span>
+              Hop {inGroup.ttl} <small>{position + 1} of {group.hop_ttls.length} in this network</small>
+            </span>
+            <button type="button" aria-label="Next hop" disabled={position >= group.hop_ttls.length - 1} onClick={() => onSelect(group.hop_ttls[position + 1])}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+            </button>
+          </div>
           <HopDetail trace={trace} hop={inGroup} headless />
+        </div>
+      ) : null}
+      {trace.insight ? (
+        <div className="pv-insight">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9.5" />
+            <path d="M12 11v5.5" />
+            <circle cx="12" cy="7.6" r="0.6" fill="currentColor" />
+          </svg>
+          <span>{trace.insight}</span>
         </div>
       ) : null}
     </aside>
@@ -530,7 +570,6 @@ function HopDetail({ trace, hop, headless = false }: { trace: PathTrace; hop: Pa
         ["Network", network],
         ["Prefix", dash(hop.prefix), true],
         ["Registry", dash(registry || null)],
-        ["Role", hop.role_label],
         ["Packet loss", hop.loss_pct == null ? "—" : `${fmt(hop.loss_pct, hop.loss_pct % 1 === 0 ? 0 : 1)}%`],
       ];
   const history = (trace.history[String(hop.ttl)] ?? []).filter((value): value is number => value != null);
@@ -557,7 +596,7 @@ function HopDetail({ trace, hop, headless = false }: { trace: PathTrace; hop: Pa
           No reply. This router ignores traceroute probes, which is common and not a fault on its own.
         </div>
       ) : null}
-      <div>
+      <div className="npv-rows">
         {rows.map(([label, value, mono]) => (
           <div className="npv-kv" key={label}>
             <span className="k">{label}</span>

@@ -19,7 +19,7 @@ if ! id monitor >/dev/null 2>&1; then
   useradd --system --home /opt/monitor --shell /usr/sbin/nologin monitor
 fi
 install -d -m 755 /opt/monitor
-install -m 644 agent.py agent_state.py enrollment.py health.py radio.py scheduler.py checks.py kismet_view.py rf_spool.py synthetic.py /opt/monitor/
+install -m 644 agent.py agent_state.py enrollment.py health.py radio.py scheduler.py checks.py kismet_view.py rf_spool.py synthetic.py speedtest.py /opt/monitor/
 if [ -f rtnp-send ]; then
   install -m 755 rtnp-send /opt/monitor/rtnp-send
 fi

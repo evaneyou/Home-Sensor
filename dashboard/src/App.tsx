@@ -22,10 +22,14 @@ import AirwavesClients from "./pages/airwaves/ClientsPage";
 import GuestVisitsPage from "./pages/GuestVisitsPage";
 import InternetServicePage from "./pages/InternetServicePage";
 import SyntheticPage from "./pages/SyntheticPage";
+import TelegramPage from "./pages/TelegramPage";
 import WebServicesPage from "./pages/WebServicesPage";
 import ConnectionDiagramPage from "./pages/ConnectionDiagramPage";
 import TestPage from "./pages/TestPage";
-import UnderConstructionPage from "./pages/UnderConstructionPage";
+import AppFooter from "./components/AppFooter";
+import KpiPage from "./pages/KpiPage";
+import NetworkTestPage from "./pages/NetworkTestPage";
+import SpeedTestPage from "./pages/SpeedTestPage";
 import type { User } from "./types";
 
 function useDarkTheme() {
@@ -83,6 +87,7 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
           {mutation.isPending ? "Signing in…" : "Sign in"}
         </button>
       </form>
+      <AppFooter />
     </div>
   );
 }
@@ -95,7 +100,7 @@ function LegacyMonitorRedirect({ log = false }: { log?: boolean }) {
   return <Navigate to={query ? `${path}?${query}` : path} replace />;
 }
 
-function MenuIcon({ name }: { name: "airwaves" | "issues" | "settings" | "path" | "speed" | "network" | "about" | "logout" }) {
+function MenuIcon({ name }: { name: "airwaves" | "issues" | "settings" | "path" | "speed" | "network" | "kpi" | "about" | "logout" }) {
   return (
     <svg className="menu-icon" viewBox="0 0 24 24" aria-hidden="true">
       {name === "airwaves" ? (
@@ -118,6 +123,12 @@ function MenuIcon({ name }: { name: "airwaves" | "issues" | "settings" | "path" 
           <circle cx="9" cy="7" r="2" />
           <circle cx="15" cy="12" r="2" />
           <circle cx="8" cy="17" r="2" />
+        </>
+      ) : null}
+      {name === "kpi" ? (
+        <>
+          <path d="M5 19V9M12 19V5M19 19v-7" />
+          <path d="M3.5 19.5h17" />
         </>
       ) : null}
       {name === "path" ? (
@@ -299,6 +310,10 @@ function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void })
                 <MenuIcon name="network" />
                 Network Test
               </Link>
+              <Link to="/kpi" role="menuitem" className={loc.pathname === "/kpi" ? "active" : ""}>
+                <MenuIcon name="kpi" />
+                KPI Dashboard
+              </Link>
               <div className="menu-rule" role="separator" />
               {links
                 .filter((l) => l.to !== "/airwaves")
@@ -331,8 +346,9 @@ function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void })
         <Routes>
           <Route path="/" element={<OverviewPage />} />
           <Route path="/path" element={<PathPage />} />
-          <Route path="/speed-test" element={<UnderConstructionPage title="Speed Test" />} />
-          <Route path="/network-test" element={<UnderConstructionPage title="Network Test" />} />
+          <Route path="/speed-test" element={<SpeedTestPage />} />
+          <Route path="/network-test" element={<NetworkTestPage />} />
+          <Route path="/kpi" element={<KpiPage />} />
           <Route path="/airwaves" element={<AirwavesLayout />}>
             <Route index element={<AirwavesOverview />} />
             <Route path="networks" element={<AirwavesNetworks />} />
@@ -355,12 +371,14 @@ function Shell({ role, onLogout }: { role: User["role"]; onLogout: () => void })
             <Route path="internet-service" element={<InternetServicePage />} />
             <Route path="synthetic" element={<SyntheticPage />} />
             <Route path="web-services" element={<WebServicesPage />} />
+            <Route path="telegram" element={<TelegramPage />} />
             <Route path="guest-visits" element={<GuestVisitsPage />} />
             <Route path="agents/:id" element={<RemoteAgentPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
+      <AppFooter />
       </div>
     </GuestGate>
   );

@@ -143,8 +143,12 @@ export const api = {
       headers: csrfHeaders(csrf),
       body: JSON.stringify(setting),
     }),
-  guestVisits: () => request("/api/v1/settings/guest-visits"),
-  guestVisitSummary: () => request("/api/v1/settings/guest-visits/summary"),
+  guestVisits: (query: { limit: number; before?: string; range: string }) => {
+    const q = new URLSearchParams({ limit: String(query.limit), range: query.range });
+    if (query.before) q.set("before", query.before);
+    return request(`/api/v1/settings/guest-visits?${q.toString()}`);
+  },
+  guestVisitSummary: (range: string) => request(`/api/v1/settings/guest-visits/summary?range=${encodeURIComponent(range)}`),
   internetService: () => request("/api/v1/settings/internet-service"),
   saveInternetService: (setting: InternetServiceSetting, csrf: string) =>
     request("/api/v1/settings/internet-service", {
@@ -178,6 +182,48 @@ export const api = {
     request<RfChannelSnapshot>(
       `/api/v1/rf/channel-snapshot?agent_id=${agentId}&band=${encodeURIComponent(band)}`,
     ),
+  stressCatalog: () => request("/api/v1/stress/catalog"),
+  stressActive: (monitorId: string) => request(`/api/v1/stress/active?monitor_id=${monitorId}`),
+  stressStart: (
+    body: { monitor_id: string; links: string[]; duration_seconds: number; sessions: { kind: string; params: Record<string, unknown>; count: number }[] },
+    csrf: string,
+  ) => request("/api/v1/stress", { method: "POST", headers: csrfHeaders(csrf), body: JSON.stringify(body) }),
+  stressAdd: (id: string, body: { kind: string; params: Record<string, unknown>; count: number }, csrf: string) =>
+    request(`/api/v1/stress/${id}/sessions`, { method: "POST", headers: csrfHeaders(csrf), body: JSON.stringify(body) }),
+  stressRemove: (id: string, sessionId: string, csrf: string) =>
+    request(`/api/v1/stress/${id}/sessions/${sessionId}`, { method: "DELETE", headers: csrfHeaders(csrf) }),
+  stressStop: (id: string, csrf: string) => request(`/api/v1/stress/${id}/stop`, { method: "POST", headers: csrfHeaders(csrf) }),
+  stressLive: (id: string, since?: string) =>
+    request(`/api/v1/stress/${id}/live${since ? `?since=${encodeURIComponent(since)}` : ""}`),
+  telegram: () => request("/api/v1/settings/telegram"),
+  telegramEvents: () => request("/api/v1/settings/telegram/events"),
+  telegramSave: (
+    body: {
+      token?: string;
+      chat_id: string;
+      enabled: boolean;
+      notify_network: boolean;
+      notify_pi: boolean;
+      notify_server: boolean;
+      notify_app: boolean;
+      notify_recovery: boolean;
+    },
+    csrf: string,
+  ) => request("/api/v1/settings/telegram", { method: "PUT", headers: csrfHeaders(csrf), body: JSON.stringify(body) }),
+  telegramTest: (csrf: string) => request("/api/v1/settings/telegram/test", { method: "POST", headers: csrfHeaders(csrf) }),
+  telegramDetect: (token: string | undefined, csrf: string) =>
+    request("/api/v1/settings/telegram/detect", { method: "POST", headers: csrfHeaders(csrf), body: JSON.stringify({ token }) }),
+  telegramDisconnect: (csrf: string) => request("/api/v1/settings/telegram", { method: "DELETE", headers: csrfHeaders(csrf) }),
+  kpi: (period: string, day?: string) =>
+    request(`/api/v1/kpi?period=${encodeURIComponent(period)}${day ? `&day=${encodeURIComponent(day)}` : ""}`),
+  kpiDaily: (first: string, last: string) =>
+    request(`/api/v1/kpi/daily?from=${encodeURIComponent(first)}&to=${encodeURIComponent(last)}&limit=1000`),
+  speedtestStart: (body: { monitor_id: string; link: string }, csrf: string) =>
+    request("/api/v1/speedtest", { method: "POST", headers: csrfHeaders(csrf), body: JSON.stringify(body) }),
+  speedtestRead: (id: string, since: number) => request(`/api/v1/speedtest/${id}?since=${since}`),
+  speedtestActive: (monitorId: string) => request(`/api/v1/speedtest/active?monitor_id=${monitorId}`),
+  speedtestHistory: (monitorId: string) => request(`/api/v1/speedtest/history?monitor_id=${monitorId}&limit=8`),
+  speedtestCancel: (id: string, csrf: string) => request(`/api/v1/speedtest/${id}/cancel`, { method: "POST", headers: csrfHeaders(csrf) }),
   rfScanNow: (agentId: string, csrf: string) =>
     request(`/api/v1/rf/scan-now?agent_id=${agentId}`, { method: "POST", headers: csrfHeaders(csrf) }),
   rfTrust: (agentId: string, bssid: string, trusted: boolean, csrf: string) =>

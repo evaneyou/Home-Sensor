@@ -33,6 +33,7 @@ export default function AirwavesChannels() {
 
 function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirContext }) {
   const [hover, setHover] = useState<number | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const shown = snapshot.series.slice(0, 12);
   const advice = ctx.overview?.bands.find((item) => item.band === snapshot.band);
   const recommended = advice?.recommended_channel ?? snapshot.recommended_channel;
@@ -59,8 +60,8 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
   }));
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <section className="npv-card air-rec">
+    <div className="aw-channels">
+      <section className="aw-card air-rec aw-rec">
         <div className="air-rec-copy">
           <div className="air-rec-icon" aria-hidden="true">
             <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#0d1220" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -83,7 +84,7 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
         </div>
       </section>
 
-      <section className="npv-card">
+      <section className="aw-card aw-graph">
         <div className="npv-card-head">
           <h2>Channel graph</h2>
           <p className="npv-hint">
@@ -152,10 +153,10 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
         </div>
       </section>
 
-      <section className="npv-card">
+      <section className="aw-card aw-nets-card">
         <h2>Networks in range</h2>
         <div className="air-nets">
-          {hills.map((hill, index) => {
+          {(showAll ? hills : hills.slice(0, 4)).map((hill, index) => {
             const on = hover === index;
             const dim = hover !== null && !on;
             return (
@@ -183,6 +184,11 @@ function ChannelView({ snapshot, ctx }: { snapshot: RfChannelSnapshot; ctx: AirC
             );
           })}
         </div>
+        {hills.length > 4 ? (
+          <button className="air-text-btn aw-see-all" type="button" onClick={() => setShowAll((value) => !value)}>
+            {showAll ? "Show fewer" : `See all ${hills.length}`}
+          </button>
+        ) : null}
       </section>
     </div>
   );
@@ -208,7 +214,7 @@ function AxisLabel({ x, y, text }: { x: number; y: number; text: string }) {
 
 function Empty({ title, body }: { title: string; body: string }) {
   return (
-    <section className="npv-card air-empty">
+    <section className="aw-card air-empty">
       <div className="air-mark">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#5eead4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M2 12c2-5 4-5 6 0s4 5 6 0 4-5 6 0" />

@@ -1835,3 +1835,40 @@ h3 {
     grid-template-columns: 1fr;
   }
 }
+
+/* What this means for an enterprise */
+.outcomes-list {
+  margin: 0 0 8px;
+  gap: 10px;
+}
+
+.outcomes-list li {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+/* Copyright notice, last thing on the page */
+.foot-legal {
+  display: grid;
+  gap: 4px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.foot-legal p {
+  margin: 0;
+}
+
+.foot-legal .copyright {
+  color: var(--soft);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.foot-legal a {
+  margin-left: 0;
+  text-decoration: underline;
+}
